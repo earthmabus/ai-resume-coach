@@ -7,6 +7,15 @@ on:
       - main
     paths:
       - "infra/**"
+      - "src/**"
+      - "frontend/**"
+      - "lambda_layer/**"
+      - ".github/workflows/terraform.yml"
+
+env:
+  AWS_REGION: us-east-1
+  AWS_ROLE_ARN: arn:aws:iam::940827434048:role/GitHubActionsTerraformRole-ai-resume-coach
+  FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
 
 permissions:
   id-token: write
@@ -14,6 +23,7 @@ permissions:
 
 jobs:
   terraform:
+    name: Terraform Plan and Apply
     runs-on: ubuntu-latest
 
     defaults:
@@ -21,16 +31,20 @@ jobs:
         working-directory: infra
 
     steps:
-      - uses: actions/checkout@v4
+      - name: Checkout repository
+        uses: actions/checkout@v4
 
-      - uses: aws-actions/configure-aws-credentials@v4
+      - name: Configure AWS credentials using OIDC
+        uses: aws-actions/configure-aws-credentials@v4
         with:
-          role-to-assume: arn:aws:iam::940827434048:role/GitHubActionsTerraformRole-ai-resume-coach
-          aws-region: us-east-1
+          role-to-assume: ${{ env.AWS_ROLE_ARN }}
+          aws-region: ${{ env.AWS_REGION }}
 
-      - uses: hashicorp/setup-terraform@v3
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
 
       - name: Build PDF Lambda layer
+        working-directory: ${{ github.workspace }}
         run: |
           rm -rf lambda_layer/build
           mkdir -p lambda_layer/build/python
