@@ -1,4 +1,4 @@
-const API_BASE_URL = "REPLACE_WITH_API_ENDPOINT";
+const API_BASE_URL = "https://7fyb8rvs84.execute-api.us-east-1.amazonaws.com";
 
 const button = document.getElementById("analyzeButton");
 const textarea = document.getElementById("resumeText");
