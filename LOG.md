@@ -26,12 +26,12 @@ Created GitHub Repo
 * Created Deploy Role (GitHubActionsDeployRole)
 * Created Terraform Role (GitHubActionsTerraformRole-ai-resume-coach)
 * Created Test AWS Access Workflow
-** .github/workflows/test-aws.yml
+  * .github/workflows/test-aws.yml
 * Created Terraform Deployment Workflow
-** .github/workflows/terraform.yml
-*** Added Init, Validate, Plan, and Apply stages
+  * .github/workflows/terraform.yml
+    * Added Init, Validate, Plan, and Apply stages
 * Created Initial Infrastructure - Lambda (ai-resume-coach-dev-api)
-** Lambda Execution Role - attached AWSLambdaBasicExecutionRole
+  * Lambda Execution Role - attached AWSLambdaBasicExecutionRole
 * Created Initial Infrastructure - API Gateway 
 ** GET /health
 ** GET /version
