@@ -1,7 +1,6 @@
 import os
 
 from providers.rule_based import RuleBasedProvider
-from providers.openai_provider import OpenAIProvider
 
 
 def get_analysis_provider():
@@ -11,6 +10,7 @@ def get_analysis_provider():
         return RuleBasedProvider()
 
     if provider_name == "openai":
+        from providers.openai_provider import OpenAIProvider
         return OpenAIProvider()
 
     raise ValueError(f"Unsupported analysis provider: {provider_name}")

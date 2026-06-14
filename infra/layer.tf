@@ -9,7 +9,13 @@ resource "null_resource" "pdf_layer_build" {
       rm -rf ${path.module}/../lambda_layer/build
       mkdir -p ${path.module}/../lambda_layer/build/python
       python -m pip install --upgrade pip
-      python -m pip install -r ${path.module}/../lambda_layer/requirements.txt -t ${path.module}/../lambda_layer/build/python
+      python -m pip install \
+        --platform manylinux2014_x86_64 \
+        --implementation cp \
+        --python-version 3.13 \
+        --only-binary=:all: \
+        -r ${path.module}/../lambda_layer/requirements.txt \
+        -t ${path.module}/../lambda_layer/build/python
     EOT
   }
 }
