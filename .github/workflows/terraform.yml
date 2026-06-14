@@ -30,6 +30,13 @@ jobs:
 
       - uses: hashicorp/setup-terraform@v3
 
+      - name: Build PDF Lambda layer
+        run: |
+          rm -rf lambda_layer/build
+          mkdir -p lambda_layer/build/python
+          python -m pip install --upgrade pip
+          python -m pip install -r lambda_layer/requirements.txt -t lambda_layer/build/python
+
       - name: Terraform Init
         run: terraform init
 
