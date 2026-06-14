@@ -13,8 +13,12 @@ resource "aws_lambda_function" "api" {
   filename         = data.archive_file.lambda_zip.output_path
   source_code_hash = data.archive_file.lambda_zip.output_base64sha256
 
-  timeout     = 10
-  memory_size = 128
+  layers = [
+    aws_lambda_layer_version.pdf_dependencies.arn
+  ]
+
+  timeout     = 30
+  memory_size = 256
 
   environment {
     variables = {
@@ -26,10 +30,3 @@ resource "aws_lambda_function" "api" {
     }
   }
 }
-
-layers = [
-  aws_lambda_layer_version.pdf_dependencies.arn
-]
-
-timeout     = 30
-memory_size = 256
