@@ -13,5 +13,8 @@ override.tf.json
 terraform.rc
 
 # Terraform generated artifacts
-infra/lambda.zip
 *.zip
+lambda_layer/build
+
+infra/lambda.zip
+infra/pdf_layer.zip

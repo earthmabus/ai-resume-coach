@@ -3,8 +3,10 @@ import os
 import uuid
 from datetime import datetime, timezone
 from decimal import Decimal
+from io import BytesIO
 
 import boto3
+from pypdf import PdfReader
 
 
 dynamodb = boto3.resource("dynamodb")
@@ -41,19 +43,25 @@ def parse_body(event):
 
 
 def health():
-    return build_response(200, {
-        "status": "ok",
-        "project": os.getenv("PROJECT_NAME", "ai-resume-coach"),
-        "timestamp": datetime.now(timezone.utc).isoformat(),
-    })
+    return build_response(
+        200,
+        {
+            "status": "ok",
+            "project": os.getenv("PROJECT_NAME", "ai-resume-coach"),
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        },
+    )
 
 
 def version():
-    return build_response(200, {
-        "application": os.getenv("PROJECT_NAME", "ai-resume-coach"),
-        "version": os.getenv("APP_VERSION", "0.1.0"),
-        "environment": os.getenv("ENVIRONMENT", "dev"),
-    })
+    return build_response(
+        200,
+        {
+            "application": os.getenv("PROJECT_NAME", "ai-resume-coach"),
+            "version": os.getenv("APP_VERSION", "0.1.0"),
+            "environment": os.getenv("ENVIRONMENT", "dev"),
+        },
+    )
 
 
 def build_rule_based_analysis(resume_text):
@@ -76,9 +84,48 @@ def build_rule_based_analysis(resume_text):
     return score, word_count, strengths, recommendations
 
 
-def save_analysis(item):
+def analyze_and_save_resume(
+    resume_text,
+    source_type,
+    document_bucket_name="",
+    document_key="",
+    file_name="",
+):
+    resume_text = (resume_text or "").strip()
+
+    if not resume_text:
+        return build_response(
+            400,
+            {
+                "error": "No resume text could be analyzed",
+                "sourceType": source_type,
+            },
+        )
+
+    analysis_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    score, word_count, strengths, recommendations = build_rule_based_analysis(resume_text)
+
+    item = {
+        "analysisId": analysis_id,
+        "createdAt": created_at,
+        "sourceType": source_type,
+        "status": "completed",
+        "analysisVersion": "rule-based-v1",
+        "score": score,
+        "wordCount": word_count,
+        "originalText": resume_text,
+        "strengths": strengths,
+        "recommendations": recommendations,
+        "documentBucket": document_bucket_name,
+        "documentKey": document_key,
+        "fileName": file_name,
+    }
+
     table.put_item(Item=item)
-    return item
+
+    return build_response(200, item)
 
 
 def analyze_resume(event):
@@ -92,29 +139,10 @@ def analyze_resume(event):
     if not resume_text:
         return build_response(400, {"error": "resumeText is required"})
 
-    analysis_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
-    score, word_count, strengths, recommendations = build_rule_based_analysis(resume_text)
-
-    item = {
-        "analysisId": analysis_id,
-        "createdAt": created_at,
-        "sourceType": "text",
-        "status": "completed",
-        "analysisVersion": "rule-based-v1",
-        "score": score,
-        "wordCount": word_count,
-        "originalText": resume_text,
-        "strengths": strengths,
-        "recommendations": recommendations,
-        "documentBucket": "",
-        "documentKey": "",
-        "fileName": "",
-    }
-
-    save_analysis(item)
-
-    return build_response(200, item)
+    return analyze_and_save_resume(
+        resume_text=resume_text,
+        source_type="text",
+    )
 
 
 def create_resume_upload_url(event):
@@ -130,7 +158,10 @@ def create_resume_upload_url(event):
         return build_response(400, {"error": "fileName is required"})
 
     if content_type != "application/pdf":
-        return build_response(400, {"error": "Only application/pdf uploads are currently supported"})
+        return build_response(
+            400,
+            {"error": "Only application/pdf uploads are currently supported"},
+        )
 
     upload_id = str(uuid.uuid4())
     document_key = f"uploads/{upload_id}/{file_name}"
@@ -145,15 +176,31 @@ def create_resume_upload_url(event):
         ExpiresIn=900,
     )
 
-    return build_response(200, {
-        "uploadId": upload_id,
-        "uploadUrl": upload_url,
-        "documentBucket": document_bucket,
-        "documentKey": document_key,
-        "fileName": file_name,
-        "contentType": content_type,
-        "expiresInSeconds": 900,
-    })
+    return build_response(
+        200,
+        {
+            "uploadId": upload_id,
+            "uploadUrl": upload_url,
+            "documentBucket": document_bucket,
+            "documentKey": document_key,
+            "fileName": file_name,
+            "contentType": content_type,
+            "expiresInSeconds": 900,
+        },
+    )
+
+
+def extract_text_from_pdf(bucket, key):
+    response = s3.get_object(Bucket=bucket, Key=key)
+    pdf_bytes = response["Body"].read()
+
+    reader = PdfReader(BytesIO(pdf_bytes))
+    extracted_pages = []
+
+    for page in reader.pages:
+        extracted_pages.append(page.extract_text() or "")
+
+    return "\n".join(extracted_pages).strip()
 
 
 def analyze_uploaded_resume(event):
@@ -164,44 +211,32 @@ def analyze_uploaded_resume(event):
 
     document_key = body.get("documentKey", "").strip()
     file_name = body.get("fileName", "").strip()
+    bucket_name = body.get("documentBucket", document_bucket).strip()
 
     if not document_key:
         return build_response(400, {"error": "documentKey is required"})
 
-    analysis_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
+    try:
+        extracted_text = extract_text_from_pdf(bucket_name, document_key)
+    except Exception as error:
+        return build_response(
+            500,
+            {
+                "error": "Failed to extract text from PDF",
+                "details": str(error),
+                "documentBucket": bucket_name,
+                "documentKey": document_key,
+                "fileName": file_name,
+            },
+        )
 
-    strengths = [
-        "PDF resume was uploaded successfully",
-        "Document metadata was captured for future AI analysis",
-        "Architecture supports future text extraction and LLM-based analysis",
-    ]
-
-    recommendations = [
-        "Add PDF text extraction in a future phase using Amazon Textract or a Lambda-compatible parser.",
-        "Store extracted resume text in DynamoDB or S3 depending on size and privacy requirements.",
-        "Replace placeholder scoring with AI-powered resume analysis.",
-    ]
-
-    item = {
-        "analysisId": analysis_id,
-        "createdAt": created_at,
-        "sourceType": "pdf",
-        "status": "uploaded",
-        "analysisVersion": "pdf-upload-v1",
-        "score": 0,
-        "wordCount": 0,
-        "originalText": "",
-        "strengths": strengths,
-        "recommendations": recommendations,
-        "documentBucket": document_bucket,
-        "documentKey": document_key,
-        "fileName": file_name,
-    }
-
-    save_analysis(item)
-
-    return build_response(200, item)
+    return analyze_and_save_resume(
+        resume_text=extracted_text,
+        source_type="pdf",
+        document_bucket_name=bucket_name,
+        document_key=document_key,
+        file_name=file_name,
+    )
 
 
 def list_analyses():

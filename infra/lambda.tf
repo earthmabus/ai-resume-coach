@@ -26,3 +26,10 @@ resource "aws_lambda_function" "api" {
     }
   }
 }
+
+layers = [
+  aws_lambda_layer_version.pdf_dependencies.arn
+]
+
+timeout     = 30
+memory_size = 256

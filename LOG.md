@@ -37,7 +37,7 @@ Created GitHub Repo
 ** GET /version
 ** POST /analyze-resume
 
-Phase 1
+Phase 1 - Basic Infrastructure
 * Save state for terraform IaC
   * ```aws s3api create-bucket --bucket earthmabus-ai-resume-coach-tfstate-940827434048 --region us-east-1
   aws s3api put-bucket-versioning --bucket earthmabus-ai-resume-coach-tfstate-940827434048 --versioning-configuration Status=Enabled
@@ -48,7 +48,6 @@ Phase 1
   * TODO remove the hardcoding of backend endpoint in app.js to "https://7fyb8rvs84.execute-api.us-east-1.amazonaws.com"
   * Accessible via http://ai-resume-coach-dev-frontend-940827434048.s3-website-us-east-1.amazonaws.com
 
-Phase 2
+Phase 2 - Accept and Persist Resume (as text or document)
 * Added the ability to persist resume text into a DynamoDB (ResumeAnalysis table) to store resume updates for future analysis
-  * Currently supports text only copies of the resume
-  * Note: Added a few extra fields (documentBucket, documenKey, fileName) to the table in anticipation of allowing pdfs to be uploaded
+  * Note: Fields (documentBucket, documenKey, fileName) are associated with allowing pdfs to be uploaded

@@ -17,7 +17,23 @@ The initial implementation focuses on establishing a secure, automated deploymen
 
 ### Current Architecture
 
-Client
+                 +----------------+
+                 |  Static Site   |
+                 |      S3        |
+                 +--------+-------+
+                          |
+                          |
+                    API Gateway
+                          |
+                          |
+                    AWS Lambda
+                    /        \
+                   /          \
+                  /            \
+           DynamoDB        S3 Documents
+        ResumeAnalysis      PDF Uploads
+
+Client - Upload resume as text
 
 ↓
 
@@ -33,11 +49,20 @@ AWS Lambda (ai-resume-coach-dev-api)
 
 ↓
 
-DynamoDB
+DynamoDB (ai-resume-coach-dev-resume-analysis)
+
+Client - Upload resume as PDF
 
 ↓
 
-Amazon CloudWatch Logs
+Presigned URL
+
+↓
+
+S3 Document Bucket (ai-resume-coach-dev-documents-940827434048)
+↓
+
+DynamoDB (ai-resume-coach-dev-resume-analysis)
 
 ### Planned Architecture
 
