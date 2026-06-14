@@ -34,6 +34,18 @@ resource "aws_apigatewayv2_route" "analyze_resume_route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
 
+resource "aws_apigatewayv2_route" "list_analyses_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /analyses"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_analysis_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /analysis/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http_api.id
   name        = "$default"

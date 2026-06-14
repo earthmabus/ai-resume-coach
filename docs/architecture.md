@@ -29,7 +29,11 @@ Amazon API Gateway
 
 ↓
 
-AWS Lambda
+AWS Lambda (ai-resume-coach-dev-api)
+
+↓
+
+DynamoDB
 
 ↓
 
@@ -147,10 +151,14 @@ Returns resume analysis results.
 
 ## Future Enhancements
 
-* AI-powered resume analysis
-* Interview preparation recommendations
-* Resume scoring engine
-* Historical analysis storage
-* User authentication
-* Multi-model AI support
+* Phase 2
+  * AI-powered resume analysis
+* Phase 3
+  * Resume scoring engine
+  * Interview preparation recommendations
+* Phase 4
+  * Multi-model AI support
+* Phase 5
+  * User authentication
+  * Historical analysis storage
 

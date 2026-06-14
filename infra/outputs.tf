@@ -22,3 +22,8 @@ output "frontend_website_endpoint" {
   description = "S3 static website endpoint."
   value       = aws_s3_bucket_website_configuration.frontend.website_endpoint
 }
+
+output "resume_analysis_table_name" {
+  description = "DynamoDB table storing resume analyses."
+  value       = aws_dynamodb_table.resume_analysis.name
+}
