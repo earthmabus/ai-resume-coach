@@ -12,3 +12,13 @@ output "lambda_function_name" {
   description = "Lambda function name."
   value       = aws_lambda_function.api.function_name
 }
+
+output "frontend_bucket_name" {
+  description = "S3 bucket hosting the frontend website."
+  value       = aws_s3_bucket.frontend.bucket
+}
+
+output "frontend_website_endpoint" {
+  description = "S3 static website endpoint."
+  value       = aws_s3_bucket_website_configuration.frontend.website_endpoint
+}
