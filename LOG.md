@@ -45,4 +45,5 @@ Extended GitHub Repo
   aws dynamodb create-table --table-name ai-resume-coach-terraform-locks --attribute-definitions AttributeName=LockID,AttributeType=S --key-schema AttributeName=LockID,KeyType=HASH --billing-mode PAY_PER_REQUEST --region us-east-1```
 * Created a frontend
   * Added an S3 bucket for the static frontend code
-  * TODO remove the hardcoding of backend endpoint in app.js to "https://7fyb8rvs84.execute-api.us-east-1.amazonaws.com";
+  * TODO remove the hardcoding of backend endpoint in app.js to "https://7fyb8rvs84.execute-api.us-east-1.amazonaws.com"
+  * Accessible via http://ai-resume-coach-dev-frontend-940827434048.s3-website-us-east-1.amazonaws.com
