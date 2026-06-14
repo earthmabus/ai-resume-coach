@@ -10,6 +10,9 @@ import boto3
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
 
+s3 = boto3.client("s3")
+document_bucket = os.getenv("DOCUMENT_BUCKET")
+
 
 def json_default(value):
     if isinstance(value, Decimal):
@@ -53,19 +56,7 @@ def version():
     })
 
 
-def analyze_resume(event):
-    body = parse_body(event)
-
-    if body is None:
-        return build_response(400, {"error": "Invalid JSON body"})
-
-    resume_text = body.get("resumeText", "").strip()
-
-    if not resume_text:
-        return build_response(400, {"error": "resumeText is required"})
-
-    analysis_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
+def build_rule_based_analysis(resume_text):
     word_count = len(resume_text.split())
 
     strengths = [
@@ -82,10 +73,33 @@ def analyze_resume(event):
 
     score = min(95, max(60, 70 + min(word_count // 25, 20)))
 
+    return score, word_count, strengths, recommendations
+
+
+def save_analysis(item):
+    table.put_item(Item=item)
+    return item
+
+
+def analyze_resume(event):
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    resume_text = body.get("resumeText", "").strip()
+
+    if not resume_text:
+        return build_response(400, {"error": "resumeText is required"})
+
+    analysis_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+    score, word_count, strengths, recommendations = build_rule_based_analysis(resume_text)
+
     item = {
         "analysisId": analysis_id,
         "createdAt": created_at,
-        "sourceType": body.get("sourceType", "text"),
+        "sourceType": "text",
         "status": "completed",
         "analysisVersion": "rule-based-v1",
         "score": score,
@@ -93,32 +107,107 @@ def analyze_resume(event):
         "originalText": resume_text,
         "strengths": strengths,
         "recommendations": recommendations,
-        "documentBucket": body.get("documentBucket", ""),
-        "documentKey": body.get("documentKey", ""),
-        "fileName": body.get("fileName", ""),
+        "documentBucket": "",
+        "documentKey": "",
+        "fileName": "",
     }
 
-    table.put_item(Item=item)
+    save_analysis(item)
+
+    return build_response(200, item)
+
+
+def create_resume_upload_url(event):
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    file_name = body.get("fileName", "").strip()
+    content_type = body.get("contentType", "application/pdf").strip()
+
+    if not file_name:
+        return build_response(400, {"error": "fileName is required"})
+
+    if content_type != "application/pdf":
+        return build_response(400, {"error": "Only application/pdf uploads are currently supported"})
+
+    upload_id = str(uuid.uuid4())
+    document_key = f"uploads/{upload_id}/{file_name}"
+
+    upload_url = s3.generate_presigned_url(
+        ClientMethod="put_object",
+        Params={
+            "Bucket": document_bucket,
+            "Key": document_key,
+            "ContentType": content_type,
+        },
+        ExpiresIn=900,
+    )
 
     return build_response(200, {
+        "uploadId": upload_id,
+        "uploadUrl": upload_url,
+        "documentBucket": document_bucket,
+        "documentKey": document_key,
+        "fileName": file_name,
+        "contentType": content_type,
+        "expiresInSeconds": 900,
+    })
+
+
+def analyze_uploaded_resume(event):
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    document_key = body.get("documentKey", "").strip()
+    file_name = body.get("fileName", "").strip()
+
+    if not document_key:
+        return build_response(400, {"error": "documentKey is required"})
+
+    analysis_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    strengths = [
+        "PDF resume was uploaded successfully",
+        "Document metadata was captured for future AI analysis",
+        "Architecture supports future text extraction and LLM-based analysis",
+    ]
+
+    recommendations = [
+        "Add PDF text extraction in a future phase using Amazon Textract or a Lambda-compatible parser.",
+        "Store extracted resume text in DynamoDB or S3 depending on size and privacy requirements.",
+        "Replace placeholder scoring with AI-powered resume analysis.",
+    ]
+
+    item = {
         "analysisId": analysis_id,
         "createdAt": created_at,
-        "overallScore": score,
-        "wordCount": word_count,
-        "sourceType": item["sourceType"],
-        "status": item["status"],
-        "analysisVersion": item["analysisVersion"],
+        "sourceType": "pdf",
+        "status": "uploaded",
+        "analysisVersion": "pdf-upload-v1",
+        "score": 0,
+        "wordCount": 0,
+        "originalText": "",
         "strengths": strengths,
         "recommendations": recommendations,
-    })
+        "documentBucket": document_bucket,
+        "documentKey": document_key,
+        "fileName": file_name,
+    }
+
+    save_analysis(item)
+
+    return build_response(200, item)
 
 
 def list_analyses():
     response = table.scan(
         ProjectionExpression="analysisId, createdAt, sourceType, #s, score, wordCount, fileName",
-        ExpressionAttributeNames={
-            "#s": "status"
-        }
+        ExpressionAttributeNames={"#s": "status"},
     )
 
     analyses = sorted(
@@ -156,6 +245,12 @@ def lambda_handler(event, context):
 
     if route == "POST /analyze-resume":
         return analyze_resume(event)
+
+    if route == "POST /resume-upload-url":
+        return create_resume_upload_url(event)
+
+    if route == "POST /analyze-uploaded-resume":
+        return analyze_uploaded_resume(event)
 
     if route == "GET /analyses":
         return list_analyses()

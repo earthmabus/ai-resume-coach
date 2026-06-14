@@ -46,6 +46,18 @@ resource "aws_apigatewayv2_route" "get_analysis_route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
 
+resource "aws_apigatewayv2_route" "resume_upload_url_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "POST /resume-upload-url"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "analyze_uploaded_resume_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "POST /analyze-uploaded-resume"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http_api.id
   name        = "$default"

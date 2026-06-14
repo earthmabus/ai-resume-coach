@@ -10,16 +10,37 @@
   <main class="container">
     <section class="hero">
       <h1>AI Resume Coach</h1>
-      <p>Analyze resume content and receive leadership-focused improvement recommendations.</p>
+      <p>Analyze resume content, upload PDFs, and review past analysis results.</p>
+    </section>
+
+    <section class="grid">
+      <section class="card">
+        <h2>Analyze Resume Text</h2>
+        <label for="resumeText">Resume text</label>
+        <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
+        <button id="analyzeButton">Analyze Text</button>
+      </section>
+
+      <section class="card">
+        <h2>Upload Resume PDF</h2>
+        <label for="resumeFile">PDF file</label>
+        <input id="resumeFile" type="file" accept="application/pdf" />
+        <button id="uploadButton">Upload PDF</button>
+        <p class="hint">PDF text extraction will be added in a future phase. This phase saves the file and analysis metadata.</p>
+      </section>
     </section>
 
     <section class="card">
-      <label for="resumeText">Resume text</label>
-      <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
+      <h2>Latest Result</h2>
+      <div id="result" class="result">Results will appear here.</div>
+    </section>
 
-      <button id="analyzeButton">Analyze Resume</button>
-
-      <pre id="result">Results will appear here.</pre>
+    <section class="card">
+      <div class="section-header">
+        <h2>Analysis History</h2>
+        <button id="refreshHistoryButton">Refresh History</button>
+      </div>
+      <div id="history" class="history">No history loaded.</div>
     </section>
   </main>
 

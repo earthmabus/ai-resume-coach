@@ -39,3 +39,22 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
     ]
   })
 }
+
+resource "aws_iam_role_policy" "lambda_document_bucket_access" {
+  name = "${local.name_prefix}-lambda-document-bucket-access"
+  role = aws_iam_role.lambda_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "s3:PutObject",
+          "s3:GetObject"
+        ]
+        Resource = "${aws_s3_bucket.documents.arn}/*"
+      }
+    ]
+  })
+}

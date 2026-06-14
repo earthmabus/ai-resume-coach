@@ -27,3 +27,8 @@ output "resume_analysis_table_name" {
   description = "DynamoDB table storing resume analyses."
   value       = aws_dynamodb_table.resume_analysis.name
 }
+
+output "document_bucket_name" {
+  description = "S3 bucket storing uploaded resume documents."
+  value       = aws_s3_bucket.documents.bucket
+}

@@ -22,6 +22,7 @@ resource "aws_lambda_function" "api" {
       ENVIRONMENT           = var.environment
       APP_VERSION           = "0.1.0"
       RESUME_ANALYSIS_TABLE = aws_dynamodb_table.resume_analysis.name
+      DOCUMENT_BUCKET       = aws_s3_bucket.documents.bucket
     }
   }
 }
