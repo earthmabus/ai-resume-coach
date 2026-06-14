@@ -99,13 +99,21 @@ def analyze_and_save_resume(
         "sourceType": source_type,
         "status": "completed",
         "provider": analysis_result["provider"],
+        "model": analysis_result.get("model", ""),
         "analysisVersion": analysis_result["analysisVersion"],
         "analysisDurationMs": analysis_duration_ms,
         "score": analysis_result["score"],
+        "leadershipScore": analysis_result.get("leadershipScore", 0),
+        "technicalScore": analysis_result.get("technicalScore", 0),
+        "architectureScore": analysis_result.get("architectureScore", 0),
+        "atsScore": analysis_result.get("atsScore", 0),
         "wordCount": analysis_result["wordCount"],
         "resumeText": resume_text,
         "strengths": analysis_result["strengths"],
         "recommendations": analysis_result["recommendations"],
+        "leadershipGaps": analysis_result.get("leadershipGaps", []),
+        "technicalGaps": analysis_result.get("technicalGaps", []),
+        "executiveSummary": analysis_result.get("executiveSummary", ""),
         "documentBucket": document_bucket_name,
         "documentKey": document_key,
         "fileName": file_name,
@@ -229,7 +237,7 @@ def analyze_uploaded_resume(event):
 
 def list_analyses():
     response = table.scan(
-        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, wordCount, fileName, provider, analysisVersion, analysisDurationMs",
+        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, leadershipScore, technicalScore, architectureScore, atsScore, wordCount, fileName, provider, model, analysisVersion, analysisDurationMs",
         ExpressionAttributeNames={"#s": "status"},
     )
 

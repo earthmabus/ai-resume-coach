@@ -11,6 +11,8 @@ override.tf.json
 *_override.tf.json
 .terraformrc
 terraform.rc
+*.tfvars
+!*.tfvars.example
 
 # Terraform generated artifacts
 *.zip

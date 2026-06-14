@@ -15,3 +15,22 @@ variable "environment" {
   type        = string
   default     = "dev"
 }
+
+variable "analysis_provider" {
+  description = "Resume analysis provider to use."
+  type        = string
+  default     = "rule-based"
+}
+
+variable "openai_model" {
+  description = "OpenAI model used for resume analysis."
+  type        = string
+  default     = "gpt-5.5"
+}
+
+variable "openai_api_key" {
+  description = "OpenAI API key for AI resume analysis."
+  type        = string
+  sensitive   = true
+  default     = ""
+}

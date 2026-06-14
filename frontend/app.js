@@ -36,6 +36,14 @@ function renderAnalysis(data) {
     ? escapeHtml(data.resumeText.slice(0, 2000))
     : "No resume text stored.";
 
+  const leadershipGaps = (data.leadershipGaps || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const technicalGaps = (data.technicalGaps || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
   result.innerHTML = `
     <div class="score-card">
       <div class="score-circle">${score}</div>
@@ -48,6 +56,11 @@ function renderAnalysis(data) {
     </div>
 
     <div class="metrics">
+      <span class="metric">Leadership: ${escapeHtml(data.leadershipScore || 0)}</span>
+      <span class="metric">Technical: ${escapeHtml(data.technicalScore || 0)}</span>
+      <span class="metric">Architecture: ${escapeHtml(data.architectureScore || 0)}</span>
+      <span class="metric">ATS: ${escapeHtml(data.atsScore || 0)}</span>
+      <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
       <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
       <span class="metric">Status: ${escapeHtml(data.status || "completed")}</span>
       <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
@@ -65,6 +78,21 @@ function renderAnalysis(data) {
       <div class="result-box">
         <h3>Recommendations</h3>
         <ul>${recommendations}</ul>
+      </div>
+    </div>
+ 
+    <h3>Executive Summary</h3>
+    <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>Leadership Gaps</h3>
+        <ul>${leadershipGaps}</ul>
+      </div>
+
+      <div class="result-box">
+        <h3>Technical Gaps</h3>
+        <ul>${technicalGaps}</ul>
       </div>
     </div>
 

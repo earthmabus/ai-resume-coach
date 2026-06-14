@@ -16,6 +16,9 @@ env:
   AWS_REGION: us-east-1
   AWS_ROLE_ARN: arn:aws:iam::940827434048:role/GitHubActionsTerraformRole-ai-resume-coach
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+  TF_VAR_analysis_provider: openai
+  TF_VAR_openai_model: gpt-5.5
+  TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
 
 permissions:
   id-token: write

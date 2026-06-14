@@ -27,7 +27,9 @@ resource "aws_lambda_function" "api" {
       APP_VERSION           = "0.1.0"
       RESUME_ANALYSIS_TABLE = aws_dynamodb_table.resume_analysis.name
       DOCUMENT_BUCKET       = aws_s3_bucket.documents.bucket
-      ANALYSIS_PROVIDER     = "rule-based"
+      ANALYSIS_PROVIDER     = var.analysis_provider
+      OPENAI_MODEL          = var.openai_model
+      OPENAI_API_KEY        = var.openai_api_key
     }
   }
 }
