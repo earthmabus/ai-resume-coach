@@ -21,6 +21,10 @@ Client
 
 ↓
 
+S3 Static Website
+
+↓
+
 Amazon API Gateway
 
 ↓
@@ -80,6 +84,11 @@ No long-lived AWS access keys are stored in GitHub.
 ### IAM
 
 Least privilege principles will be applied to deployment roles and application execution roles.
+
+Current Roles
+* GitHubActionsDeployRole - Used for deployment validation and AWS access verification.
+* GitHubActionsTerraformRole-ai-resume-coach - Used for Terraform infrastructure deployment.
+* Lambda Execution Role - Used by the application runtime.
 
 ### Encryption
 
@@ -143,6 +152,5 @@ Returns resume analysis results.
 * Resume scoring engine
 * Historical analysis storage
 * User authentication
-* Frontend user interface
 * Multi-model AI support
 
