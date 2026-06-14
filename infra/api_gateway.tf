@@ -22,6 +22,18 @@ resource "aws_apigatewayv2_route" "health_route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
 
+resource "aws_apigatewayv2_route" "version_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /version"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "analyze_resume_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "POST /analyze-resume"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
 resource "aws_apigatewayv2_stage" "default" {
   api_id      = aws_apigatewayv2_api.http_api.id
   name        = "$default"

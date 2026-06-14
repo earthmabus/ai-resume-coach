@@ -20,6 +20,7 @@ resource "aws_lambda_function" "api" {
     variables = {
       PROJECT_NAME = var.project_name
       ENVIRONMENT  = var.environment
+      APP_VERSION  = "0.1.0"
     }
   }
 }
