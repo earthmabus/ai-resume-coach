@@ -1,4 +1,8 @@
-const API_BASE_URL = "https://7fyb8rvs84.execute-api.us-east-1.amazonaws.com";
+const API_BASE_URL = window.APP_CONFIG?.apiEndpoint;
+
+if (!API_BASE_URL) {
+  throw new Error("Missing API endpoint configuration");
+}
 
 const analyzeButton = document.getElementById("analyzeButton");
 const uploadButton = document.getElementById("uploadButton");
