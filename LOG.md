@@ -51,3 +51,4 @@ Phase 1 - Basic Infrastructure
 Phase 2 - Accept and Persist Resume (as text or document)
 * Added the ability to persist resume text into a DynamoDB (ResumeAnalysis table) to store resume updates for future analysis
   * Note: Fields (documentBucket, documenKey, fileName) are associated with allowing pdfs to be uploaded
+  * The "resumeText" field contains the text for the resume (either put in as text OR extracted from PDF and then put in)

@@ -1,6 +1,7 @@
 import json
 import os
 import uuid
+import time 
 from datetime import datetime, timezone
 from decimal import Decimal
 from io import BytesIO
@@ -91,6 +92,7 @@ def analyze_and_save_resume(
     document_key="",
     file_name="",
 ):
+    analysis_started = time.perf_counter()
     resume_text = (resume_text or "").strip()
 
     if not resume_text:
@@ -107,15 +109,21 @@ def analyze_and_save_resume(
 
     score, word_count, strengths, recommendations = build_rule_based_analysis(resume_text)
 
+    analysis_duration_ms = int((time.perf_counter() - analysis_started) * 1000)
+    provider = "rule-based"
+    analysis_version = "rule-based-v1"
+
     item = {
         "analysisId": analysis_id,
         "createdAt": created_at,
         "sourceType": source_type,
         "status": "completed",
-        "analysisVersion": "rule-based-v1",
+        "provider": provider,
+        "analysisVersion": analysis_version,
+        "analysisDurationMs": analysis_duration_ms,
         "score": score,
         "wordCount": word_count,
-        "originalText": resume_text,
+        "resumeText": resume_text,
         "strengths": strengths,
         "recommendations": recommendations,
         "documentBucket": document_bucket_name,
@@ -241,7 +249,7 @@ def analyze_uploaded_resume(event):
 
 def list_analyses():
     response = table.scan(
-        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, wordCount, fileName",
+        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, wordCount, fileName, provider, analysisVersion, analysisDurationMs",
         ExpressionAttributeNames={"#s": "status"},
     )
 

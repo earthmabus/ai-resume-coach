@@ -9,28 +9,63 @@ const fileInput = document.getElementById("resumeFile");
 const result = document.getElementById("result");
 const history = document.getElementById("history");
 
+function escapeHtml(value) {
+  return String(value || "")
+    .replaceAll("&", "&amp;")
+    .replaceAll("<", "&lt;")
+    .replaceAll(">", "&gt;")
+    .replaceAll('"', "&quot;")
+    .replaceAll("'", "&#039;");
+}
+
 function renderAnalysis(data) {
-  const strengths = (data.strengths || []).map(item => `<li>${item}</li>`).join("");
-  const recommendations = (data.recommendations || []).map(item => `<li>${item}</li>`).join("");
+  const strengths = (data.strengths || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const recommendations = (data.recommendations || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const score = data.score || data.overallScore || 0;
+  const resumePreview = data.resumeText
+    ? escapeHtml(data.resumeText.slice(0, 2000))
+    : "No resume text stored.";
 
   result.innerHTML = `
-    <div>
-      <span class="badge">${data.sourceType || "text"}</span>
-      <span class="badge">${data.status || "completed"}</span>
-      <span class="badge">${data.analysisVersion || "unknown"}</span>
+    <div class="score-card">
+      <div class="score-circle">${score}</div>
+      <div>
+        <h3>Resume Analysis Complete</h3>
+        <p><strong>Analysis ID:</strong> ${escapeHtml(data.analysisId)}</p>
+        <p><strong>Created:</strong> ${escapeHtml(data.createdAt)}</p>
+        <p><strong>File:</strong> ${escapeHtml(data.fileName || "N/A")}</p>
+      </div>
     </div>
 
-    <p><strong>Analysis ID:</strong> ${data.analysisId}</p>
-    <p><strong>Created:</strong> ${data.createdAt}</p>
-    <p><strong>File:</strong> ${data.fileName || "N/A"}</p>
+    <div class="metrics">
+      <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
+      <span class="metric">Status: ${escapeHtml(data.status || "completed")}</span>
+      <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
+      <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
+      <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
+      <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+    </div>
 
-    <div class="score">${data.score || data.overallScore || 0}</div>
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>Strengths</h3>
+        <ul>${strengths}</ul>
+      </div>
 
-    <h3>Strengths</h3>
-    <ul>${strengths}</ul>
+      <div class="result-box">
+        <h3>Recommendations</h3>
+        <ul>${recommendations}</ul>
+      </div>
+    </div>
 
-    <h3>Recommendations</h3>
-    <ul>${recommendations}</ul>
+    <h3>Resume Text Preview</h3>
+    <div class="resume-preview">${resumePreview}</div>
   `;
 }
 
@@ -156,14 +191,17 @@ async function loadHistory() {
     history.innerHTML = analyses.map(item => `
       <div class="history-item">
         <div>
-          <span class="badge">${item.sourceType || "unknown"}</span>
-          <span class="badge">${item.status || "unknown"}</span>
+          <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
+          <span class="badge">${escapeHtml(item.status || "unknown")}</span>
+          <span class="badge">${escapeHtml(item.provider || "rule-based")}</span>
         </div>
-        <p><strong>ID:</strong> ${item.analysisId}</p>
-        <p><strong>Created:</strong> ${item.createdAt}</p>
-        <p><strong>Score:</strong> ${item.score || 0}</p>
-        <p><strong>File:</strong> ${item.fileName || "N/A"}</p>
-        <button onclick="loadAnalysisDetail('${item.analysisId}')">View Details</button>
+        <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
+        <p><strong>Created:</strong> ${escapeHtml(item.createdAt)}</p>
+        <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
+        <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
+        <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
+        <p><strong>File:</strong> ${escapeHtml(item.fileName || "N/A")}</p>
+        <button onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
       </div>
     `).join("");
   } catch (error) {
