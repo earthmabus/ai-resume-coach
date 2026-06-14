@@ -1,13 +1,15 @@
 resource "null_resource" "pdf_layer_build" {
   triggers = {
     requirements_hash = filesha256("${path.module}/../lambda_layer/requirements.txt")
+    build_script_hash = sha256("build-pdf-layer-v2")
   }
 
   provisioner "local-exec" {
     command = <<EOT
       rm -rf ${path.module}/../lambda_layer/build
       mkdir -p ${path.module}/../lambda_layer/build/python
-      pip install -r ${path.module}/../lambda_layer/requirements.txt -t ${path.module}/../lambda_layer/build/python
+      python -m pip install --upgrade pip
+      python -m pip install -r ${path.module}/../lambda_layer/requirements.txt -t ${path.module}/../lambda_layer/build/python
     EOT
   }
 }
