@@ -1,4 +1,12 @@
 terraform {
+  backend "s3" {
+    bucket         = "earthmabus-ai-resume-coach-tfstate-940827434048"
+    key            = "ai-resume-coach/dev/terraform.tfstate"
+    region         = "us-east-1"
+    dynamodb_table = "ai-resume-coach-terraform-locks"
+    encrypt        = true
+  }
+
   required_version = ">= 1.6.0"
 
   required_providers {
