@@ -18,9 +18,9 @@ resource "aws_lambda_function" "api" {
 
   environment {
     variables = {
-      PROJECT_NAME = var.project_name
-      ENVIRONMENT  = var.environment
-      APP_VERSION  = "0.1.0"
+      PROJECT_NAME          = var.project_name
+      ENVIRONMENT           = var.environment
+      APP_VERSION           = "0.1.0"
       RESUME_ANALYSIS_TABLE = aws_dynamodb_table.resume_analysis.name
     }
   }
