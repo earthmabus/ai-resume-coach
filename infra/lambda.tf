@@ -1,6 +1,6 @@
 data "archive_file" "lambda_zip" {
   type        = "zip"
-  source_file = "${path.module}/../src/handler.py"
+  source_dir  = "${path.module}/../src"
   output_path = "${path.module}/lambda.zip"
 }
 
@@ -27,6 +27,7 @@ resource "aws_lambda_function" "api" {
       APP_VERSION           = "0.1.0"
       RESUME_ANALYSIS_TABLE = aws_dynamodb_table.resume_analysis.name
       DOCUMENT_BUCKET       = aws_s3_bucket.documents.bucket
+      ANALYSIS_PROVIDER     = "rule-based"
     }
   }
 }

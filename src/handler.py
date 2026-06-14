@@ -9,6 +9,7 @@ from io import BytesIO
 import boto3
 from pypdf import PdfReader
 
+from providers.factory import get_analysis_provider
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
@@ -65,26 +66,6 @@ def version():
     )
 
 
-def build_rule_based_analysis(resume_text):
-    word_count = len(resume_text.split())
-
-    strengths = [
-        "Clear technical leadership foundation",
-        "Relevant cloud and engineering management experience",
-        "Strong fit for architecture-focused leadership roles",
-    ]
-
-    recommendations = [
-        "Add measurable business outcomes using numbers, percentages, or dollar impact.",
-        "Highlight leadership scope, including team size, delivery ownership, and stakeholder influence.",
-        "Strengthen cloud architecture examples by naming AWS services, tradeoffs, and results.",
-    ]
-
-    score = min(95, max(60, 70 + min(word_count // 25, 20)))
-
-    return score, word_count, strengths, recommendations
-
-
 def analyze_and_save_resume(
     resume_text,
     source_type,
@@ -107,25 +88,24 @@ def analyze_and_save_resume(
     analysis_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
-    score, word_count, strengths, recommendations = build_rule_based_analysis(resume_text)
+    provider = get_analysis_provider()
+    analysis_result = provider.analyze(resume_text)
 
     analysis_duration_ms = int((time.perf_counter() - analysis_started) * 1000)
-    provider = "rule-based"
-    analysis_version = "rule-based-v1"
 
     item = {
         "analysisId": analysis_id,
         "createdAt": created_at,
         "sourceType": source_type,
         "status": "completed",
-        "provider": provider,
-        "analysisVersion": analysis_version,
+        "provider": analysis_result["provider"],
+        "analysisVersion": analysis_result["analysisVersion"],
         "analysisDurationMs": analysis_duration_ms,
-        "score": score,
-        "wordCount": word_count,
+        "score": analysis_result["score"],
+        "wordCount": analysis_result["wordCount"],
         "resumeText": resume_text,
-        "strengths": strengths,
-        "recommendations": recommendations,
+        "strengths": analysis_result["strengths"],
+        "recommendations": analysis_result["recommendations"],
         "documentBucket": document_bucket_name,
         "documentKey": document_key,
         "fileName": file_name,
