@@ -59,4 +59,17 @@ resource "aws_s3_object" "frontend_files" {
   )
 }
 
+resource "aws_s3_object" "frontend_config" {
+  bucket = aws_s3_bucket.frontend.id
+  key    = "config.js"
+
+  content = <<EOT
+window.APP_CONFIG = {
+  apiEndpoint: "${aws_apigatewayv2_api.http_api.api_endpoint}"
+};
+EOT
+
+  content_type = "application/javascript"
+}
+
 data "aws_caller_identity" "current" {}
