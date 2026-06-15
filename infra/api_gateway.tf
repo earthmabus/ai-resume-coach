@@ -72,3 +72,21 @@ resource "aws_lambda_permission" "allow_api_gateway" {
 
   source_arn = "${aws_apigatewayv2_api.http_api.execution_arn}/*/*"
 }
+
+resource "aws_apigatewayv2_route" "match_job_description_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "POST /match-job-description"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "list_job_matches_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /job-matches"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_job_match_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /job-match/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}

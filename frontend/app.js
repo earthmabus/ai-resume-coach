@@ -19,6 +19,12 @@ const textPanel = document.getElementById("textPanel");
 const pdfPanel = document.getElementById("pdfPanel");
 const providerSelect = document.getElementById("analysisProvider");
 
+const matchJobButton = document.getElementById("matchJobButton");
+const refreshJobMatchesButton = document.getElementById("refreshJobMatchesButton");
+const resumeAnalysisSelect = document.getElementById("resumeAnalysisSelect");
+const jobDescriptionText = document.getElementById("jobDescriptionText");
+const jobMatches = document.getElementById("jobMatches");
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -231,6 +237,8 @@ async function loadHistory() {
 
     const analyses = data.analyses || [];
 
+    populateResumeAnalysisSelect(analyses);
+
     if (analyses.length === 0) {
       history.textContent = "No analyses found.";
       return;
@@ -296,6 +304,190 @@ function showPanel(panelName) {
   }
 }
 
+function renderJobMatch(data) {
+  const matchedKeywords = (data.matchedKeywords || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const missingKeywords = (data.missingKeywords || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const leadershipGaps = (data.leadershipGaps || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const technicalGaps = (data.technicalGaps || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  const recommendedChanges = (data.recommendedResumeChanges || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+
+  result.innerHTML = `
+    <div class="score-card">
+      <div class="score-circle">${escapeHtml(data.matchScore || 0)}</div>
+      <div>
+        <h3>Job Match Complete</h3>
+        <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p>
+        <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p>
+        <p><strong>Created:</strong> ${escapeHtml(data.createdAt)}</p>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <span class="metric">Provider: ${escapeHtml(data.provider || "unknown")}</span>
+      <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
+      <span class="metric">Leadership: ${escapeHtml(data.leadershipMatchScore || 0)}</span>
+      <span class="metric">Technical: ${escapeHtml(data.technicalMatchScore || 0)}</span>
+      <span class="metric">Architecture: ${escapeHtml(data.architectureMatchScore || 0)}</span>
+      <span class="metric">ATS: ${escapeHtml(data.atsKeywordScore || 0)}</span>
+      <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+    </div>
+
+    <h3>Executive Summary</h3>
+    <p>${escapeHtml(data.executiveSummary || "No summary available.")}</p>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>Matched Keywords</h3>
+        <ul>${matchedKeywords}</ul>
+      </div>
+
+      <div class="result-box">
+        <h3>Missing Keywords</h3>
+        <ul>${missingKeywords}</ul>
+      </div>
+    </div>
+
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>Leadership Gaps</h3>
+        <ul>${leadershipGaps}</ul>
+      </div>
+
+      <div class="result-box">
+        <h3>Technical Gaps</h3>
+        <ul>${technicalGaps}</ul>
+      </div>
+    </div>
+
+    <div class="result-box">
+      <h3>Recommended Resume Changes</h3>
+      <ul>${recommendedChanges}</ul>
+    </div>
+  `;
+}
+
+function populateResumeAnalysisSelect(analyses) {
+  const resumeAnalyses = analyses.filter(item => item.recordType !== "jobMatch");
+
+  if (resumeAnalyses.length === 0) {
+    resumeAnalysisSelect.innerHTML = `<option value="">No resume analyses available</option>`;
+    return;
+  }
+
+  resumeAnalysisSelect.innerHTML = resumeAnalyses.map(item => {
+    const label = `${item.createdAt || "unknown date"} | ${item.sourceType || "resume"} | score ${item.score || 0} | ${item.fileName || "text resume"}`;
+    return `<option value="${escapeHtml(item.analysisId)}">${escapeHtml(label)}</option>`;
+  }).join("");
+}
+
+async function matchJobDescription() {
+  const analysisId = resumeAnalysisSelect.value;
+  const jdText = jobDescriptionText.value.trim();
+
+  if (!analysisId) {
+    result.textContent = "Select a resume analysis first.";
+    return;
+  }
+
+  if (!jdText) {
+    result.textContent = "Paste a job description first.";
+    return;
+  }
+
+  result.textContent = "Matching resume to job description...";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/match-job-description`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        analysisId: analysisId,
+        jobDescriptionText: jdText,
+        analysisProvider: selectedProvider()
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Job match failed");
+    }
+
+    renderJobMatch(data);
+    await loadJobMatches();
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function loadJobMatches() {
+  jobMatches.textContent = "Loading job matches...";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/job-matches`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load job matches");
+    }
+
+    const matches = data.jobMatches || [];
+
+    if (matches.length === 0) {
+      jobMatches.textContent = "No job matches found.";
+      return;
+    }
+
+    jobMatches.innerHTML = matches.map(item => `
+      <div class="history-item">
+        <div>
+          <span class="badge">job match</span>
+          <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+        </div>
+        <p><strong>ID:</strong> ${escapeHtml(item.matchId)}</p>
+        <p><strong>Created:</strong> ${escapeHtml(item.createdAt)}</p>
+        <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
+        <button onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
+      </div>
+    `).join("");
+  } catch (error) {
+    jobMatches.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function loadJobMatchDetail(matchId) {
+  result.textContent = "Loading job match detail...";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load job match detail");
+    }
+
+    renderJobMatch(data);
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
 analyzeButton.addEventListener("click", analyzeTextResume);
 uploadButton.addEventListener("click", uploadPdfResume);
 refreshHistoryButton.addEventListener("click", loadHistory);
@@ -303,4 +495,8 @@ refreshHistoryButton.addEventListener("click", loadHistory);
 textTab.addEventListener("click", () => showPanel("text"));
 pdfTab.addEventListener("click", () => showPanel("pdf"));
 
+matchJobButton.addEventListener("click", matchJobDescription);
+refreshJobMatchesButton.addEventListener("click", loadJobMatches);
+
 loadHistory();
+loadJobMatches();

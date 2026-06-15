@@ -76,3 +76,66 @@ Resume:
             "technicalGaps": parsed.get("technicalGaps", []),
             "executiveSummary": parsed.get("executiveSummary", ""),
         }
+
+    def match_job_description(self, resume_text: str, job_description_text: str) -> dict:
+        prompt = f"""
+You are an expert career coach for senior software engineering managers, cloud architects, and director-level engineering candidates.
+
+Compare the resume against the job description.
+
+Return only valid JSON with this exact shape:
+
+{{
+  "matchScore": 0,
+  "leadershipMatchScore": 0,
+  "technicalMatchScore": 0,
+  "architectureMatchScore": 0,
+  "atsKeywordScore": 0,
+  "matchedKeywords": ["string"],
+  "missingKeywords": ["string"],
+  "leadershipGaps": ["string"],
+  "technicalGaps": ["string"],
+  "recommendedResumeChanges": ["string"],
+  "executiveSummary": "string"
+}}
+
+Resume:
+\"\"\"
+{resume_text[:8000]}
+\"\"\"
+
+Job Description:
+\"\"\"
+{job_description_text[:8000]}
+\"\"\"
+"""
+
+        response = self.client.responses.create(
+            model=self.model,
+            input=prompt,
+            text={
+                "format": {
+                    "type": "json_object"
+                }
+            },
+        )
+
+        parsed = json.loads(response.output_text)
+
+        return {
+            "provider": self.provider_name,
+            "model": self.model,
+            "analysisVersion": f"job-match-{self.model}-v1",
+            "matchScore": int(parsed.get("matchScore", 0)),
+            "leadershipMatchScore": int(parsed.get("leadershipMatchScore", 0)),
+            "technicalMatchScore": int(parsed.get("technicalMatchScore", 0)),
+            "architectureMatchScore": int(parsed.get("architectureMatchScore", 0)),
+            "atsKeywordScore": int(parsed.get("atsKeywordScore", 0)),
+            "matchedKeywords": parsed.get("matchedKeywords", []),
+            "missingKeywords": parsed.get("missingKeywords", []),
+            "leadershipGaps": parsed.get("leadershipGaps", []),
+            "technicalGaps": parsed.get("technicalGaps", []),
+            "recommendedResumeChanges": parsed.get("recommendedResumeChanges", []),
+            "executiveSummary": parsed.get("executiveSummary", ""),
+        }
+

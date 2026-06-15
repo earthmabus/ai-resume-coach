@@ -17,6 +17,25 @@ The initial implementation focuses on establishing a secure, automated deploymen
 
 ### Current Architecture
 
+Text Resume
+        \
+         \
+          → Provider Factory
+         /          \
+        /            \
+PDF Resume        OpenAI
+     ↓               ↓
+    S3           AI Analysis
+     ↓               ↓
+Text Extraction   Leadership Score
+     ↓            Technical Score
+     ↓            ATS Score
+     ↓            Executive Summary
+     ↓
+DynamoDB
+     ↓
+History
+
                  +----------------+
                  |  Static Site   |
                  |      S3        |
@@ -33,68 +52,40 @@ The initial implementation focuses on establishing a secure, automated deploymen
            DynamoDB        S3 Documents
         ResumeAnalysis      PDF Uploads
 
+
+
 Client - Upload resume as text
-
 ↓
-
 S3 Static Website
-
 ↓
-
 Amazon API Gateway
-
 ↓
-
 AWS Lambda (ai-resume-coach-dev-api)
-
 ↓
-
 DynamoDB (ai-resume-coach-dev-resume-analysis)
+
+
 
 Client - Upload resume as PDF
-
 ↓
-
 Presigned URL
-
 ↓
-
 S3 Document Bucket (ai-resume-coach-dev-documents-940827434048)
 ↓
-
+API Lambda
+↓
+DynamoDB (processing)
+↓
+SQS
+↓
+Worker Lambda
+↓
+OpenAI
+↓
 DynamoDB (ai-resume-coach-dev-resume-analysis)
 
-### Planned Architecture
 
-Client
 
-↓
-
-CloudFront
-
-↓
-
-Static Frontend (S3)
-
-↓
-
-API Gateway
-
-↓
-
-Lambda
-
-↓
-
-Resume Analysis Service
-
-↓
-
-Amazon Bedrock / LLM Provider
-
-↓
-
-DynamoDB
 
 ## Infrastructure Management
 
@@ -141,21 +132,13 @@ Deployment is fully automated through GitHub Actions.
 Workflow:
 
 GitHub Push
-
 ↓
-
 GitHub Actions
-
 ↓
-
 OIDC Federation
-
 ↓
-
 Terraform Apply
-
 ↓
-
 AWS Infrastructure Update
 
 ## Current Endpoints
@@ -176,8 +159,6 @@ Returns resume analysis results.
 
 ## Future Enhancements
 
-* Phase 2
-  * AI-powered resume analysis
 * Phase 3
   * Resume scoring engine
   * Interview preparation recommendations

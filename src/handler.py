@@ -332,6 +332,114 @@ def get_analysis(event):
     return build_response(200, item)
 
 
+def match_job_description(event):
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    analysis_id = body.get("analysisId", "").strip()
+    job_description_text = body.get("jobDescriptionText", "").strip()
+    requested_provider = body.get("analysisProvider")
+
+    if not analysis_id:
+        return build_response(400, {"error": "analysisId is required"})
+
+    if not job_description_text:
+        return build_response(400, {"error": "jobDescriptionText is required"})
+
+    resume_response = table.get_item(Key={"analysisId": analysis_id})
+    resume_item = resume_response.get("Item")
+
+    if not resume_item:
+        return build_response(404, {"error": "resume analysis not found"})
+
+    resume_text = resume_item.get("resumeText", "").strip()
+
+    if not resume_text:
+        return build_response(400, {"error": "resume analysis does not contain resumeText"})
+
+    started = time.perf_counter()
+
+    try:
+        provider = get_analysis_provider(requested_provider)
+        match_result = provider.match_job_description(resume_text, job_description_text)
+    except Exception as error:
+        return build_response(
+            500,
+            {
+                "error": "Job description matching failed",
+                "details": str(error),
+                "analysisId": analysis_id,
+            },
+        )
+
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    match_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    item = {
+        "analysisId": match_id,
+        "matchId": match_id,
+        "resumeAnalysisId": analysis_id,
+        "recordType": "jobMatch",
+        "createdAt": created_at,
+        "status": "completed",
+        "provider": match_result["provider"],
+        "model": match_result.get("model", ""),
+        "analysisVersion": match_result["analysisVersion"],
+        "analysisDurationMs": duration_ms,
+        "matchScore": match_result["matchScore"],
+        "leadershipMatchScore": match_result.get("leadershipMatchScore", 0),
+        "technicalMatchScore": match_result.get("technicalMatchScore", 0),
+        "architectureMatchScore": match_result.get("architectureMatchScore", 0),
+        "atsKeywordScore": match_result.get("atsKeywordScore", 0),
+        "matchedKeywords": match_result.get("matchedKeywords", []),
+        "missingKeywords": match_result.get("missingKeywords", []),
+        "leadershipGaps": match_result.get("leadershipGaps", []),
+        "technicalGaps": match_result.get("technicalGaps", []),
+        "recommendedResumeChanges": match_result.get("recommendedResumeChanges", []),
+        "executiveSummary": match_result.get("executiveSummary", ""),
+        "jobDescriptionText": job_description_text,
+    }
+
+    table.put_item(Item=item)
+
+    return build_response(200, item)
+
+
+def list_job_matches():
+    response = table.scan(
+        FilterExpression="recordType = :recordType",
+        ExpressionAttributeValues={
+            ":recordType": "jobMatch"
+        },
+    )
+
+    matches = sorted(
+        response.get("Items", []),
+        key=lambda item: item.get("createdAt", ""),
+        reverse=True,
+    )
+
+    return build_response(200, {"jobMatches": matches})
+
+
+def get_job_match(event):
+    match_id = event.get("pathParameters", {}).get("id")
+
+    if not match_id:
+        return build_response(400, {"error": "job match id is required"})
+
+    response = table.get_item(Key={"analysisId": match_id})
+    item = response.get("Item")
+
+    if not item:
+        return build_response(404, {"error": "job match not found"})
+
+    return build_response(200, item)
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -355,5 +463,14 @@ def lambda_handler(event, context):
 
     if route == "GET /analysis/{id}":
         return get_analysis(event)
+
+    if route == "POST /match-job-description":
+        return match_job_description(event)
+
+    if route == "GET /job-matches":
+        return list_job_matches()
+
+    if route == "GET /job-match/{id}":
+        return get_job_match(event)
 
     return build_response(404, {"error": "Route not found", "route": route})

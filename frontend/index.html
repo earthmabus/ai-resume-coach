@@ -42,6 +42,28 @@
     </section>
 
     <section class="card">
+      <h2>Match Job Description</h2>
+
+      <label for="resumeAnalysisSelect">Resume Analysis</label>
+      <select id="resumeAnalysisSelect">
+        <option value="">Load history to select a resume analysis</option>
+      </select>
+
+      <label for="jobDescriptionText">Job description</label>
+      <textarea id="jobDescriptionText" rows="10" placeholder="Paste job description here..."></textarea>
+
+      <button id="matchJobButton">Match Resume to Job</button>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Job Match History</h2>
+        <button id="refreshJobMatchesButton">Refresh Matches</button>
+      </div>
+      <div id="jobMatches" class="history">No job matches loaded.</div>
+    </section>
+
+    <section class="card">
       <h2>Latest Result</h2>
 
       <div id="result" class="result-panel">
