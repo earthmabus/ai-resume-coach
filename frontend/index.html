@@ -13,20 +13,31 @@
       <p>Analyze resume content, upload PDFs, and review past analysis results.</p>
     </section>
 
-    <section class="grid">
-      <section class="card">
-        <h2>Analyze Resume Text</h2>
+    <section class="card">
+      <h2>Analyze Resume</h2>
+
+      <label for="analysisProvider">Analysis Provider</label>
+      <select id="analysisProvider">
+        <option value="openai" selected>OpenAI</option>
+        <option value="rule-based">Rule-based</option>
+      </select>
+
+      <div class="tabs">
+        <button id="textTab" class="tab active" type="button">Paste Text</button>
+        <button id="pdfTab" class="tab" type="button">Upload PDF</button>
+      </div>
+
+      <section id="textPanel" class="input-panel">
         <label for="resumeText">Resume text</label>
         <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
         <button id="analyzeButton">Analyze Text</button>
       </section>
 
-      <section class="card">
-        <h2>Upload Resume PDF</h2>
+      <section id="pdfPanel" class="input-panel hidden">
         <label for="resumeFile">PDF file</label>
         <input id="resumeFile" type="file" accept="application/pdf" />
         <button id="uploadButton">Upload PDF</button>
-        <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and prepared for async AI analysis.</p>
+        <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and queued for async AI analysis.</p>
       </section>
     </section>
 

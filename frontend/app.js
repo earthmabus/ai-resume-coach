@@ -13,6 +13,12 @@ const fileInput = document.getElementById("resumeFile");
 const result = document.getElementById("result");
 const history = document.getElementById("history");
 
+const textTab = document.getElementById("textTab");
+const pdfTab = document.getElementById("pdfTab");
+const textPanel = document.getElementById("textPanel");
+const pdfPanel = document.getElementById("pdfPanel");
+const providerSelect = document.getElementById("analysisProvider");
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -69,18 +75,6 @@ function renderAnalysis(data) {
       <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
     </div>
 
-    <div class="result-grid">
-      <div class="result-box">
-        <h3>Strengths</h3>
-        <ul>${strengths}</ul>
-      </div>
-
-      <div class="result-box">
-        <h3>Recommendations</h3>
-        <ul>${recommendations}</ul>
-      </div>
-    </div>
- 
     <h3>Executive Summary</h3>
     <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
 
@@ -96,6 +90,18 @@ function renderAnalysis(data) {
       </div>
     </div>
 
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>Strengths</h3>
+        <ul>${strengths}</ul>
+      </div>
+
+      <div class="result-box">
+        <h3>Recommendations</h3>
+        <ul>${recommendations}</ul>
+      </div>
+    </div>
+ 
     <h3>Resume Text Preview</h3>
     <div class="resume-preview">${resumePreview}</div>
   `;
@@ -110,8 +116,10 @@ async function analyzeTextResume() {
       headers: {
         "Content-Type": "application/json"
       },
+
       body: JSON.stringify({
-        resumeText: textarea.value
+        resumeText: textarea.value,
+        analysisProvider: selectedProvider()
       })
     });
 
@@ -149,9 +157,12 @@ async function uploadPdfResume() {
       headers: {
         "Content-Type": "application/json"
       },
+
       body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type
+        documentBucket: uploadData.documentBucket,
+        documentKey: uploadData.documentKey,
+        fileName: uploadData.fileName,
+        analysisProvider: selectedProvider()
       })
     });
 
@@ -265,8 +276,33 @@ async function loadAnalysisDetail(analysisId) {
   }
 }
 
+function selectedProvider() {
+  return providerSelect.value;
+}
+
+function showPanel(panelName) {
+  if (panelName === "text") {
+    textPanel.classList.remove("hidden");
+    pdfPanel.classList.add("hidden");
+
+    textTab.classList.add("active");
+    pdfTab.classList.remove("active");
+  }
+
+  if (panelName === "pdf") {
+    pdfPanel.classList.remove("hidden");
+    textPanel.classList.add("hidden");
+
+    pdfTab.classList.add("active");
+    textTab.classList.remove("active");
+  }
+}
+
 analyzeButton.addEventListener("click", analyzeTextResume);
 uploadButton.addEventListener("click", uploadPdfResume);
 refreshHistoryButton.addEventListener("click", loadHistory);
+
+textTab.addEventListener("click", () => showPanel("text"));
+pdfTab.addEventListener("click", () => showPanel("pdf"));
 
 loadHistory();

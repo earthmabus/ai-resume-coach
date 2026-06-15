@@ -59,4 +59,7 @@ Phase 3 - Allow evaluation by OpenAI
   * Note: I had to setup an API KEY at https://platform.openai.com?utm_source=chatgpt.com
   * Note: I added $5 with no automatic recharge
   * Note: I added a secret in github (Settings --> Secrets and variables --> Actions --> New repository secret --> OPENAI_API_KEY and put in the API key I was provided)
+* Made calls to analyze the resume async because the amount of time to parse a PDF and analyze it with OpenAI takes more than the timeout period for the API Gateway
+
+Phase 4 - Compare against job posting
 

@@ -70,14 +70,16 @@ def version():
         },
     )
 
-
 def analyze_and_save_resume(
     resume_text,
     source_type,
     document_bucket_name="",
     document_key="",
     file_name="",
+    requested_provider=None,
 ):
+    provider = get_analysis_provider(requested_provider)
+
     analysis_started = time.perf_counter()
     resume_text = (resume_text or "").strip()
 
@@ -140,9 +142,12 @@ def analyze_resume(event):
     if not resume_text:
         return build_response(400, {"error": "resumeText is required"})
 
+    requested_provider = body.get("analysisProvider")
+
     return analyze_and_save_resume(
         resume_text=resume_text,
         source_type="text",
+        requested_provider=requested_provider,
     )
 
 
@@ -235,6 +240,8 @@ def analyze_uploaded_resume(event):
         analysis_id = str(uuid.uuid4())
         created_at = datetime.now(timezone.utc).isoformat()
 
+        requested_provider = body.get("analysisProvider", os.getenv("ANALYSIS_PROVIDER", "rule-based"))
+
         item = {
             "analysisId": analysis_id,
             "createdAt": created_at,
@@ -265,6 +272,7 @@ def analyze_uploaded_resume(event):
             "documentBucket": bucket_name,
             "documentKey": document_key,
             "fileName": file_name,
+            "requestedProvider": requested_provider,
         }
 
         table.put_item(Item=item)
@@ -275,6 +283,7 @@ def analyze_uploaded_resume(event):
                 {
                     "analysisId": analysis_id,
                     "sourceType": "pdf",
+                    "analysisProvider": requested_provider
                 }
             ),
         )
