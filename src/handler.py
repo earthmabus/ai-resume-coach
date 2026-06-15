@@ -311,7 +311,7 @@ def analyze_uploaded_resume(event):
 
 def list_analyses():
     response = table.scan(
-        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, leadershipScore, technicalScore, architectureScore, atsScore, wordCount, fileName, resumeName, documentBucket, documentKey, provider, model, analysisVersion, analysisDurationMs",
+        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, leadershipScore, technicalScore, architectureScore, atsScore, wordCount, fileName, resumeName, documentBucket, documentKey, resumeText, provider, model, analysisVersion, analysisDurationMs",
         ExpressionAttributeNames={"#s": "status"},
     )
 

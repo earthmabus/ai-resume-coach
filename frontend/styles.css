@@ -348,3 +348,20 @@ button.secondary:hover {
     grid-template-columns: 1fr;
   }
 }
+
+.resume-history-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.resume-history-left,
+.resume-history-right {
+  min-width: 0;
+}
+
+@media (max-width: 900px) {
+  .resume-history-card {
+    grid-template-columns: 1fr;
+  }
+}

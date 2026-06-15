@@ -71,7 +71,7 @@ function renderAnalysis(data) {
       <div>
         <h3>Resume Analysis Complete</h3>
         <p><strong>Analysis ID:</strong> ${escapeHtml(data.analysisId)}</p>
-        <p><strong>Created:</strong> ${escapeHtml(data.createdAt)}</p>
+        <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
         <p><strong>File:</strong> ${escapeHtml(data.fileName || "N/A")}</p>
       </div>
     </div>
@@ -268,32 +268,46 @@ async function loadHistory() {
       return;
     }
 
-    history.innerHTML = resumeAnalyses.map(item => `
-      <div class="history-item">
-        <div>
-          <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
-          <span class="badge">${escapeHtml(item.status || "unknown")}</span>
-          <span class="badge">${escapeHtml(item.provider || "rule-based")}</span>
-        </div>
-        <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
-	<p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-	<p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
-        <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
-        <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
-        <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
-        <p><strong>File:</strong> ${escapeHtml(item.fileName || "N/A")}</p>
+    history.innerHTML = resumeAnalyses.map(item => {
+      const resumePreview = item.resumeText
+        ? escapeHtml(item.resumeText.slice(0, 800))
+        : "No resume text available.";
 
-	<div class="button-row">
-          <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
-          ${
-            item.documentBucket && item.documentKey
-              ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
-              : ""
-          }
-          <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
+      return `
+        <div class="history-item resume-history-card">
+          <div class="resume-history-left">
+            <div>
+              <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
+              <span class="badge">${escapeHtml(item.status || "unknown")}</span>
+              <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+            </div>
+
+            <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
+            <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
+            <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+            <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+            <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
+            <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
+            <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
+
+            <div class="button-row">
+              <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
+              ${
+                item.documentBucket && item.documentKey
+                  ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
+                  : ""
+              }
+              <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
+            </div>
+          </div>
+
+          <div class="resume-history-right">
+            <h4>Resume Text Preview</h4>
+            <div class="resume-preview small-preview">${resumePreview}</div>
+          </div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   } catch (error) {
     history.textContent = `Error: ${error.message}`;
   }
@@ -372,10 +386,10 @@ function renderJobMatch(data) {
         <h3>Job Match Complete</h3>
 	<p><strong>Job Name:</strong> ${escapeHtml(data.jobName || "Untitled Job")}</p>
 	<p><strong>URL:</strong> ${renderJobUrl(data.jobUrl)}</p>
-        <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p>
-        <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p>
+        <!-- <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p> -->
+        <!-- <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p> -->
         <p><strong>Resume Analysis:</strong> ${escapeHtml(renderResumeLabelFromJobMatch(data))}</p>
-        <p><strong>Created:</strong> ${escapeHtml(data.createdAt)}</p>
+        <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
       </div>
     </div>
 
@@ -566,13 +580,9 @@ async function loadJobMatches() {
           </div>
 
           <div class="job-match-right">
-            <h4>Resume Text Preview</h4>
-            <div class="resume-preview small-preview">${resumePreview}</div>
-
             <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-            <p><strong>Resume Created:</strong> ${escapeHtml(formatEastern(item.resumeCreatedAt))}</p>
-            <p><strong>Resume Source:</strong> ${escapeHtml(item.resumeSourceType || "resume")}</p>
-            <p><strong>Resume Score:</strong> ${escapeHtml(item.resumeScore || 0)}</p>
+            <p>Created: ${escapeHtml(formatEastern(item.resumeCreatedAt))} , Source: ${escapeHtml(item.resumeSourceType || "resume")} , Score: ${escapeHtml(item.resumeScore || 0)}</p>
+            <div class="resume-preview small-preview">${resumePreview}</div>
 
             ${
               item.resumeDocumentBucket && item.resumeDocumentKey
