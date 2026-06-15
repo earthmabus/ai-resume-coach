@@ -229,13 +229,44 @@ def analyze_uploaded_resume(event):
         )
 
     try:
-        return analyze_and_save_resume(
-            resume_text=extracted_text,
-            source_type="pdf",
-            document_bucket_name=bucket_name,
-            document_key=document_key,
-            file_name=file_name,
-        )
+        analysis_id = str(uuid.uuid4())
+        created_at = datetime.now(timezone.utc).isoformat()
+
+        item = {
+            "analysisId": analysis_id,
+            "createdAt": created_at,
+            "sourceType": "pdf",
+            "status": "processing",
+            "provider": os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+            "model": os.getenv("OPENAI_MODEL", ""),
+            "analysisVersion": "pdf-extraction-v1",
+            "analysisDurationMs": 0,
+            "score": 0,
+            "leadershipScore": 0,
+            "technicalScore": 0,
+            "architectureScore": 0,
+            "atsScore": 0,
+            "wordCount": len(extracted_text.split()),
+            "resumeText": extracted_text,
+            "strengths": [
+                 "PDF uploaded successfully",
+                 "Resume text extracted successfully",
+                 "Resume is queued for AI analysis"
+            ],
+            "recommendations": [
+                 "AI analysis will be completed asynchronously in a future processing phase."
+            ],
+            "leadershipGaps": [],
+            "technicalGaps": [],
+            "executiveSummary": "PDF text was extracted and saved. AI analysis is pending.",
+            "documentBucket": bucket_name,
+            "documentKey": document_key,
+            "fileName": file_name,
+        }
+
+        table.put_item(Item=item)
+
+        return build_response(202, item)
     except Exception as error:
         return build_response(
             500,

@@ -197,6 +197,13 @@ async function uploadPdfResume() {
 
     renderAnalysis(analysisData);
     await loadHistory();
+
+    if (analysisResponse.status === 202) {
+      result.insertAdjacentHTML(
+        "afterbegin",
+        `<p><strong>Status:</strong> PDF uploaded and text extracted. AI analysis will complete in a future async processing phase.</p>`
+      );
+    }
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
