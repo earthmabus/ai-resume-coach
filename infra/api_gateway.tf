@@ -114,3 +114,9 @@ resource "aws_apigatewayv2_route" "delete_all_job_matches_route" {
   route_key = "DELETE /job-matches"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
+
+resource "aws_apigatewayv2_route" "get_analysis_download_url_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /analysis/{id}/download-url"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}

@@ -77,6 +77,7 @@ def analyze_and_save_resume(
     document_key="",
     file_name="",
     requested_provider=None,
+    resume_name="Untitled Resume",
 ):
     provider = get_analysis_provider(requested_provider)
 
@@ -115,6 +116,7 @@ def analyze_and_save_resume(
         "architectureScore": analysis_result.get("architectureScore", 0),
         "atsScore": analysis_result.get("atsScore", 0),
         "wordCount": analysis_result["wordCount"],
+        "resumeName": resume_name,
         "resumeText": resume_text,
         "strengths": analysis_result["strengths"],
         "recommendations": analysis_result["recommendations"],
@@ -134,6 +136,8 @@ def analyze_and_save_resume(
 def analyze_resume(event):
     body = parse_body(event)
 
+    resume_name = body.get("resumeName", "").strip() or "Untitled Resume"
+
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
@@ -148,6 +152,7 @@ def analyze_resume(event):
         resume_text=resume_text,
         source_type="text",
         requested_provider=requested_provider,
+        resume_name=resume_name,
     )
 
 
@@ -215,6 +220,7 @@ def analyze_uploaded_resume(event):
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
+    resume_name = body.get("resumeName", "").strip() or file_name or "Untitled Resume"
     document_key = body.get("documentKey", "").strip()
     file_name = body.get("fileName", "").strip()
     bucket_name = body.get("documentBucket", document_bucket).strip()
@@ -257,6 +263,7 @@ def analyze_uploaded_resume(event):
             "architectureScore": 0,
             "atsScore": 0,
             "wordCount": len(extracted_text.split()),
+            "resumeName": resume_name,
             "resumeText": extracted_text,
             "strengths": [
                  "PDF uploaded successfully",
@@ -304,7 +311,7 @@ def analyze_uploaded_resume(event):
 
 def list_analyses():
     response = table.scan(
-        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, leadershipScore, technicalScore, architectureScore, atsScore, wordCount, fileName, provider, model, analysisVersion, analysisDurationMs",
+        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, leadershipScore, technicalScore, architectureScore, atsScore, wordCount, fileName, resumeName, documentBucket, documentKey, provider, model, analysisVersion, analysisDurationMs",
         ExpressionAttributeNames={"#s": "status"},
     )
 
@@ -389,6 +396,14 @@ def match_job_description(event):
         ],
         "executiveSummary": "Job match is processing.",
         "jobDescriptionText": job_description_text,
+        "resumeName": resume_item.get("resumeName", "Untitled Resume"),
+        "resumeSourceType": resume_item.get("sourceType", ""),
+        "resumeScore": resume_item.get("score", 0),
+        "resumeCreatedAt": resume_item.get("createdAt", ""),
+        "resumeFileName": resume_item.get("fileName", ""),
+        "resumeDocumentBucket": resume_item.get("documentBucket", ""),
+        "resumeDocumentKey": resume_item.get("documentKey", ""),
+        "resumeText": resume_text,
     }
 
     table.put_item(Item=item)
@@ -549,6 +564,44 @@ def delete_all_job_matches():
     )
 
 
+def get_resume_download_url(event):
+    analysis_id = event.get("pathParameters", {}).get("id")
+
+    if not analysis_id:
+        return build_response(400, {"error": "analysis id is required"})
+
+    response = table.get_item(Key={"analysisId": analysis_id})
+    item = response.get("Item")
+
+    if not item:
+        return build_response(404, {"error": "analysis not found"})
+
+    bucket = item.get("documentBucket", "")
+    key = item.get("documentKey", "")
+
+    if not bucket or not key:
+        return build_response(400, {"error": "analysis does not have an uploaded document"})
+
+    download_url = s3.generate_presigned_url(
+        ClientMethod="get_object",
+        Params={
+            "Bucket": bucket,
+            "Key": key,
+        },
+        ExpiresIn=900,
+    )
+
+    return build_response(
+        200,
+        {
+            "downloadUrl": download_url,
+            "expiresInSeconds": 900,
+            "fileName": item.get("fileName", ""),
+            "resumeName": item.get("resumeName", ""),
+        },
+    )
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -593,5 +646,8 @@ def lambda_handler(event, context):
 
     if route == "DELETE /job-matches":
         return delete_all_job_matches()
+
+    if route == "GET /analysis/{id}/download-url":
+        return get_resume_download_url(event)
 
     return build_response(404, {"error": "Route not found", "route": route})

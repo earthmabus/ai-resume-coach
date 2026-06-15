@@ -314,3 +314,8 @@ button.secondary:hover {
 .nav-card:hover {
   transform: translateY(-2px);
 }
+
+.status-pending {
+  color: #dc2626;
+  font-weight: bold;
+}

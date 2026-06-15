@@ -31,6 +31,8 @@ const jobName = document.getElementById("jobName");
 const jobDescriptionText = document.getElementById("jobDescriptionText");
 const jobMatches = document.getElementById("jobMatches");
 
+const resumeName = document.getElementById("resumeName");
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -130,6 +132,7 @@ async function analyzeTextResume() {
       },
 
       body: JSON.stringify({
+	resumeName: resumeName?.value.trim() || "Untitled Resume",
         resumeText: textarea.value,
         analysisProvider: selectedProvider()
       })
@@ -203,6 +206,7 @@ async function uploadPdfResume() {
         "Content-Type": "application/json"
       },
       body: JSON.stringify({
+	resumeName: resumeName?.value.trim() || uploadData.fileName || "Untitled Resume",
         documentBucket: uploadData.documentBucket,
         documentKey: uploadData.documentKey,
         fileName: uploadData.fileName,
@@ -271,7 +275,8 @@ async function loadHistory() {
           <span class="badge">${escapeHtml(item.provider || "rule-based")}</span>
         </div>
         <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
-        <p><strong>Created:</strong> ${escapeHtml(item.createdAt)}</p>
+	<p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+	<p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
         <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
         <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
         <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
@@ -279,6 +284,11 @@ async function loadHistory() {
 
 	<div class="button-row">
           <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
+          ${
+            item.documentBucket && item.documentKey
+              ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
+              : ""
+          }
           <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
         </div>
       </div>
@@ -348,19 +358,29 @@ function renderJobMatch(data) {
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
 
+  const isCompleted = data.status === "completed";
+  const statusClass = isCompleted ? "" : "status-pending";
+  const resumePreview = data.resumeText
+    ? escapeHtml(data.resumeText.slice(0, 2000))
+    : "No resume text available.";
+
   result.innerHTML = `
     <div class="score-card">
       <div class="score-circle">${escapeHtml(data.matchScore || 0)}</div>
       <div>
         <h3>Job Match Complete</h3>
+
+
 	<p><strong>Job Name:</strong> ${escapeHtml(data.jobName || "Untitled Job")}</p>
         <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p>
         <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p>
+        <p><strong>Resume Analysis:</strong> ${escapeHtml(renderResumeLabelFromJobMatch(data))}</p>
         <p><strong>Created:</strong> ${escapeHtml(data.createdAt)}</p>
       </div>
     </div>
 
     <div class="metrics">
+      <span class="metric ${statusClass}">Status: ${escapeHtml(data.status || "unknown")}</span>
       <span class="metric">Provider: ${escapeHtml(data.provider || "unknown")}</span>
       <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
       <span class="metric">Leadership: ${escapeHtml(data.leadershipMatchScore || 0)}</span>
@@ -370,6 +390,7 @@ function renderJobMatch(data) {
       <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
     </div>
 
+    ${isCompleted ? `
     <h3>Executive Summary</h3>
     <p>${escapeHtml(data.executiveSummary || "No summary available.")}</p>
 
@@ -401,6 +422,18 @@ function renderJobMatch(data) {
       <h3>Recommended Resume Changes</h3>
       <ul>${recommendedChanges}</ul>
     </div>
+  ` : `
+    <p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>
+  `}
+
+  <h3>Resume Text Preview</h3>
+  <div class="resume-preview">${resumePreview}</div>
+
+  ${
+    data.resumeDocumentBucket && data.resumeDocumentKey
+      ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button>`
+      : ""
+  }
   `;
 }
 
@@ -424,7 +457,8 @@ function populateResumeAnalysisSelect(analyses) {
 
   resumeAnalysisSelect.innerHTML = resumeAnalyses.map(item => {
     const label =
-      `${item.createdAt || "unknown date"} | ` +
+      `${item.resumeName || "Untitled Resume"} | ` +
+      `${formatEastern(item.createdAt)} | ` +
       `${item.sourceType || "resume"} | ` +
       `score ${item.score || 0} | ` +
       `${item.fileName || "text resume"}`;
@@ -516,6 +550,10 @@ async function loadJobMatches() {
         <p><strong>ID:</strong> ${escapeHtml(item.matchId)}</p>
         <p><strong>Created:</strong> ${escapeHtml(item.createdAt)}</p>
         <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
+
+	<p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+	<p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+
 	<div class="button-row">
           <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
           <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
@@ -634,6 +672,47 @@ async function deleteAllJobMatches() {
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
+}
+
+async function downloadResumeDocument(analysisId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}/download-url`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not create download URL");
+    }
+
+    window.open(data.downloadUrl, "_blank");
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+function formatEastern(value) {
+  if (!value) {
+    return "unknown date";
+  }
+
+  return new Intl.DateTimeFormat("en-US", {
+    timeZone: "America/New_York",
+    year: "numeric",
+    month: "short",
+    day: "2-digit",
+    hour: "numeric",
+    minute: "2-digit",
+    timeZoneName: "short"
+  }).format(new Date(value));
+}
+
+function renderResumeLabelFromJobMatch(data) {
+  return (
+    `${data.resumeName || "Untitled Resume"} | ` +
+    `${formatEastern(data.resumeCreatedAt)} | ` +
+    `${data.resumeSourceType || "resume"} | ` +
+    `score ${data.resumeScore || 0} | ` +
+    `${data.resumeFileName || "text resume"}`
+  );
 }
 
 if (analyzeButton) {
