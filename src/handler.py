@@ -228,14 +228,26 @@ def analyze_uploaded_resume(event):
             },
         )
 
-    return analyze_and_save_resume(
-        resume_text=extracted_text,
-        source_type="pdf",
-        document_bucket_name=bucket_name,
-        document_key=document_key,
-        file_name=file_name,
-    )
-
+    try:
+        return analyze_and_save_resume(
+            resume_text=extracted_text,
+            source_type="pdf",
+            document_bucket_name=bucket_name,
+            document_key=document_key,
+            file_name=file_name,
+        )
+    except Exception as error:
+        return build_response(
+            500,
+            {
+                "error": "PDF analysis save failed",
+                "details": str(error),
+                "documentBucket": bucket_name,
+                "documentKey": document_key,
+                "fileName": file_name,
+                "extractedTextLength": len(extracted_text),
+            },
+        )
 
 def list_analyses():
     response = table.scan(

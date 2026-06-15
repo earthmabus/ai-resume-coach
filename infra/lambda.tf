@@ -17,8 +17,8 @@ resource "aws_lambda_function" "api" {
     aws_lambda_layer_version.pdf_dependencies.arn
   ]
 
-  timeout     = 30
-  memory_size = 256
+  timeout     = 90
+  memory_size = 512
 
   environment {
     variables = {
