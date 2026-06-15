@@ -62,6 +62,8 @@ def version():
             "application": os.getenv("PROJECT_NAME", "ai-resume-coach"),
             "version": os.getenv("APP_VERSION", "0.1.0"),
             "environment": os.getenv("ENVIRONMENT", "dev"),
+            "analysisProvider": os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+            "openaiModel": os.getenv("OPENAI_MODEL", ""),
         },
     )
 
