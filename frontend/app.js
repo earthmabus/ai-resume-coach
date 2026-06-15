@@ -236,7 +236,6 @@ async function loadHistory() {
     }
 
     const analyses = data.analyses || [];
-
     populateResumeAnalysisSelect(analyses);
 
     if (analyses.length === 0) {
@@ -395,6 +394,11 @@ function populateResumeAnalysisSelect(analyses) {
 }
 
 async function matchJobDescription() {
+  console.log("Match button clicked");
+  console.log("Selected analysisId:", resumeAnalysisSelect.value);
+  console.log("Job description length:", jobDescriptionText.value.length);
+  console.log("Provider:", selectedProvider());
+
   const analysisId = resumeAnalysisSelect.value;
   const jdText = jobDescriptionText.value.trim();
 
