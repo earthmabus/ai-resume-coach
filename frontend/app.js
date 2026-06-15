@@ -380,25 +380,29 @@ function renderJobMatch(data) {
 }
 
 function populateResumeAnalysisSelect(analyses) {
-  const resumeAnalyses = analyses.filter(item => item.recordType !== "jobMatch");
+  const resumeAnalyses = analyses.filter(item =>
+    item.recordType !== "jobMatch" &&
+    item.status === "completed"
+  );
 
   if (resumeAnalyses.length === 0) {
-    resumeAnalysisSelect.innerHTML = `<option value="">No resume analyses available</option>`;
+    resumeAnalysisSelect.innerHTML =
+      `<option value="">No completed resume analyses available</option>`;
     return;
   }
 
   resumeAnalysisSelect.innerHTML = resumeAnalyses.map(item => {
-    const label = `${item.createdAt || "unknown date"} | ${item.sourceType || "resume"} | score ${item.score || 0} | ${item.fileName || "text resume"}`;
+    const label =
+      `${item.createdAt || "unknown date"} | ` +
+      `${item.sourceType || "resume"} | ` +
+      `score ${item.score || 0} | ` +
+      `${item.fileName || "text resume"}`;
+
     return `<option value="${escapeHtml(item.analysisId)}">${escapeHtml(label)}</option>`;
   }).join("");
 }
 
 async function matchJobDescription() {
-  console.log("Match button clicked");
-  console.log("Selected analysisId:", resumeAnalysisSelect.value);
-  console.log("Job description length:", jobDescriptionText.value.length);
-  console.log("Provider:", selectedProvider());
-
   const analysisId = resumeAnalysisSelect.value;
   const jdText = jobDescriptionText.value.trim();
 
