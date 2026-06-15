@@ -43,7 +43,7 @@ Scoring rules:
 
 Resume:
 \"\"\"
-{resume_text[:6000]}
+{resume_text[:2000000]}
 \"\"\"
 """
 

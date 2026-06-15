@@ -20,3 +20,4 @@ lambda_layer/build
 
 infra/lambda.zip
 infra/pdf_layer.zip
+infra/worker.zip

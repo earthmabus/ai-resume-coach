@@ -11,6 +11,9 @@ from pypdf import PdfReader
 
 from providers.factory import get_analysis_provider
 
+sqs = boto3.client("sqs")
+resume_analysis_queue_url = os.getenv("RESUME_ANALYSIS_QUEUE_URL")
+
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
 
@@ -265,6 +268,16 @@ def analyze_uploaded_resume(event):
         }
 
         table.put_item(Item=item)
+
+        sqs.send_message(
+            QueueUrl=resume_analysis_queue_url,
+            MessageBody=json.dumps(
+                {
+                    "analysisId": analysis_id,
+                    "sourceType": "pdf",
+                }
+            ),
+        )
 
         return build_response(202, item)
     except Exception as error:

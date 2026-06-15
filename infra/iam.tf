@@ -32,7 +32,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
         Action = [
           "dynamodb:PutItem",
           "dynamodb:GetItem",
-          "dynamodb:Scan"
+          "dynamodb:Scan",
+          "dynamodb:UpdateItem"
         ]
         Resource = aws_dynamodb_table.resume_analysis.arn
       }
@@ -54,6 +55,28 @@ resource "aws_iam_role_policy" "lambda_document_bucket_access" {
           "s3:GetObject"
         ]
         Resource = "${aws_s3_bucket.documents.arn}/*"
+      }
+    ]
+  })
+}
+
+resource "aws_iam_role_policy" "lambda_sqs_access" {
+  name = "${local.name_prefix}-lambda-sqs-access"
+  role = aws_iam_role.lambda_execution_role.id
+
+  policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Effect = "Allow"
+        Action = [
+          "sqs:SendMessage",
+          "sqs:ReceiveMessage",
+          "sqs:DeleteMessage",
+          "sqs:GetQueueAttributes",
+          "sqs:ChangeMessageVisibility"
+        ]
+        Resource = aws_sqs_queue.resume_analysis_jobs.arn
       }
     ]
   })

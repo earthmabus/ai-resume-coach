@@ -201,7 +201,7 @@ async function uploadPdfResume() {
     if (analysisResponse.status === 202) {
       result.insertAdjacentHTML(
         "afterbegin",
-        `<p><strong>Status:</strong> PDF uploaded and text extracted. AI analysis will complete in a future async processing phase.</p>`
+        `<p><strong>Status:</strong> PDF uploaded and queued for AI analysis. Refresh history in a moment to view the completed result.</p>`
       );
     }
   } catch (error) {

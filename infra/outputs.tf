@@ -32,3 +32,13 @@ output "document_bucket_name" {
   description = "S3 bucket storing uploaded resume documents."
   value       = aws_s3_bucket.documents.bucket
 }
+
+output "resume_analysis_queue_url" {
+  description = "SQS queue URL for asynchronous resume analysis jobs."
+  value       = aws_sqs_queue.resume_analysis_jobs.url
+}
+
+output "resume_analysis_worker_function_name" {
+  description = "Lambda worker function that processes asynchronous resume analysis jobs."
+  value       = aws_lambda_function.resume_analysis_worker.function_name
+}
