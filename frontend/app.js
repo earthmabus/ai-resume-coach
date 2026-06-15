@@ -240,7 +240,14 @@ async function loadHistory() {
     }
 
     const analyses = data.analyses || [];
-    const resumeAnalyses = analyses.filter(item => item.recordType !== "jobMatch");
+    const resumeAnalyses = analyses.filter(item =>
+      item.status === "completed" &&
+      item.analysisId &&
+      !item.matchId &&
+      item.sourceType
+    );
+
+    populateResumeAnalysisSelect(resumeAnalyses);
 
     if (resumeAnalyses.length === 0) {
       history.textContent = "No resume analyses found.";
@@ -391,8 +398,10 @@ function renderJobMatch(data) {
 
 function populateResumeAnalysisSelect(analyses) {
   const resumeAnalyses = analyses.filter(item =>
-    item.recordType !== "jobMatch" &&
-    item.status === "completed"
+    item.status === "completed" &&
+    item.analysisId &&
+    !item.matchId &&
+    item.sourceType
   );
 
   if (resumeAnalyses.length === 0) {
