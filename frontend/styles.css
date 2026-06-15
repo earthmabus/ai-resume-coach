@@ -32,11 +32,7 @@ body {
 }
 
 .card {
-  background: white;
-  border-radius: 12px;
   padding: 24px;
-  margin-bottom: 24px;
-  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.08);
 }
 
 h2 {
@@ -127,7 +123,17 @@ button:hover {
 .section-header {
   display: flex;
   justify-content: space-between;
-  align-items: center;
+  align-items: flex-start;
+  margin-bottom: 20px;
+}
+
+.section-header h2 {
+  margin: 0;
+}
+
+.section-header .button-row {
+  display: flex;
+  gap: 8px;
 }
 
 .result-panel {
