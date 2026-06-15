@@ -7,90 +7,33 @@
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
+  <nav class="top-nav">
+    <a class="brand" href="./index.html">AI Resume Coach</a>
+    <div class="nav-links">
+      <a href="./resume-analysis.html">Resume Analysis</a>
+      <a href="./job-matching.html">Job Matching</a>
+      <a class="disabled" href="#">Profile</a>
+      <a class="disabled" href="#">Notifications</a>
+    </div>
+  </nav>
+
   <main class="container">
     <section class="hero">
       <h1>AI Resume Coach</h1>
-      <p>Analyze resume content, upload PDFs, and review past analysis results.</p>
+      <p>Analyze resumes, upload PDFs, and match your resume against job descriptions.</p>
     </section>
 
-    <section class="card">
-      <h2>Analyze Resume</h2>
+    <section class="grid">
+      <a class="card nav-card" href="./resume-analysis.html">
+        <h2>Resume Analysis</h2>
+        <p>Paste resume text, upload PDFs, run AI analysis, and review resume history.</p>
+      </a>
 
-      <label for="analysisProvider">Analysis Provider</label>
-      <select id="analysisProvider">
-        <option value="openai" selected>OpenAI</option>
-        <option value="rule-based">Rule-based</option>
-      </select>
-
-      <div class="tabs">
-        <button id="textTab" class="tab active" type="button">Paste Text</button>
-        <button id="pdfTab" class="tab" type="button">Upload PDF</button>
-      </div>
-
-      <section id="textPanel" class="input-panel">
-        <label for="resumeText">Resume text</label>
-        <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
-        <button id="analyzeButton">Analyze Text</button>
-      </section>
-
-      <section id="pdfPanel" class="input-panel hidden">
-        <label for="resumeFile">PDF file</label>
-        <input id="resumeFile" type="file" accept="application/pdf" />
-        <button id="uploadButton">Upload PDF</button>
-        <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and queued for async AI analysis.</p>
-      </section>
-    </section>
-
-    <section class="card">
-      <div class="section-header">
-        <h2>Analysis History</h2>
-        <div class="button-row">
-          <button id="refreshHistoryButton">Refresh History</button>
-          <button id="deleteAllAnalysesButton" class="danger">Delete All</button>
-        </div>
-      </div>
-
-      <div id="history" class="history">No history loaded.</div>
-    </section>
-
-    <section class="card">
-      <h2>Match Job Description</h2>
-
-      <label for="resumeAnalysisSelect">Resume Analysis</label>
-      <select id="resumeAnalysisSelect">
-        <option value="">Load history to select a resume analysis</option>
-      </select>
-
-      <label for="jobName">Job name</label>
-      <input id="jobName" type="text" placeholder="Example: Director of Software Engineering - AWS Platform" />
-
-      <label for="jobDescriptionText">Job description</label>
-      <textarea id="jobDescriptionText" rows="10" placeholder="Paste job description here..."></textarea>
-
-      <button id="matchJobButton">Match Resume to Job</button>
-    </section>
-
-    <section class="card">
-      <div class="section-header">
-        <h2>Job Match History</h2>
-        <div class="button-row">
-          <button id="refreshJobMatchesButton">Refresh Matches</button>
-          <button id="deleteAllJobMatchesButton" class="danger">Delete All</button>
-        </div>
-      </div>
-      <div id="jobMatches" class="history">No job matches loaded.</div>
-    </section>
-
-    <section class="card">
-      <h2>Latest Result</h2>
-
-      <div id="result" class="result-panel">
-        Results will appear here.
-      </div>
+      <a class="card nav-card" href="./job-matching.html">
+        <h2>Job Matching</h2>
+        <p>Compare a saved resume analysis against a pasted job description.</p>
+      </a>
     </section>
   </main>
-
-  <script src="./config.js"></script>
-  <script src="./app.js"></script>
 </body>
 </html>

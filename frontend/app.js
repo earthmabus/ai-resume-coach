@@ -4,30 +4,32 @@ if (!API_BASE_URL) {
   throw new Error("Missing API endpoint configuration");
 }
 
+const page = document.body.dataset.page;
+
 const analyzeButton = document.getElementById("analyzeButton");
 const uploadButton = document.getElementById("uploadButton");
 const refreshHistoryButton = document.getElementById("refreshHistoryButton");
+const deleteAllAnalysesButton = document.getElementById("deleteAllAnalysesButton");
 
-const textarea = document.getElementById("resumeText");
-const fileInput = document.getElementById("resumeFile");
-const result = document.getElementById("result");
-const history = document.getElementById("history");
+const matchJobButton = document.getElementById("matchJobButton");
+const refreshJobMatchesButton = document.getElementById("refreshJobMatchesButton");
+const deleteAllJobMatchesButton = document.getElementById("deleteAllJobMatchesButton");
 
 const textTab = document.getElementById("textTab");
 const pdfTab = document.getElementById("pdfTab");
 const textPanel = document.getElementById("textPanel");
 const pdfPanel = document.getElementById("pdfPanel");
-const providerSelect = document.getElementById("analysisProvider");
 
-const matchJobButton = document.getElementById("matchJobButton");
-const refreshJobMatchesButton = document.getElementById("refreshJobMatchesButton");
+const providerSelect = document.getElementById("analysisProvider");
+const textarea = document.getElementById("resumeText");
+const fileInput = document.getElementById("resumeFile");
+const result = document.getElementById("result");
+const history = document.getElementById("history");
+
 const resumeAnalysisSelect = document.getElementById("resumeAnalysisSelect");
+const jobName = document.getElementById("jobName");
 const jobDescriptionText = document.getElementById("jobDescriptionText");
 const jobMatches = document.getElementById("jobMatches");
-
-const deleteAllAnalysesButton = document.getElementById("deleteAllAnalysesButton");
-const deleteAllJobMatchesButton = document.getElementById("deleteAllJobMatchesButton");
-const jobName = document.getElementById("jobName");
 
 function escapeHtml(value) {
   return String(value || "")
@@ -229,7 +231,13 @@ async function uploadPdfResume() {
 }
 
 async function loadHistory() {
-  history.textContent = "Loading history...";
+  if (!history && !resumeAnalysisSelect) {
+    return;
+  }
+
+  if (history) {
+    history.textContent = "Loading history...";
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/analyses`);
@@ -298,7 +306,7 @@ async function loadAnalysisDetail(analysisId) {
 }
 
 function selectedProvider() {
-  return providerSelect.value;
+  return providerSelect ? providerSelect.value : "openai";
 }
 
 function showPanel(panelName) {
@@ -397,6 +405,10 @@ function renderJobMatch(data) {
 }
 
 function populateResumeAnalysisSelect(analyses) {
+  if (!resumeAnalysisSelect) {
+    return;
+  }
+
   const resumeAnalyses = analyses.filter(item =>
     item.status === "completed" &&
     item.analysisId &&
@@ -472,6 +484,10 @@ async function matchJobDescription() {
 }
 
 async function loadJobMatches() {
+  if (!jobMatches) {
+    return;
+  }
+
   jobMatches.textContent = "Loading job matches...";
 
   try {
@@ -620,18 +636,48 @@ async function deleteAllJobMatches() {
   }
 }
 
-analyzeButton.addEventListener("click", analyzeTextResume);
-uploadButton.addEventListener("click", uploadPdfResume);
-refreshHistoryButton.addEventListener("click", loadHistory);
+if (analyzeButton) {
+  analyzeButton.addEventListener("click", analyzeTextResume);
+}
 
-textTab.addEventListener("click", () => showPanel("text"));
-pdfTab.addEventListener("click", () => showPanel("pdf"));
+if (uploadButton) {
+  uploadButton.addEventListener("click", uploadPdfResume);
+}
 
-matchJobButton.addEventListener("click", matchJobDescription);
-refreshJobMatchesButton.addEventListener("click", loadJobMatches);
+if (refreshHistoryButton) {
+  refreshHistoryButton.addEventListener("click", loadHistory);
+}
 
-deleteAllAnalysesButton.addEventListener("click", deleteAllAnalyses);
-deleteAllJobMatchesButton.addEventListener("click", deleteAllJobMatches);
+if (deleteAllAnalysesButton) {
+  deleteAllAnalysesButton.addEventListener("click", deleteAllAnalyses);
+}
 
-loadHistory();
-loadJobMatches();
+if (matchJobButton) {
+  matchJobButton.addEventListener("click", matchJobDescription);
+}
+
+if (refreshJobMatchesButton) {
+  refreshJobMatchesButton.addEventListener("click", loadJobMatches);
+}
+
+if (deleteAllJobMatchesButton) {
+  deleteAllJobMatchesButton.addEventListener("click", deleteAllJobMatches);
+}
+
+if (textTab) {
+  textTab.addEventListener("click", () => showPanel("text"));
+}
+
+if (pdfTab) {
+  pdfTab.addEventListener("click", () => showPanel("pdf"));
+}
+
+if (page === "resume-analysis") {
+  loadHistory();
+}
+
+if (page === "job-matching") {
+  loadHistory();
+  loadJobMatches();
+}
+

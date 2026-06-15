@@ -1,0 +1,69 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Job Matching | AI Resume Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="job-matching">
+  <nav class="top-nav">
+    <a class="brand" href="./index.html">AI Resume Coach</a>
+    <div class="nav-links">
+      <a href="./resume-analysis.html">Resume Analysis</a>
+      <a class="active" href="./job-matching.html">Job Matching</a>
+      <a class="disabled" href="#">Profile</a>
+      <a class="disabled" href="#">Notifications</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Job Matching</h1>
+      <p>Compare a saved resume analysis against a pasted job description.</p>
+    </section>
+
+    <section class="card">
+      <h2>Match Job Description</h2>
+
+      <label for="analysisProvider">Analysis Provider</label>
+      <select id="analysisProvider">
+        <option value="openai" selected>OpenAI</option>
+        <option value="rule-based">Rule-based</option>
+      </select>
+
+      <label for="resumeAnalysisSelect">Resume Analysis</label>
+      <select id="resumeAnalysisSelect">
+        <option value="">Load history to select a resume analysis</option>
+      </select>
+
+      <label for="jobName">Job name</label>
+      <input id="jobName" type="text" placeholder="Example: Director of Software Engineering - AWS Platform" />
+
+      <label for="jobDescriptionText">Job description</label>
+      <textarea id="jobDescriptionText" rows="12" placeholder="Paste job description here..."></textarea>
+
+      <button id="matchJobButton">Match Resume to Job</button>
+    </section>
+
+    <section class="card">
+      <h2>Job Match Result</h2>
+      <div id="result" class="result-panel">Job match results will appear here.</div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Job Match History</h2>
+        <div class="button-row">
+          <button id="refreshJobMatchesButton">Refresh Matches</button>
+          <button id="deleteAllJobMatchesButton" class="danger">Delete All</button>
+        </div>
+      </div>
+      <div id="jobMatches" class="history">No job matches loaded.</div>
+    </section>
+  </main>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -1,0 +1,74 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Resume Analysis | AI Resume Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="resume-analysis">
+  <nav class="top-nav">
+    <a class="brand" href="./index.html">AI Resume Coach</a>
+    <div class="nav-links">
+      <a class="active" href="./resume-analysis.html">Resume Analysis</a>
+      <a href="./job-matching.html">Job Matching</a>
+      <a class="disabled" href="#">Profile</a>
+      <a class="disabled" href="#">Notifications</a>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Resume Analysis</h1>
+      <p>Analyze resume text or upload a PDF. Results are saved to history.</p>
+    </section>
+
+    <section class="card">
+      <h2>Analyze Resume</h2>
+
+      <label for="analysisProvider">Analysis Provider</label>
+      <select id="analysisProvider">
+        <option value="openai" selected>OpenAI</option>
+        <option value="rule-based">Rule-based</option>
+      </select>
+
+      <div class="tabs">
+        <button id="textTab" class="tab active" type="button">Paste Text</button>
+        <button id="pdfTab" class="tab" type="button">Upload PDF</button>
+      </div>
+
+      <section id="textPanel" class="input-panel">
+        <label for="resumeText">Resume text</label>
+        <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
+        <button id="analyzeButton">Analyze Text</button>
+      </section>
+
+      <section id="pdfPanel" class="input-panel hidden">
+        <label for="resumeFile">PDF file</label>
+        <input id="resumeFile" type="file" accept="application/pdf" />
+        <button id="uploadButton">Upload PDF</button>
+        <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and queued for async AI analysis.</p>
+      </section>
+    </section>
+
+    <section class="card">
+      <h2>Resume Analysis Result</h2>
+      <div id="result" class="result-panel">Results will appear here.</div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Analysis History</h2>
+        <div class="button-row">
+          <button id="refreshHistoryButton">Refresh History</button>
+          <button id="deleteAllAnalysesButton" class="danger">Delete All</button>
+        </div>
+      </div>
+      <div id="history" class="history">No history loaded.</div>
+    </section>
+  </main>
+
+  <script src="./config.js"></script>
+  <script src="./app.js"></script>
+</body>
+</html>

@@ -266,3 +266,51 @@ button.secondary {
 button.secondary:hover {
   background: #1f2937;
 }
+
+.top-nav {
+  background: #111827;
+  color: white;
+  padding: 16px 24px;
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.brand {
+  color: white;
+  font-size: 20px;
+  font-weight: bold;
+  text-decoration: none;
+}
+
+.nav-links {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+}
+
+.nav-links a {
+  color: #d1d5db;
+  text-decoration: none;
+  font-weight: bold;
+}
+
+.nav-links a.active,
+.nav-links a:hover {
+  color: white;
+}
+
+.nav-links a.disabled {
+  color: #6b7280;
+  cursor: not-allowed;
+}
+
+.nav-card {
+  text-decoration: none;
+  color: inherit;
+  display: block;
+}
+
+.nav-card:hover {
+  transform: translateY(-2px);
+}
