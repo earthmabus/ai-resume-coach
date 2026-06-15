@@ -347,6 +347,7 @@ def match_job_description(event):
 
     analysis_id = body.get("analysisId", "").strip()
     job_name = body.get("jobName", "").strip() or "Untitled Job"
+    job_url = body.get("jobUrl", "").strip()
     job_description_text = body.get("jobDescriptionText", "").strip()
     requested_provider = body.get("analysisProvider")
 
@@ -378,6 +379,7 @@ def match_job_description(event):
         "createdAt": created_at,
         "status": "processing",
         "jobName": job_name,
+        "jobUrl": job_url,
         "provider": requested_provider or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
         "model": os.getenv("OPENAI_MODEL", ""),
         "analysisVersion": "job-match-queued-v1",

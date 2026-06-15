@@ -318,4 +318,33 @@ button.secondary:hover {
 .status-pending {
   color: #dc2626;
   font-weight: bold;
+  animation: blink-status 1s step-start infinite;
+}
+
+@keyframes blink-status {
+  50% {
+    opacity: 0.25;
+  }
+}
+
+.job-match-card {
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+}
+
+.job-match-left,
+.job-match-right {
+  min-width: 0;
+}
+
+.small-preview {
+  max-height: 180px;
+  font-size: 12px;
+}
+
+@media (max-width: 900px) {
+  .job-match-card {
+    grid-template-columns: 1fr;
+  }
 }

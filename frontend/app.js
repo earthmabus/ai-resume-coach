@@ -28,6 +28,7 @@ const history = document.getElementById("history");
 
 const resumeAnalysisSelect = document.getElementById("resumeAnalysisSelect");
 const jobName = document.getElementById("jobName");
+const jobUrl = document.getElementById("jobUrl");
 const jobDescriptionText = document.getElementById("jobDescriptionText");
 const jobMatches = document.getElementById("jobMatches");
 
@@ -369,9 +370,8 @@ function renderJobMatch(data) {
       <div class="score-circle">${escapeHtml(data.matchScore || 0)}</div>
       <div>
         <h3>Job Match Complete</h3>
-
-
 	<p><strong>Job Name:</strong> ${escapeHtml(data.jobName || "Untitled Job")}</p>
+	<p><strong>URL:</strong> ${renderJobUrl(data.jobUrl)}</p>
         <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p>
         <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p>
         <p><strong>Resume Analysis:</strong> ${escapeHtml(renderResumeLabelFromJobMatch(data))}</p>
@@ -422,18 +422,18 @@ function renderJobMatch(data) {
       <h3>Recommended Resume Changes</h3>
       <ul>${recommendedChanges}</ul>
     </div>
+
+    <h3>Resume Text Preview</h3>
+    <div class="resume-preview">${resumePreview}</div>
+
+    ${
+      data.resumeDocumentBucket && data.resumeDocumentKey
+        ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button>`
+        : ""
+    }
   ` : `
     <p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>
   `}
-
-  <h3>Resume Text Preview</h3>
-  <div class="resume-preview">${resumePreview}</div>
-
-  ${
-    data.resumeDocumentBucket && data.resumeDocumentKey
-      ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button>`
-      : ""
-  }
   `;
 }
 
@@ -492,6 +492,7 @@ async function matchJobDescription() {
       body: JSON.stringify({
         analysisId: analysisId,
 	jobName: jobName.value.trim() || "Untitled Job",
+        jobUrl: jobUrl?.value.trim() || "",
         jobDescriptionText: jdText,
         analysisProvider: selectedProvider()
       })
@@ -539,27 +540,49 @@ async function loadJobMatches() {
       return;
     }
 
-    jobMatches.innerHTML = matches.map(item => `
-      <div class="history-item">
-        <div>
-          <span class="badge">job match</span>
-	  <span class="badge">${escapeHtml(item.status || "unknown")}</span>
-          <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
-        </div>
-	<p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
-        <p><strong>ID:</strong> ${escapeHtml(item.matchId)}</p>
-        <p><strong>Created:</strong> ${escapeHtml(item.createdAt)}</p>
-        <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
+    jobMatches.innerHTML = matches.map(item => {
+      const resumePreview = item.resumeText
+        ? escapeHtml(item.resumeText.slice(0, 800))
+        : "No resume text available.";
 
-	<p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-	<p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+      return `
+        <div class="history-item job-match-card">
+          <div class="job-match-left">
+            <div>
+              <span class="badge">job match</span>
+              <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
+              <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+            </div>
 
-	<div class="button-row">
-          <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
-          <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
+            <p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
+            <p><strong>URL:</strong> ${renderJobUrl(item.jobUrl)}</p>
+            <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+            <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
+
+            <div class="button-row">
+              <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
+              <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
+            </div>
+          </div>
+
+          <div class="job-match-right">
+            <h4>Resume Text Preview</h4>
+            <div class="resume-preview small-preview">${resumePreview}</div>
+
+            <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+            <p><strong>Resume Created:</strong> ${escapeHtml(formatEastern(item.resumeCreatedAt))}</p>
+            <p><strong>Resume Source:</strong> ${escapeHtml(item.resumeSourceType || "resume")}</p>
+            <p><strong>Resume Score:</strong> ${escapeHtml(item.resumeScore || 0)}</p>
+
+            ${
+              item.resumeDocumentBucket && item.resumeDocumentKey
+                ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.resumeAnalysisId)}')">Download Resume PDF</button>`
+                : ""
+            }
+          </div>
         </div>
-      </div>
-    `).join("");
+      `;
+    }).join("");
   } catch (error) {
     jobMatches.textContent = `Error: ${error.message}`;
   }
@@ -713,6 +736,16 @@ function renderResumeLabelFromJobMatch(data) {
     `score ${data.resumeScore || 0} | ` +
     `${data.resumeFileName || "text resume"}`
   );
+}
+
+function renderJobUrl(url) {
+  if (!url) {
+    return "N/A";
+  }
+
+  const safeUrl = escapeHtml(url);
+
+  return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
 }
 
 if (analyzeButton) {
