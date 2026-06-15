@@ -34,6 +34,17 @@ const jobMatches = document.getElementById("jobMatches");
 
 const resumeName = document.getElementById("resumeName");
 
+const resumeSummary = document.getElementById("resumeSummary");
+const resumeSearchInput = document.getElementById("resumeSearchInput");
+const resumeSortSelect = document.getElementById("resumeSortSelect");
+
+const jobMatchSummary = document.getElementById("jobMatchSummary");
+const jobSearchInput = document.getElementById("jobSearchInput");
+const jobSortSelect = document.getElementById("jobSortSelect");
+
+let cachedResumeAnalyses = [];
+let cachedJobMatches = [];
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -260,63 +271,23 @@ async function loadHistory() {
     }
 
     const analyses = data.analyses || [];
-    const resumeAnalyses = analyses.filter(item =>
-      item.status === "completed" &&
+
+    cachedResumeAnalyses = analyses.filter(item =>
+      item.status &&
       item.analysisId &&
       !item.matchId &&
       item.sourceType
     );
 
-    populateResumeAnalysisSelect(resumeAnalyses);
+    populateResumeAnalysisSelect(cachedResumeAnalyses);
 
-    if (resumeAnalyses.length === 0) {
-      history.textContent = "No resume analyses found.";
-      populateResumeAnalysisSelect([]);
-      return;
+    if (history) {
+      renderResumeHistory();
     }
-
-    history.innerHTML = resumeAnalyses.map(item => {
-      const resumePreview = item.resumeText
-        ? escapeHtml(item.resumeText.slice(0, 800))
-        : "No resume text available.";
-
-      return `
-        <div class="history-item resume-history-card">
-          <div class="resume-history-left">
-            <div>
-              <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
-              <span class="badge">${escapeHtml(item.status || "unknown")}</span>
-              <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
-            </div>
-
-            <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
-            <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
-            <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-            <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
-            <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
-            <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
-            <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
-
-            <div class="button-row">
-              <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
-              ${
-                item.documentBucket && item.documentKey
-                  ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
-                  : ""
-              }
-              <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
-            </div>
-          </div>
-
-          <div class="resume-history-right">
-            <!-- <h4>Resume Text Preview</h4> -->
-            <div class="resume-preview small-preview">${resumePreview}</div>
-          </div>
-        </div>
-      `;
-    }).join("");
   } catch (error) {
-    history.textContent = `Error: ${error.message}`;
+    if (history) {
+      history.textContent = `Error: ${error.message}`;
+    }
   }
 }
 
@@ -554,52 +525,8 @@ async function loadJobMatches() {
       throw new Error(data.error || "Could not load job matches");
     }
 
-    const matches = data.jobMatches || [];
-
-    if (matches.length === 0) {
-      jobMatches.textContent = "No job matches found.";
-      return;
-    }
-
-    jobMatches.innerHTML = matches.map(item => {
-      const resumePreview = item.resumeText
-        ? escapeHtml(item.resumeText.slice(0, 800))
-        : "No resume text available.";
-
-      return `
-        <div class="history-item job-match-card">
-          <div class="job-match-left">
-            <div>
-              <span class="badge">job match</span>
-              <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
-              <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
-            </div>
-
-            <p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
-            <p><strong>URL:</strong> ${renderJobUrl(item.jobUrl)}</p>
-            <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
-            <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
-
-            <div class="button-row">
-              <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
-              <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
-            </div>
-          </div>
-
-          <div class="job-match-right">
-            <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-            <p>Created: ${escapeHtml(formatEastern(item.resumeCreatedAt))} , Source: ${escapeHtml(item.resumeSourceType || "resume")} , Score: ${escapeHtml(item.resumeScore || 0)}</p>
-            <div class="resume-preview small-preview">${resumePreview}</div>
-
-            ${
-              item.resumeDocumentBucket && item.resumeDocumentKey
-                ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.resumeAnalysisId)}')">Download Resume PDF</button>`
-                : ""
-            }
-          </div>
-        </div>
-      `;
-    }).join("");
+    cachedJobMatches = data.jobMatches || [];
+    renderJobMatchHistory();
   } catch (error) {
     jobMatches.textContent = `Error: ${error.message}`;
   }
@@ -765,6 +692,219 @@ function renderJobUrl(url) {
   return `<a href="${safeUrl}" target="_blank" rel="noopener noreferrer">${safeUrl}</a>`;
 }
 
+function countByStatus(items) {
+  return items.reduce(
+    (counts, item) => {
+      const status = item.status || "unknown";
+      counts.total += 1;
+      counts[status] = (counts[status] || 0) + 1;
+      return counts;
+    },
+    { total: 0 }
+  );
+}
+
+function renderStatusSummary(container, label, items) {
+  if (!container) {
+    return;
+  }
+
+  const counts = countByStatus(items);
+
+  container.innerHTML = `
+    <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(counts.total)}</span>
+    <span>Completed: ${escapeHtml(counts.completed || 0)}</span>
+    <span>Processing: ${escapeHtml(counts.processing || 0)}</span>
+    <span>Failed: ${escapeHtml(counts.failed || 0)}</span>
+  `;
+}
+
+function sortItems(items, sortValue, scoreField) {
+  const sorted = [...items];
+
+  if (sortValue === "oldest") {
+    sorted.sort((a, b) => new Date(a.createdAt || 0) - new Date(b.createdAt || 0));
+  } else if (sortValue === "highestScore") {
+    sorted.sort((a, b) => Number(b[scoreField] || 0) - Number(a[scoreField] || 0));
+  } else if (sortValue === "lowestScore") {
+    sorted.sort((a, b) => Number(a[scoreField] || 0) - Number(b[scoreField] || 0));
+  } else if (sortValue === "processingFirst") {
+    sorted.sort((a, b) => {
+      const aProcessing = a.status === "processing" ? 0 : 1;
+      const bProcessing = b.status === "processing" ? 0 : 1;
+
+      if (aProcessing !== bProcessing) {
+        return aProcessing - bProcessing;
+      }
+
+      return new Date(b.createdAt || 0) - new Date(a.createdAt || 0);
+    });
+  } else {
+    sorted.sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0));
+  }
+
+  return sorted;
+}
+
+function toggleCardDetails(id) {
+  const element = document.getElementById(id);
+
+  if (!element) {
+    return;
+  }
+
+  element.classList.toggle("hidden");
+}
+
+function renderResumeHistory() {
+  if (!history) {
+    return;
+  }
+
+  const searchValue = resumeSearchInput?.value.trim().toLowerCase() || "";
+  const sortValue = resumeSortSelect?.value || "newest";
+
+  let filtered = cachedResumeAnalyses.filter(item => {
+    const name = (item.resumeName || "Untitled Resume").toLowerCase();
+    return name.includes(searchValue);
+  });
+
+  filtered = sortItems(filtered, sortValue, "score");
+
+  renderStatusSummary(resumeSummary, "Total Resumes", cachedResumeAnalyses);
+  populateResumeAnalysisSelect(cachedResumeAnalyses);
+
+  if (filtered.length === 0) {
+    history.textContent = "No resume analyses found.";
+    return;
+  }
+
+  history.innerHTML = filtered.map(item => {
+    const detailsId = `resume-details-${escapeHtml(item.analysisId)}`;
+    const resumePreview = item.resumeText
+      ? escapeHtml(item.resumeText.slice(0, 800))
+      : "No resume text available.";
+
+    return `
+      <div class="history-item resume-history-card">
+        <div class="resume-history-left">
+          <div>
+            <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
+            <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
+            <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+          </div>
+
+          <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
+          <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+          <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+          <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
+
+          <div class="button-row">
+            <button class="secondary" onclick="toggleCardDetails('${detailsId}')">Expand</button>
+            <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
+            ${
+              item.documentBucket && item.documentKey
+                ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
+                : ""
+            }
+            <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
+          </div>
+
+          <div id="${detailsId}" class="card-details hidden">
+            <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
+            <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
+            <p><strong>Model:</strong> ${escapeHtml(item.model || "N/A")}</p>
+            <p><strong>Version:</strong> ${escapeHtml(item.analysisVersion || "N/A")}</p>
+          </div>
+        </div>
+
+        <div class="resume-history-right">
+          <h4>Resume Text Preview</h4>
+          <div class="resume-preview small-preview">${resumePreview}</div>
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
+function renderJobMatchHistory() {
+  if (!jobMatches) {
+    return;
+  }
+
+  const searchValue = jobSearchInput?.value.trim().toLowerCase() || "";
+  const sortValue = jobSortSelect?.value || "newest";
+
+  let filtered = cachedJobMatches.filter(item => {
+    const name = (item.jobName || "Untitled Job").toLowerCase();
+    return name.includes(searchValue);
+  });
+
+  filtered = sortItems(filtered, sortValue, "matchScore");
+
+  renderStatusSummary(jobMatchSummary, "Total Matches", cachedJobMatches);
+
+  if (filtered.length === 0) {
+    jobMatches.textContent = "No job matches found.";
+    return;
+  }
+
+  jobMatches.innerHTML = filtered.map(item => {
+    const detailsId = `job-details-${escapeHtml(item.matchId)}`;
+    const resumePreview = item.resumeText
+      ? escapeHtml(item.resumeText.slice(0, 800))
+      : "No resume text available.";
+
+    return `
+      <div class="history-item job-match-card">
+        <div class="job-match-left">
+          <div>
+            <span class="badge">job match</span>
+            <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
+            <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+          </div>
+
+          <p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
+          <p><strong>URL:</strong> ${renderJobUrl(item.jobUrl)}</p>
+          <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+          <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
+
+          <div class="button-row">
+            <button class="secondary" onclick="toggleCardDetails('${detailsId}')">Expand</button>
+            <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
+            <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
+          </div>
+
+          <div id="${detailsId}" class="card-details hidden">
+            <p><strong>Leadership Match:</strong> ${escapeHtml(item.leadershipMatchScore || 0)}</p>
+            <p><strong>Technical Match:</strong> ${escapeHtml(item.technicalMatchScore || 0)}</p>
+            <p><strong>Architecture Match:</strong> ${escapeHtml(item.architectureMatchScore || 0)}</p>
+            <p><strong>ATS Keyword Score:</strong> ${escapeHtml(item.atsKeywordScore || 0)}</p>
+            <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
+            <p><strong>Model:</strong> ${escapeHtml(item.model || "N/A")}</p>
+          </div>
+        </div>
+
+        <div class="job-match-right">
+          <h4>Resume Text Preview</h4>
+          <div class="resume-preview small-preview">${resumePreview}</div>
+
+          <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+          <p><strong>Resume Created:</strong> ${escapeHtml(formatEastern(item.resumeCreatedAt))}</p>
+          <p><strong>Resume Source:</strong> ${escapeHtml(item.resumeSourceType || "resume")}</p>
+          <p><strong>Resume Score:</strong> ${escapeHtml(item.resumeScore || 0)}</p>
+
+          ${
+            item.resumeDocumentBucket && item.resumeDocumentKey
+              ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.resumeAnalysisId)}')">Download Resume PDF</button>`
+              : ""
+          }
+        </div>
+      </div>
+    `;
+  }).join("");
+}
+
 if (analyzeButton) {
   analyzeButton.addEventListener("click", analyzeTextResume);
 }
@@ -793,6 +933,22 @@ if (deleteAllJobMatchesButton) {
   deleteAllJobMatchesButton.addEventListener("click", deleteAllJobMatches);
 }
 
+if (resumeSearchInput) {
+  resumeSearchInput.addEventListener("input", renderResumeHistory);
+}
+
+if (resumeSortSelect) {
+  resumeSortSelect.addEventListener("change", renderResumeHistory);
+}
+
+if (jobSearchInput) {
+  jobSearchInput.addEventListener("input", renderJobMatchHistory);
+}
+
+if (jobSortSelect) {
+  jobSortSelect.addEventListener("change", renderJobMatchHistory);
+}
+
 if (textTab) {
   textTab.addEventListener("click", () => showPanel("text"));
 }
@@ -809,4 +965,5 @@ if (page === "job-matching") {
   loadHistory();
   loadJobMatches();
 }
+
 

@@ -67,6 +67,20 @@
           <button id="deleteAllAnalysesButton" class="danger">Delete All</button>
         </div>
       </div>
+
+      <div class="summary-bar" id="resumeSummary">No resume summary loaded.</div>
+
+      <div class="filter-row">
+        <input id="resumeSearchInput" type="text" placeholder="Search resumes by name..." />
+        <select id="resumeSortSelect">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="highestScore">Highest score</option>
+          <option value="lowestScore">Lowest score</option>
+          <option value="processingFirst">Processing first</option>
+        </select>
+      </div>
+
       <div id="history" class="history">No history loaded.</div>
     </section>
   </main>

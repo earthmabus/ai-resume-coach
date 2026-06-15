@@ -62,6 +62,21 @@
           <button id="deleteAllJobMatchesButton" class="danger">Delete All</button>
         </div>
       </div>
+
+      <div class="summary-bar" id="jobMatchSummary">No job match summary loaded.</div>
+
+      <div class="filter-row">
+        <input id="jobSearchInput" type="text" placeholder="Search jobs by name..." />
+
+        <select id="jobSortSelect">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="highestScore">Highest match score</option>
+          <option value="lowestScore">Lowest match score</option>
+          <option value="processingFirst">Processing first</option>
+        </select>
+      </div>
+
       <div id="jobMatches" class="history">No job matches loaded.</div>
     </section>
   </main>
