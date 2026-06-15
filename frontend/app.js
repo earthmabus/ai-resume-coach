@@ -42,8 +42,15 @@ const jobMatchSummary = document.getElementById("jobMatchSummary");
 const jobSearchInput = document.getElementById("jobSearchInput");
 const jobSortSelect = document.getElementById("jobSortSelect");
 
+const refreshTailoringsButton = document.getElementById("refreshTailoringsButton");
+const tailoringSummary = document.getElementById("tailoringSummary");
+const tailoringSearchInput = document.getElementById("tailoringSearchInput");
+const tailoringSortSelect = document.getElementById("tailoringSortSelect");
+const tailorings = document.getElementById("tailorings");
+
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
+let cachedResumeTailorings = [];
 
 function escapeHtml(value) {
   return String(value || "")
@@ -414,6 +421,15 @@ function renderJobMatch(data) {
       <h3>Recommended Resume Changes</h3>
       <ul>${recommendedChanges}</ul>
     </div>
+
+    <!-- TODO: double check the placement of this : start -->
+    <button class="secondary" onclick="tailorResume('${escapeHtml(data.matchId)}')">Generate Tailored Resume Suggestions</button>
+    ${
+      item.status === "completed"
+        ? `<button class="secondary" onclick="tailorResume('${escapeHtml(item.matchId)}')">Tailor Resume</button>`
+        : ""
+    }
+    <!-- TODO: double check the placement of this : end -->
 
     <h3>Resume Text Preview</h3>
     <div class="resume-preview">${resumePreview}</div>
@@ -906,6 +922,190 @@ function renderJobMatchHistory() {
   }).join("");
 }
 
+async function tailorResume(matchId) {
+  if (!matchId) {
+    result.textContent = "Missing job match id.";
+    return;
+  }
+
+  result.textContent = "Queueing resume tailoring...";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/tailor-resume`, {
+      method: "POST",
+      headers: {
+        "Content-Type": "application/json"
+      },
+      body: JSON.stringify({
+        matchId: matchId,
+        analysisProvider: selectedProvider()
+      })
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Resume tailoring failed");
+    }
+
+    renderResumeTailoring(data);
+    await loadResumeTailorings();
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+function renderResumeTailoring(data) {
+  const isCompleted = data.status === "completed";
+  const statusClass = isCompleted ? "" : "status-pending";
+
+  result.innerHTML = `
+    <div class="score-card">
+      <div class="score-circle">T</div>
+      <div>
+        <h3>Resume Tailoring</h3>
+        <p><strong>Tailoring ID:</strong> ${escapeHtml(data.tailoringId || data.analysisId || "")}</p>
+        <p><strong>Job:</strong> ${escapeHtml(data.jobName || "Untitled Job")}</p>
+        <p><strong>Resume:</strong> ${escapeHtml(data.resumeName || "Untitled Resume")}</p>
+        <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
+      </div>
+    </div>
+
+    <div class="metrics">
+      <span class="metric ${statusClass}">Status: ${escapeHtml(data.status || "unknown")}</span>
+      <span class="metric">Provider: ${escapeHtml(data.provider || "unknown")}</span>
+      <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
+      <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+    </div>
+
+    ${isCompleted ? `
+      <h3>Tailored Executive Summary</h3>
+      <p>${escapeHtml(data.tailoredExecutiveSummary || "No tailored summary available.")}</p>
+
+      <div class="result-box">
+        <h3>Tailored Resume Bullets</h3>
+        <ul>${listToHtml(data.tailoredResumeBullets)}</ul>
+      </div>
+
+      <div class="result-grid">
+        <div class="result-box">
+          <h3>Keywords to Add</h3>
+          <ul>${listToHtml(data.keywordsToAdd)}</ul>
+        </div>
+
+        <div class="result-box">
+          <h3>Role Positioning Advice</h3>
+          <ul>${listToHtml(data.rolePositioningAdvice)}</ul>
+        </div>
+      </div>
+
+      <div class="result-grid">
+        <div class="result-box">
+          <h3>ATS Optimization Advice</h3>
+          <ul>${listToHtml(data.atsOptimizationAdvice)}</ul>
+        </div>
+
+        <div class="result-box">
+          <h3>Rewrite Warnings</h3>
+          <ul>${listToHtml(data.rewriteWarnings)}</ul>
+        </div>
+      </div>
+    ` : `
+      <p><strong>Status:</strong> Resume tailoring is still processing. Refresh tailorings shortly.</p>
+    `}
+  `;
+}
+
+async function loadResumeTailorings() {
+  if (!tailorings) {
+    return;
+  }
+
+  tailorings.textContent = "Loading resume tailorings...";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/resume-tailorings`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load resume tailorings");
+    }
+
+    cachedResumeTailorings = data.tailorings || [];
+    renderResumeTailoringHistory();
+  } catch (error) {
+    tailorings.textContent = `Error: ${error.message}`;
+  }
+}
+
+function renderResumeTailoringHistory() {
+  if (!tailorings) {
+    return;
+  }
+
+  const searchValue = tailoringSearchInput?.value.trim().toLowerCase() || "";
+  const sortValue = tailoringSortSelect?.value || "newest";
+
+  let filtered = cachedResumeTailorings.filter(item => {
+    const job = (item.jobName || "Untitled Job").toLowerCase();
+    const resume = (item.resumeName || "Untitled Resume").toLowerCase();
+    const text = (item.jobDescriptionText || "").toLowerCase();
+
+    return job.includes(searchValue) || resume.includes(searchValue) || text.includes(searchValue);
+  });
+
+  filtered = sortItems(filtered, sortValue, "analysisDurationMs");
+
+  renderStatusSummary(tailoringSummary, "Total Tailorings", cachedResumeTailorings);
+
+  if (filtered.length === 0) {
+    tailorings.textContent = "No resume tailorings found.";
+    return;
+  }
+
+  tailorings.innerHTML = filtered.map(item => `
+    <div class="history-item">
+      <div>
+        <span class="badge">tailoring</span>
+        <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
+        <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+      </div>
+
+      <p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
+      <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
+      <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
+      <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
+
+      <div class="button-row">
+        <button class="secondary" onclick="loadResumeTailoringDetail('${escapeHtml(item.tailoringId)}')">View Details</button>
+      </div>
+    </div>
+  `).join("");
+}
+
+async function loadResumeTailoringDetail(tailoringId) {
+  result.textContent = "Loading resume tailoring detail...";
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/resume-tailoring/${tailoringId}`);
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not load resume tailoring detail");
+    }
+
+    renderResumeTailoring(data);
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+function listToHtml(items) {
+  return (items || [])
+    .map(item => `<li>${escapeHtml(item)}</li>`)
+    .join("");
+}
+
 if (analyzeButton) {
   analyzeButton.addEventListener("click", analyzeTextResume);
 }
@@ -958,6 +1158,18 @@ if (pdfTab) {
   pdfTab.addEventListener("click", () => showPanel("pdf"));
 }
 
+if (refreshTailoringsButton) {
+  refreshTailoringsButton.addEventListener("click", loadResumeTailorings);
+}
+
+if (tailoringSearchInput) {
+  tailoringSearchInput.addEventListener("input", renderResumeTailoringHistory);
+}
+
+if (tailoringSortSelect) {
+  tailoringSortSelect.addEventListener("change", renderResumeTailoringHistory);
+}
+
 if (page === "resume-analysis") {
   loadHistory();
 }
@@ -965,6 +1177,7 @@ if (page === "resume-analysis") {
 if (page === "job-matching") {
   loadHistory();
   loadJobMatches();
+  loadResumeTailorings();
 }
 
 

@@ -120,3 +120,21 @@ resource "aws_apigatewayv2_route" "get_analysis_download_url_route" {
   route_key = "GET /analysis/{id}/download-url"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
+
+resource "aws_apigatewayv2_route" "tailor_resume_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "POST /tailor-resume"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "list_resume_tailorings_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /resume-tailorings"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "get_resume_tailoring_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /resume-tailoring/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}

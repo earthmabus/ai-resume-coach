@@ -62,4 +62,7 @@ Phase 3 - Allow evaluation by OpenAI
 * Made calls to analyze the resume async because the amount of time to parse a PDF and analyze it with OpenAI takes more than the timeout period for the API Gateway
 
 Phase 4 - Compare against job posting
-
+Phase 5 - Resume Tailoring
+Phase 6 - User Profiles
+Phase 7 - Notifications
+Phase 8 - Production Readiness

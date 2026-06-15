@@ -139,3 +139,61 @@ Job Description:
             "executiveSummary": parsed.get("executiveSummary", ""),
         }
 
+    def tailor_resume(self, resume_text: str, job_description_text: str) -> dict:
+        prompt = f"""
+You are an expert resume strategist for senior software engineering managers, cloud architects, and director-level engineering candidates.
+
+Using the resume and job description below, generate tailored resume improvements.
+
+Return only valid JSON with this exact shape:
+
+{{
+  "tailoredExecutiveSummary": "string",
+  "tailoredResumeBullets": ["string"],
+  "keywordsToAdd": ["string"],
+  "rolePositioningAdvice": ["string"],
+  "atsOptimizationAdvice": ["string"],
+  "rewriteWarnings": ["string"]
+}}
+
+Rules:
+- Do not invent experience the candidate does not appear to have.
+- Make bullets achievement-oriented and leadership-focused.
+- Prefer measurable impact language where appropriate.
+- Keep suggestions suitable for senior manager/director-level engineering roles.
+- Tailor language toward the job description.
+
+Resume:
+\"\"\"
+{resume_text[:8000]}
+\"\"\"
+
+Job Description:
+\"\"\"
+{job_description_text[:8000]}
+\"\"\"
+"""
+
+        response = self.client.responses.create(
+            model=self.model,
+            input=prompt,
+            text={
+                "format": {
+                    "type": "json_object"
+                }
+            },
+        )
+
+        parsed = json.loads(response.output_text)
+
+        return {
+            "provider": self.provider_name,
+            "model": self.model,
+            "analysisVersion": f"resume-tailoring-{self.model}-v1",
+            "tailoredExecutiveSummary": parsed.get("tailoredExecutiveSummary", ""),
+            "tailoredResumeBullets": parsed.get("tailoredResumeBullets", []),
+            "keywordsToAdd": parsed.get("keywordsToAdd", []),
+            "rolePositioningAdvice": parsed.get("rolePositioningAdvice", []),
+            "atsOptimizationAdvice": parsed.get("atsOptimizationAdvice", []),
+            "rewriteWarnings": parsed.get("rewriteWarnings", []),
+        }

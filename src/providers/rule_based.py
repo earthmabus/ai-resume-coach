@@ -69,3 +69,35 @@ class RuleBasedProvider(AnalysisProvider):
             ],
             "executiveSummary": "Rule-based comparison completed. Use OpenAI provider for deeper semantic matching."
         }
+
+    def tailor_resume(self, resume_text: str, job_description_text: str) -> dict:
+        return {
+            "provider": self.provider_name,
+            "model": "",
+            "analysisVersion": "resume-tailoring-rule-based-v1",
+            "tailoredExecutiveSummary": (
+                "Senior engineering leader with experience across cloud architecture, "
+                "software delivery, cybersecurity, and cross-functional technical leadership."
+            ),
+            "tailoredResumeBullets": [
+                "Led cloud-focused engineering initiatives aligned to business, security, and delivery outcomes.",
+                "Partnered with technical and non-technical stakeholders to deliver scalable software solutions.",
+                "Improved engineering execution through architecture guidance, delivery practices, and team leadership.",
+            ],
+            "keywordsToAdd": [
+                "cloud architecture",
+                "stakeholder management",
+                "technical leadership",
+                "software delivery",
+                "AWS",
+            ],
+            "rolePositioningAdvice": [
+                "Add more measurable leadership scope, such as team size, budget, roadmap ownership, and business impact."
+            ],
+            "atsOptimizationAdvice": [
+                "Mirror important job description keywords where they accurately reflect your experience."
+            ],
+            "rewriteWarnings": [
+                "Rule-based tailoring is generic. Use OpenAI for stronger job-specific recommendations."
+            ],
+        }

@@ -56,6 +56,29 @@
 
     <section class="card">
       <div class="section-header">
+        <h2>Resume Tailoring History</h2>
+        <div class="button-row">
+          <button id="refreshTailoringsButton">Refresh Tailorings</button>
+        </div>
+      </div>
+
+      <div class="summary-bar" id="tailoringSummary">No tailoring summary loaded.</div>
+
+      <div class="filter-row">
+        <input id="tailoringSearchInput" type="text" placeholder="Search tailorings by job or resume..." />
+
+        <select id="tailoringSortSelect">
+          <option value="newest">Newest first</option>
+          <option value="oldest">Oldest first</option>
+          <option value="processingFirst">Processing first</option>
+        </select>
+      </div>
+
+      <div id="tailorings" class="history">No resume tailorings loaded.</div>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
         <h2>Job Match History</h2>
         <div class="button-row">
           <button id="refreshJobMatchesButton">Refresh Matches</button>

@@ -604,6 +604,118 @@ def get_resume_download_url(event):
     )
 
 
+def tailor_resume(event):
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    match_id = body.get("matchId", "").strip()
+    requested_provider = body.get("analysisProvider")
+
+    if not match_id:
+        return build_response(400, {"error": "matchId is required"})
+
+    match_response = table.get_item(Key={"analysisId": match_id})
+    match_item = match_response.get("Item")
+
+    if not match_item:
+        return build_response(404, {"error": "job match not found"})
+
+    if match_item.get("recordType") != "jobMatch":
+        return build_response(400, {"error": "record is not a job match"})
+
+    if match_item.get("status") != "completed":
+        return build_response(400, {"error": "job match must be completed before tailoring"})
+
+    resume_text = match_item.get("resumeText", "").strip()
+    job_description_text = match_item.get("jobDescriptionText", "").strip()
+
+    if not resume_text:
+        return build_response(400, {"error": "job match does not contain resumeText"})
+
+    if not job_description_text:
+        return build_response(400, {"error": "job match does not contain jobDescriptionText"})
+
+    tailoring_id = str(uuid.uuid4())
+    created_at = datetime.now(timezone.utc).isoformat()
+
+    item = {
+        "analysisId": tailoring_id,
+        "tailoringId": tailoring_id,
+        "matchId": match_id,
+        "resumeAnalysisId": match_item.get("resumeAnalysisId", ""),
+        "recordType": "resumeTailoring",
+        "createdAt": created_at,
+        "status": "processing",
+        "provider": requested_provider or match_item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+        "model": os.getenv("OPENAI_MODEL", ""),
+        "analysisVersion": "resume-tailoring-queued-v1",
+        "analysisDurationMs": 0,
+        "jobName": match_item.get("jobName", "Untitled Job"),
+        "jobUrl": match_item.get("jobUrl", ""),
+        "resumeName": match_item.get("resumeName", "Untitled Resume"),
+        "resumeText": resume_text,
+        "jobDescriptionText": job_description_text,
+        "resumeDocumentBucket": match_item.get("resumeDocumentBucket", ""),
+        "resumeDocumentKey": match_item.get("resumeDocumentKey", ""),
+        "resumeFileName": match_item.get("resumeFileName", ""),
+        "tailoredExecutiveSummary": "",
+        "tailoredResumeBullets": [],
+        "keywordsToAdd": [],
+        "rolePositioningAdvice": [],
+        "atsOptimizationAdvice": [],
+        "rewriteWarnings": [],
+    }
+
+    table.put_item(Item=item)
+
+    sqs.send_message(
+        QueueUrl=resume_analysis_queue_url,
+        MessageBody=json.dumps(
+            {
+                "jobType": "resumeTailoring",
+                "tailoringId": tailoring_id,
+                "analysisProvider": requested_provider,
+            }
+        ),
+    )
+
+    return build_response(202, item)
+
+
+def list_resume_tailorings():
+    response = table.scan(
+        FilterExpression="recordType = :recordType",
+        ExpressionAttributeValues={
+            ":recordType": "resumeTailoring"
+        },
+    )
+
+    tailorings = sorted(
+        response.get("Items", []),
+        key=lambda item: item.get("createdAt", ""),
+        reverse=True,
+    )
+
+    return build_response(200, {"tailorings": tailorings})
+
+
+def get_resume_tailoring(event):
+    tailoring_id = event.get("pathParameters", {}).get("id")
+
+    if not tailoring_id:
+        return build_response(400, {"error": "tailoring id is required"})
+
+    response = table.get_item(Key={"analysisId": tailoring_id})
+    item = response.get("Item")
+
+    if not item:
+        return build_response(404, {"error": "tailoring not found"})
+
+    return build_response(200, item)
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -651,5 +763,14 @@ def lambda_handler(event, context):
 
     if route == "GET /analysis/{id}/download-url":
         return get_resume_download_url(event)
+
+    if route == "POST /tailor-resume":
+        return tailor_resume(event)
+
+    if route == "GET /resume-tailorings":
+        return list_resume_tailorings()
+
+    if route == "GET /resume-tailoring/{id}":
+        return get_resume_tailoring(event)
 
     return build_response(404, {"error": "Route not found", "route": route})

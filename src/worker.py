@@ -195,6 +195,69 @@ def process_job_match(match_id):
     )
 
 
+def process_resume_tailoring(tailoring_id):
+    tailoring_response = table.get_item(Key={"analysisId": tailoring_id})
+    tailoring_item = tailoring_response.get("Item")
+
+    if not tailoring_item:
+        raise ValueError(f"Resume tailoring not found: {tailoring_id}")
+
+    resume_text = tailoring_item.get("resumeText", "").strip()
+    job_description_text = tailoring_item.get("jobDescriptionText", "").strip()
+
+    if not resume_text:
+        raise ValueError(f"No resumeText found for tailoring: {tailoring_id}")
+
+    if not job_description_text:
+        raise ValueError(f"No jobDescriptionText found for tailoring: {tailoring_id}")
+
+    requested_provider = tailoring_item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based")
+
+    started = time.perf_counter()
+
+    provider = get_analysis_provider(requested_provider)
+    tailoring_result = provider.tailor_resume(resume_text, job_description_text)
+
+    duration_ms = int((time.perf_counter() - started) * 1000)
+
+    table.update_item(
+        Key={"analysisId": tailoring_id},
+        UpdateExpression="""
+            SET #s = :status,
+                provider = :provider,
+                model = :model,
+                analysisVersion = :analysisVersion,
+                analysisDurationMs = :analysisDurationMs,
+                tailoredExecutiveSummary = :tailoredExecutiveSummary,
+                tailoredResumeBullets = :tailoredResumeBullets,
+                keywordsToAdd = :keywordsToAdd,
+                rolePositioningAdvice = :rolePositioningAdvice,
+                atsOptimizationAdvice = :atsOptimizationAdvice,
+                rewriteWarnings = :rewriteWarnings,
+                completedAt = :completedAt
+        """,
+        ExpressionAttributeNames={
+            "#s": "status",
+        },
+        ExpressionAttributeValues=to_dynamodb_value(
+            {
+                ":status": "completed",
+                ":provider": tailoring_result["provider"],
+                ":model": tailoring_result.get("model", ""),
+                ":analysisVersion": tailoring_result["analysisVersion"],
+                ":analysisDurationMs": duration_ms,
+                ":tailoredExecutiveSummary": tailoring_result.get("tailoredExecutiveSummary", ""),
+                ":tailoredResumeBullets": tailoring_result.get("tailoredResumeBullets", []),
+                ":keywordsToAdd": tailoring_result.get("keywordsToAdd", []),
+                ":rolePositioningAdvice": tailoring_result.get("rolePositioningAdvice", []),
+                ":atsOptimizationAdvice": tailoring_result.get("atsOptimizationAdvice", []),
+                ":rewriteWarnings": tailoring_result.get("rewriteWarnings", []),
+                ":completedAt": datetime.now(timezone.utc).isoformat(),
+            }
+        ),
+    )
+
+
 def lambda_handler(event, context):
     for record in event.get("Records", []):
         body = json.loads(record["body"])
@@ -204,8 +267,11 @@ def lambda_handler(event, context):
         try:
             if job_type == "jobMatch":
                 process_job_match(body["matchId"])
+            elif job_type == "resumeTailoring":
+                process_resume_tailoring(body["tailoringId"])
             else:
                 process_resume_analysis(body["analysisId"])
+
         except Exception as error:
             record_id = body.get("matchId") or body.get("analysisId")
             update_record_failed(record_id, str(error))

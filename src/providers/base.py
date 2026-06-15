@@ -8,3 +8,6 @@ class AnalysisProvider(ABC):
 
 def match_job_description(self, resume_text: str, job_description_text: str) -> dict:
     raise NotImplementedError("Provider does not support job matching")
+
+def tailor_resume(self, resume_text: str, job_description_text: str) -> dict:
+    raise NotImplementedError("Provider does not support resume tailoring")
