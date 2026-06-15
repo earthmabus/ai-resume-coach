@@ -157,12 +157,9 @@ async function uploadPdfResume() {
       headers: {
         "Content-Type": "application/json"
       },
-
       body: JSON.stringify({
-        documentBucket: uploadData.documentBucket,
-        documentKey: uploadData.documentKey,
-        fileName: uploadData.fileName,
-        analysisProvider: selectedProvider()
+        fileName: file.name,
+        contentType: file.type
       })
     });
 
@@ -196,7 +193,8 @@ async function uploadPdfResume() {
       body: JSON.stringify({
         documentBucket: uploadData.documentBucket,
         documentKey: uploadData.documentKey,
-        fileName: uploadData.fileName
+        fileName: uploadData.fileName,
+        analysisProvider: selectedProvider()
       })
     });
 
