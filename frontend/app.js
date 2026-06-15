@@ -240,14 +240,15 @@ async function loadHistory() {
     }
 
     const analyses = data.analyses || [];
-    populateResumeAnalysisSelect(analyses);
+    const resumeAnalyses = analyses.filter(item => item.recordType !== "jobMatch");
 
-    if (analyses.length === 0) {
-      history.textContent = "No analyses found.";
+    if (resumeAnalyses.length === 0) {
+      history.textContent = "No resume analyses found.";
+      populateResumeAnalysisSelect([]);
       return;
     }
 
-    history.innerHTML = analyses.map(item => `
+    history.innerHTML = resumeAnalyses.map(item => `
       <div class="history-item">
         <div>
           <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
