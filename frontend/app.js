@@ -65,12 +65,15 @@ function renderAnalysis(data) {
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
 
+  const isCompleted = data.status === "completed";
+  const statusClass = isCompleted ? "" : "status-pending";
+
   result.innerHTML = `
     <div class="score-card">
       <div class="score-circle">${score}</div>
       <div>
         <h3>Resume Analysis Complete</h3>
-        <p><strong>Analysis ID:</strong> ${escapeHtml(data.analysisId)}</p>
+        <!-- <p><strong>Analysis ID:</strong> ${escapeHtml(data.analysisId)}</p> -->
         <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
         <p><strong>File:</strong> ${escapeHtml(data.fileName || "N/A")}</p>
       </div>
@@ -83,42 +86,46 @@ function renderAnalysis(data) {
       <span class="metric">ATS: ${escapeHtml(data.atsScore || 0)}</span>
       <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
       <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
-      <span class="metric">Status: ${escapeHtml(data.status || "completed")}</span>
+      <span class="metric ${statusClass}">Status: ${escapeHtml(data.status || "unknown")}</span>
       <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
       <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
       <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
       <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
     </div>
 
-    <h3>Executive Summary</h3>
-    <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
+    ${isCompleted ? `
+      <h3>Executive Summary</h3>
+      <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
 
-    <div class="result-grid">
-      <div class="result-box">
-        <h3>Leadership Gaps</h3>
-        <ul>${leadershipGaps}</ul>
+      <div class="result-grid">
+        <div class="result-box">
+          <h3>Leadership Gaps</h3>
+          <ul>${leadershipGaps}</ul>
+        </div>
+
+        <div class="result-box">
+          <h3>Technical Gaps</h3>
+          <ul>${technicalGaps}</ul>
+        </div>
       </div>
 
-      <div class="result-box">
-        <h3>Technical Gaps</h3>
-        <ul>${technicalGaps}</ul>
-      </div>
-    </div>
+      <div class="result-grid">
+        <div class="result-box">
+          <h3>Strengths</h3>
+          <ul>${strengths}</ul>
+        </div>
 
-    <div class="result-grid">
-      <div class="result-box">
-        <h3>Strengths</h3>
-        <ul>${strengths}</ul>
+        <div class="result-box">
+          <h3>Recommendations</h3>
+          <ul>${recommendations}</ul>
+        </div>
       </div>
-
-      <div class="result-box">
-        <h3>Recommendations</h3>
-        <ul>${recommendations}</ul>
-      </div>
-    </div>
  
-    <h3>Resume Text Preview</h3>
-    <div class="resume-preview">${resumePreview}</div>
+      <h3>Resume Text Preview</h3>
+      <div class="resume-preview">${resumePreview}</div>
+  ` : `
+    <p><strong>Status:</strong> Resume analysis is still processing. Refresh history shortly.</p>
+  `}
   `;
 }
 
@@ -282,7 +289,7 @@ async function loadHistory() {
               <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
             </div>
 
-            <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
+            <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
             <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
             <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
             <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
@@ -302,7 +309,7 @@ async function loadHistory() {
           </div>
 
           <div class="resume-history-right">
-            <h4>Resume Text Preview</h4>
+            <!-- <h4>Resume Text Preview</h4> -->
             <div class="resume-preview small-preview">${resumePreview}</div>
           </div>
         </div>

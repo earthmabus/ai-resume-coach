@@ -102,13 +102,21 @@ button:hover {
   margin-right: 8px;
 }
 
+.history {
+  border-top: 4px solid #111827;
+  padding-top: 16px;
+  margin-top: 12px;
+}
+
 .history-item {
   border-top: 1px solid #e5e7eb;
-  padding: 16px 0;
+  padding-top: 16px;
+  margin-top: 16px;
 }
 
 .history-item:first-child {
   border-top: none;
+  padding-top: 0;
 }
 
 .history-item button {
