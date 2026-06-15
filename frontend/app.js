@@ -25,6 +25,10 @@ const resumeAnalysisSelect = document.getElementById("resumeAnalysisSelect");
 const jobDescriptionText = document.getElementById("jobDescriptionText");
 const jobMatches = document.getElementById("jobMatches");
 
+const deleteAllAnalysesButton = document.getElementById("deleteAllAnalysesButton");
+const deleteAllJobMatchesButton = document.getElementById("deleteAllJobMatchesButton");
+const jobName = document.getElementById("jobName");
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -256,7 +260,11 @@ async function loadHistory() {
         <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
         <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
         <p><strong>File:</strong> ${escapeHtml(item.fileName || "N/A")}</p>
-        <button onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
+
+	<div class="button-row">
+          <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
+          <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
+        </div>
       </div>
     `).join("");
   } catch (error) {
@@ -329,6 +337,7 @@ function renderJobMatch(data) {
       <div class="score-circle">${escapeHtml(data.matchScore || 0)}</div>
       <div>
         <h3>Job Match Complete</h3>
+	<p><strong>Job Name:</strong> ${escapeHtml(data.jobName || "Untitled Job")}</p>
         <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p>
         <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p>
         <p><strong>Created:</strong> ${escapeHtml(data.createdAt)}</p>
@@ -426,6 +435,7 @@ async function matchJobDescription() {
       },
       body: JSON.stringify({
         analysisId: analysisId,
+	jobName: jobName.value.trim() || "Untitled Job",
         jobDescriptionText: jdText,
         analysisProvider: selectedProvider()
       })
@@ -468,10 +478,14 @@ async function loadJobMatches() {
           <span class="badge">job match</span>
           <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
         </div>
+	<p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
         <p><strong>ID:</strong> ${escapeHtml(item.matchId)}</p>
         <p><strong>Created:</strong> ${escapeHtml(item.createdAt)}</p>
         <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
-        <button onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
+	<div class="button-row">
+          <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
+          <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
+        </div>
       </div>
     `).join("");
   } catch (error) {
@@ -496,6 +510,98 @@ async function loadJobMatchDetail(matchId) {
   }
 }
 
+async function deleteAnalysis(analysisId) {
+  if (!confirm("Delete this resume analysis? This cannot be undone.")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`, {
+      method: "DELETE"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Delete failed");
+    }
+
+    result.textContent = "Resume analysis deleted.";
+    await loadHistory();
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function deleteAllAnalyses() {
+  if (!confirm("Delete all resume analyses? This cannot be undone.")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/analyses`, {
+      method: "DELETE"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Delete all failed");
+    }
+
+    result.textContent = `Deleted ${data.deleted} resume analyses.`;
+    await loadHistory();
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function deleteJobMatch(matchId) {
+  if (!confirm("Delete this job match? This cannot be undone.")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`, {
+      method: "DELETE"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Delete failed");
+    }
+
+    result.textContent = "Job match deleted.";
+    await loadJobMatches();
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
+async function deleteAllJobMatches() {
+  if (!confirm("Delete all job matches? This cannot be undone.")) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/job-matches`, {
+      method: "DELETE"
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Delete all failed");
+    }
+
+    result.textContent = `Deleted ${data.deleted} job matches.`;
+    await loadJobMatches();
+  } catch (error) {
+    result.textContent = `Error: ${error.message}`;
+  }
+}
+
 analyzeButton.addEventListener("click", analyzeTextResume);
 uploadButton.addEventListener("click", uploadPdfResume);
 refreshHistoryButton.addEventListener("click", loadHistory);
@@ -505,6 +611,9 @@ pdfTab.addEventListener("click", () => showPanel("pdf"));
 
 matchJobButton.addEventListener("click", matchJobDescription);
 refreshJobMatchesButton.addEventListener("click", loadJobMatches);
+
+deleteAllAnalysesButton.addEventListener("click", deleteAllAnalyses);
+deleteAllJobMatchesButton.addEventListener("click", deleteAllJobMatches);
 
 loadHistory();
 loadJobMatches();

@@ -339,11 +339,15 @@ def match_job_description(event):
         return build_response(400, {"error": "Invalid JSON body"})
 
     analysis_id = body.get("analysisId", "").strip()
+    job_name = body.get("jobName", "").strip()
     job_description_text = body.get("jobDescriptionText", "").strip()
     requested_provider = body.get("analysisProvider")
 
     if not analysis_id:
         return build_response(400, {"error": "analysisId is required"})
+
+    if not job_name:
+        job_name = "Untitled Job"
 
     if not job_description_text:
         return build_response(400, {"error": "jobDescriptionText is required"})
@@ -400,6 +404,7 @@ def match_job_description(event):
         "technicalGaps": match_result.get("technicalGaps", []),
         "recommendedResumeChanges": match_result.get("recommendedResumeChanges", []),
         "executiveSummary": match_result.get("executiveSummary", ""),
+        "jobName": job_name,
         "jobDescriptionText": job_description_text,
     }
 
@@ -440,6 +445,115 @@ def get_job_match(event):
     return build_response(200, item)
 
 
+def delete_s3_document_if_present(item):
+    bucket = item.get("documentBucket", "")
+    key = item.get("documentKey", "")
+
+    if bucket and key:
+        try:
+            s3.delete_object(Bucket=bucket, Key=key)
+        except Exception:
+            pass
+
+
+def delete_analysis(event):
+    analysis_id = event.get("pathParameters", {}).get("id")
+
+    if not analysis_id:
+        return build_response(400, {"error": "analysis id is required"})
+
+    response = table.get_item(Key={"analysisId": analysis_id})
+    item = response.get("Item")
+
+    if not item:
+        return build_response(404, {"error": "analysis not found"})
+
+    if item.get("recordType") == "jobMatch":
+        return build_response(400, {"error": "use /job-match/{id} to delete job matches"})
+
+    delete_s3_document_if_present(item)
+
+    table.delete_item(Key={"analysisId": analysis_id})
+
+    return build_response(
+        200,
+        {
+            "deleted": True,
+            "analysisId": analysis_id,
+        },
+    )
+
+
+def delete_all_analyses():
+    response = table.scan()
+    deleted = 0
+
+    for item in response.get("Items", []):
+        if item.get("recordType") == "jobMatch":
+            continue
+
+        delete_s3_document_if_present(item)
+        table.delete_item(Key={"analysisId": item["analysisId"]})
+        deleted += 1
+
+    return build_response(
+        200,
+        {
+            "deleted": deleted,
+            "recordType": "resumeAnalysis",
+        },
+    )
+
+
+def delete_job_match(event):
+    match_id = event.get("pathParameters", {}).get("id")
+
+    if not match_id:
+        return build_response(400, {"error": "job match id is required"})
+
+    response = table.get_item(Key={"analysisId": match_id})
+    item = response.get("Item")
+
+    if not item:
+        return build_response(404, {"error": "job match not found"})
+
+    if item.get("recordType") != "jobMatch":
+        return build_response(400, {"error": "record is not a job match"})
+
+    table.delete_item(Key={"analysisId": match_id})
+
+    return build_response(
+        200,
+        {
+            "deleted": True,
+            "matchId": match_id,
+        },
+    )
+
+
+def delete_all_job_matches():
+    response = table.scan(
+        FilterExpression="recordType = :recordType",
+        ExpressionAttributeValues={
+            ":recordType": "jobMatch"
+        },
+    )
+
+    deleted = 0
+
+    for item in response.get("Items", []):
+        table.delete_item(Key={"analysisId": item["analysisId"]})
+        deleted += 1
+
+    return build_response(
+        200,
+        {
+            "deleted": deleted,
+            "recordType": "jobMatch",
+        },
+    )
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -472,5 +586,17 @@ def lambda_handler(event, context):
 
     if route == "GET /job-match/{id}":
         return get_job_match(event)
+
+    if route == "DELETE /analysis/{id}":
+        return delete_analysis(event)
+
+    if route == "DELETE /analyses":
+        return delete_all_analyses()
+
+    if route == "DELETE /job-match/{id}":
+        return delete_job_match(event)
+
+    if route == "DELETE /job-matches":
+        return delete_all_job_matches()
 
     return build_response(404, {"error": "Route not found", "route": route})

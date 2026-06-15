@@ -90,3 +90,27 @@ resource "aws_apigatewayv2_route" "get_job_match_route" {
   route_key = "GET /job-match/{id}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
+
+resource "aws_apigatewayv2_route" "delete_analysis_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "DELETE /analysis/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_all_analyses_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "DELETE /analyses"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_job_match_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "DELETE /job-match/{id}"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}
+
+resource "aws_apigatewayv2_route" "delete_all_job_matches_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "DELETE /job-matches"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}

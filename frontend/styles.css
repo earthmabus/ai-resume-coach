@@ -244,3 +244,25 @@ select {
 .hidden {
   display: none;
 }
+
+.button-row {
+  display: flex;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+button.danger {
+  background: #dc2626;
+}
+
+button.danger:hover {
+  background: #b91c1c;
+}
+
+button.secondary {
+  background: #374151;
+}
+
+button.secondary:hover {
+  background: #1f2937;
+}

@@ -33,7 +33,8 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
           "dynamodb:PutItem",
           "dynamodb:GetItem",
           "dynamodb:Scan",
-          "dynamodb:UpdateItem"
+          "dynamodb:UpdateItem",
+          "dynamodb:DeleteItem"
         ]
         Resource = aws_dynamodb_table.resume_analysis.arn
       }
@@ -52,7 +53,8 @@ resource "aws_iam_role_policy" "lambda_document_bucket_access" {
         Effect = "Allow"
         Action = [
           "s3:PutObject",
-          "s3:GetObject"
+          "s3:GetObject",
+          "s3:DeleteObject"
         ]
         Resource = "${aws_s3_bucket.documents.arn}/*"
       }
