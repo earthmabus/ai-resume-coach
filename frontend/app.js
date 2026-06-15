@@ -449,6 +449,13 @@ async function matchJobDescription() {
 
     renderJobMatch(data);
     await loadJobMatches();
+
+    if (response.status === 202) {
+      result.insertAdjacentHTML(
+        "afterbegin",
+        `<p><strong>Status:</strong> Job match queued for AI analysis. Refresh matches in a moment to view the completed result.</p>`
+      );
+    }
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
@@ -476,6 +483,7 @@ async function loadJobMatches() {
       <div class="history-item">
         <div>
           <span class="badge">job match</span>
+	  <span class="badge">${escapeHtml(item.status || "unknown")}</span>
           <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
         </div>
 	<p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
