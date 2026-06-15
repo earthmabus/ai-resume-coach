@@ -712,10 +712,10 @@ function renderStatusSummary(container, label, items) {
   const counts = countByStatus(items);
 
   container.innerHTML = `
-    <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(counts.total)}</span>
-    <span>Completed: ${escapeHtml(counts.completed || 0)}</span>
-    <span>Processing: ${escapeHtml(counts.processing || 0)}</span>
-    <span>Failed: ${escapeHtml(counts.failed || 0)}</span>
+    <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(counts.total ?? 0))}</span>
+    <span>Completed: ${escapeHtml(String(counts.completed ?? 0))}</span>
+    <span>Processing: ${escapeHtml(String(counts.processing ?? 0))}</span>
+    <span>Failed: ${escapeHtml(String(counts.failed ?? 0))}</span>
   `;
 }
 
@@ -766,7 +766,8 @@ function renderResumeHistory() {
 
   let filtered = cachedResumeAnalyses.filter(item => {
     const name = (item.resumeName || "Untitled Resume").toLowerCase();
-    return name.includes(searchValue);
+    const text = (item.resumeText || "").toLowerCase();
+    return name.includes(searchValue) || text.includes(searchValue);
   });
 
   filtered = sortItems(filtered, sortValue, "score");
@@ -794,7 +795,7 @@ function renderResumeHistory() {
             <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
           </div>
 
-          <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p>
+          <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
           <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
           <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
           <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
@@ -819,7 +820,7 @@ function renderResumeHistory() {
         </div>
 
         <div class="resume-history-right">
-          <h4>Resume Text Preview</h4>
+          <!-- <h4>Resume Text Preview</h4> -->
           <div class="resume-preview small-preview">${resumePreview}</div>
         </div>
       </div>
@@ -837,7 +838,8 @@ function renderJobMatchHistory() {
 
   let filtered = cachedJobMatches.filter(item => {
     const name = (item.jobName || "Untitled Job").toLowerCase();
-    return name.includes(searchValue);
+    const description = (item.jobDescriptionText || "").toLowerCase();
+    return name.includes(searchValue) || description.includes(searchValue);
   });
 
   filtered = sortItems(filtered, sortValue, "matchScore");
@@ -886,13 +888,12 @@ function renderJobMatchHistory() {
         </div>
 
         <div class="job-match-right">
-          <h4>Resume Text Preview</h4>
-          <div class="resume-preview small-preview">${resumePreview}</div>
+          <!-- <h4>Resume Text Preview</h4> -->
 
           <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-          <p><strong>Resume Created:</strong> ${escapeHtml(formatEastern(item.resumeCreatedAt))}</p>
-          <p><strong>Resume Source:</strong> ${escapeHtml(item.resumeSourceType || "resume")}</p>
-          <p><strong>Resume Score:</strong> ${escapeHtml(item.resumeScore || 0)}</p>
+          <p>Created: ${escapeHtml(formatEastern(item.resumeCreatedAt))} , Source: ${escapeHtml(item.resumeSourceType || "resume")} , Score: ${escapeHtml(item.resumeScore || 0)}</p>
+
+          <div class="resume-preview small-preview">${resumePreview}</div>
 
           ${
             item.resumeDocumentBucket && item.resumeDocumentKey

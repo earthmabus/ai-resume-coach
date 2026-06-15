@@ -405,6 +405,13 @@ button.secondary:hover {
   margin-bottom: 16px;
 }
 
+.filter-row input,
+.filter-row select {
+  height: 44px;
+  box-sizing: border-box;
+  margin: 0;
+}
+
 .card-details {
   margin-top: 12px;
   padding: 12px;
