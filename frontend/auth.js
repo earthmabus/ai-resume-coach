@@ -1,4 +1,8 @@
-const authConfig = window.APP_CONFIG;
+const authConfig = window.APP_CONFIG || {};
+
+if (!authConfig.cognitoUserPoolId || !authConfig.cognitoUserPoolClientId) {
+  throw new Error("Missing Cognito configuration in config.js");
+}
 
 const userPool = new AmazonCognitoIdentity.CognitoUserPool({
   UserPoolId: authConfig.cognitoUserPoolId,
