@@ -29,33 +29,43 @@ resource "aws_apigatewayv2_route" "version_route" {
 }
 
 resource "aws_apigatewayv2_route" "analyze_resume_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /analyze-resume"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "POST /analyze-resume"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "list_analyses_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /analyses"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /analyses"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_analysis_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /analysis/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /analysis/{id}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "resume_upload_url_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /resume-upload-url"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "POST /resume-upload-url"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "analyze_uploaded_resume_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /analyze-uploaded-resume"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "POST /analyze-uploaded-resume"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_stage" "default" {
@@ -74,73 +84,125 @@ resource "aws_lambda_permission" "allow_api_gateway" {
 }
 
 resource "aws_apigatewayv2_route" "match_job_description_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /match-job-description"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "POST /match-job-description"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "list_job_matches_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /job-matches"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /job-matches"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_job_match_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /job-match/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /job-match/{id}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "delete_analysis_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "DELETE /analysis/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "DELETE /analysis/{id}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "delete_all_analyses_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "DELETE /analyses"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "DELETE /analyses"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "delete_job_match_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "DELETE /job-match/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "DELETE /job-match/{id}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "delete_all_job_matches_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "DELETE /job-matches"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "DELETE /job-matches"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_analysis_download_url_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /analysis/{id}/download-url"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /analysis/{id}/download-url"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "tailor_resume_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "POST /tailor-resume"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "POST /tailor-resume"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "list_resume_tailorings_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /resume-tailorings"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /resume-tailorings"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_resume_tailoring_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /resume-tailoring/{id}"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /resume-tailoring/{id}"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
 resource "aws_apigatewayv2_route" "get_tailoring_by_match_route" {
-  api_id    = aws_apigatewayv2_api.http_api.id
-  route_key = "GET /job-match/{matchId}/tailoring"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /job-match/{matchId}/tailoring"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
+}
+
+resource "aws_apigatewayv2_route" "get_profile_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /profile"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
+}
+
+resource "aws_apigatewayv2_route" "update_profile_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "PUT /profile"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
+}
+
+resource "aws_apigatewayv2_authorizer" "cognito_jwt" {
+  api_id           = aws_apigatewayv2_api.http_api.id
+  authorizer_type  = "JWT"
+  identity_sources = ["$request.header.Authorization"]
+  name             = "${local.name_prefix}-cognito-jwt"
+
+  jwt_configuration {
+    audience = [aws_cognito_user_pool_client.web.id]
+    issuer   = "https://cognito-idp.${var.aws_region}.amazonaws.com/${aws_cognito_user_pool.users.id}"
+  }
 }

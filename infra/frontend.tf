@@ -65,7 +65,10 @@ resource "aws_s3_object" "frontend_config" {
 
   content = <<EOT
 window.APP_CONFIG = {
-  apiEndpoint: "${aws_apigatewayv2_api.http_api.api_endpoint}"
+  apiEndpoint: "${aws_apigatewayv2_api.http_api.api_endpoint}",
+  cognitoRegion: "${var.aws_region}",
+  cognitoUserPoolId: "${aws_cognito_user_pool.users.id}",
+  cognitoUserPoolClientId: "${aws_cognito_user_pool_client.web.id}"
 };
 EOT
 

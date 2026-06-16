@@ -45,6 +45,10 @@ const jobSortSelect = document.getElementById("jobSortSelect");
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
 
+if (document.body.dataset.page !== "home") {
+  requireAuth();
+}
+
 function escapeHtml(value) {
   return String(value || "")
     .replaceAll("&", "&amp;")
@@ -146,9 +150,7 @@ async function analyzeTextResume() {
   try {
     const response = await fetch(`${API_BASE_URL}/analyze-resume`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: await jsonHeaders(),
 
       body: JSON.stringify({
 	resumeName: resumeName?.value.trim() || "Untitled Resume",
@@ -188,9 +190,7 @@ async function uploadPdfResume() {
   try {
     const uploadUrlResponse = await fetch(`${API_BASE_URL}/resume-upload-url`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: await jsonHeaders(),
       body: JSON.stringify({
         fileName: file.name,
         contentType: file.type
@@ -263,7 +263,9 @@ async function loadHistory() {
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/analyses`);
+    const response = await fetch(`${API_BASE_URL}/analyses`, {
+      headers: await authHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -295,7 +297,9 @@ async function loadAnalysisDetail(analysisId) {
   result.textContent = "Loading analysis detail...";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`);
+    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`, {
+      headers: await authHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -488,9 +492,7 @@ async function matchJobDescription() {
   try {
     const response = await fetch(`${API_BASE_URL}/match-job-description`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: await jsonHeaders(),
       body: JSON.stringify({
         analysisId: analysisId,
 	jobName: jobName.value.trim() || "Untitled Job",
@@ -528,7 +530,9 @@ async function loadJobMatches() {
   jobMatches.textContent = "Loading job matches...";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/job-matches`);
+    const response = await fetch(`${API_BASE_URL}/job-matches`, {
+      headers: await authHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -546,7 +550,9 @@ async function loadJobMatchDetail(matchId) {
   result.textContent = "Loading job match detail...";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`);
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`, {
+      headers: await authHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -568,7 +574,8 @@ async function deleteAnalysis(analysisId) {
 
   try {
     const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: await authHeaders()
     });
 
     const data = await response.json();
@@ -591,7 +598,8 @@ async function deleteAllAnalyses() {
 
   try {
     const response = await fetch(`${API_BASE_URL}/analyses`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: await authHeaders()
     });
 
     const data = await response.json();
@@ -614,7 +622,8 @@ async function deleteJobMatch(matchId) {
 
   try {
     const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: await authHeaders()
     });
 
     const data = await response.json();
@@ -637,7 +646,8 @@ async function deleteAllJobMatches() {
 
   try {
     const response = await fetch(`${API_BASE_URL}/job-matches`, {
-      method: "DELETE"
+      method: "DELETE",
+      headers: await authHeaders()
     });
 
     const data = await response.json();
@@ -655,7 +665,9 @@ async function deleteAllJobMatches() {
 
 async function downloadResumeDocument(analysisId) {
   try {
-    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}/download-url`);
+    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}/download-url`, {
+      headers: await authHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {
@@ -981,7 +993,9 @@ function renderResumeTailoring(data) {
 
 async function fetchTailoringForMatch(matchId) {
   try {
-    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}/tailoring`);
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}/tailoring`, {
+      headers: await authHeaders()
+    });
     const data = await response.json();
 
     if (!response.ok) {

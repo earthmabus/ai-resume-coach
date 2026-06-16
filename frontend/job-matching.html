@@ -14,6 +14,7 @@
       <a class="active" href="./job-matching.html">Job Matching</a>
       <a class="disabled" href="#">Notifications</a>
       <a class="disabled" href="#">Profile</a>
+      <button class="nav-button" onclick="signOut()">Logout</button>
     </div>
   </nav>
 
@@ -80,8 +81,10 @@
       <div id="jobMatches" class="history">No job matches loaded.</div>
     </section>
   </main>
-
+ 
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js"></script>
+  <script src="./auth.js"></script>
   <script src="./app.js"></script>
 </body>
 </html>

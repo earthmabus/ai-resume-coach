@@ -102,6 +102,7 @@ def analyze_and_save_resume(
     analysis_duration_ms = int((time.perf_counter() - analysis_started) * 1000)
 
     item = {
+        "userId": user_id,
         "analysisId": analysis_id,
         "createdAt": created_at,
         "sourceType": source_type,
@@ -136,6 +137,8 @@ def analyze_and_save_resume(
 def analyze_resume(event):
     body = parse_body(event)
 
+    user_id = current_user_id(event)
+
     resume_name = body.get("resumeName", "").strip() or "Untitled Resume"
 
     if body is None:
@@ -158,6 +161,8 @@ def analyze_resume(event):
 
 def create_resume_upload_url(event):
     body = parse_body(event)
+
+    user_id = current_user_id(event)
 
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
@@ -217,6 +222,8 @@ def extract_text_from_pdf(bucket, key):
 def analyze_uploaded_resume(event):
     body = parse_body(event)
 
+    user_id = current_user_id(event)
+
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
@@ -249,6 +256,7 @@ def analyze_uploaded_resume(event):
         requested_provider = body.get("analysisProvider", os.getenv("ANALYSIS_PROVIDER", "rule-based"))
 
         item = {
+            "userId": user_id,
             "analysisId": analysis_id,
             "createdAt": created_at,
             "sourceType": "pdf",
@@ -288,6 +296,7 @@ def analyze_uploaded_resume(event):
             QueueUrl=resume_analysis_queue_url,
             MessageBody=json.dumps(
                 {
+                    "userId": user_id,
                     "analysisId": analysis_id,
                     "sourceType": "pdf",
                     "analysisProvider": requested_provider
@@ -309,10 +318,14 @@ def analyze_uploaded_resume(event):
             },
         )
 
-def list_analyses():
+def list_analyses(event):
+    user_id = current_user_id(event)
+
     response = table.scan(
-        ProjectionExpression="analysisId, createdAt, sourceType, #s, score, leadershipScore, technicalScore, architectureScore, atsScore, wordCount, fileName, resumeName, documentBucket, documentKey, resumeText, provider, model, analysisVersion, analysisDurationMs",
-        ExpressionAttributeNames={"#s": "status"},
+        FilterExpression="userId = :userId AND attribute_not_exists(recordType)",
+        ExpressionAttributeValues={
+            ":userId": user_id,
+        },
     )
 
     analyses = sorted(
@@ -327,11 +340,18 @@ def list_analyses():
 def get_analysis(event):
     analysis_id = event.get("pathParameters", {}).get("id")
 
+    user_id = current_user_id(event)
+
     if not analysis_id:
         return build_response(400, {"error": "analysis id is required"})
 
     response = table.get_item(Key={"analysisId": analysis_id})
     item = response.get("Item")
+
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
 
     if not item:
         return build_response(404, {"error": "analysis not found"})
@@ -341,6 +361,8 @@ def get_analysis(event):
 
 def match_job_description(event):
     body = parse_body(event)
+
+    user_id = current_user_id(event)
 
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
@@ -374,6 +396,7 @@ def match_job_description(event):
     tailoring_id = str(uuid.uuid4())
 
     item = {
+        "userId": user_id,
         "analysisId": match_id,
         "tailoringId": tailoring_id,
         "matchId": match_id,
@@ -417,6 +440,7 @@ def match_job_description(event):
         QueueUrl=resume_analysis_queue_url,
         MessageBody=json.dumps(
             {
+                "userId": user_id,
                 "jobType": "jobMatch",
                 "matchId": match_id,
                 "analysisId": analysis_id,
@@ -458,11 +482,14 @@ def match_job_description(event):
     return build_response(202, item)
 
 
-def list_job_matches():
+def list_job_matches(event):
+    user_id = current_user_id(event)
+
     response = table.scan(
-        FilterExpression="recordType = :recordType",
+        FilterExpression="userId = :userId AND recordType = :recordType",
         ExpressionAttributeValues={
-            ":recordType": "jobMatch"
+            ":userId": user_id,
+            ":recordType": "jobMatch",
         },
     )
 
@@ -478,11 +505,18 @@ def list_job_matches():
 def get_job_match(event):
     match_id = event.get("pathParameters", {}).get("id")
 
+    user_id = current_user_id(event)
+
     if not match_id:
         return build_response(400, {"error": "job match id is required"})
 
     response = table.get_item(Key={"analysisId": match_id})
     item = response.get("Item")
+
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
 
     if not item:
         return build_response(404, {"error": "job match not found"})
@@ -504,11 +538,18 @@ def delete_s3_document_if_present(item):
 def delete_analysis(event):
     analysis_id = event.get("pathParameters", {}).get("id")
 
+    user_id = current_user_id(event)
+
     if not analysis_id:
         return build_response(400, {"error": "analysis id is required"})
 
     response = table.get_item(Key={"analysisId": analysis_id})
     item = response.get("Item")
+
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
 
     if not item:
         return build_response(404, {"error": "analysis not found"})
@@ -529,7 +570,9 @@ def delete_analysis(event):
     )
 
 
-def delete_all_analyses():
+def delete_all_analyses(event):
+    user_id = current_user_id(event)
+
     response = table.scan()
     deleted = 0
 
@@ -553,11 +596,18 @@ def delete_all_analyses():
 def delete_job_match(event):
     match_id = event.get("pathParameters", {}).get("id")
 
+    user_id = current_user_id(event)
+
     if not match_id:
         return build_response(400, {"error": "job match id is required"})
 
     response = table.get_item(Key={"analysisId": match_id})
     item = response.get("Item")
+
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
 
     if not item:
         return build_response(404, {"error": "job match not found"})
@@ -576,7 +626,9 @@ def delete_job_match(event):
     )
 
 
-def delete_all_job_matches():
+def delete_all_job_matches(event):
+    user_id = current_user_id(event)
+
     response = table.scan(
         FilterExpression="recordType = :recordType",
         ExpressionAttributeValues={
@@ -600,6 +652,8 @@ def delete_all_job_matches():
 
 
 def get_resume_download_url(event):
+    user_id = current_user_id(event)
+
     analysis_id = event.get("pathParameters", {}).get("id")
 
     if not analysis_id:
@@ -607,6 +661,11 @@ def get_resume_download_url(event):
 
     response = table.get_item(Key={"analysisId": analysis_id})
     item = response.get("Item")
+
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
 
     if not item:
         return build_response(404, {"error": "analysis not found"})
@@ -639,6 +698,8 @@ def get_resume_download_url(event):
 
 def tailor_resume(event):
     body = parse_body(event)
+
+    user_id = current_user_id(event)
 
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
@@ -674,6 +735,7 @@ def tailor_resume(event):
     created_at = datetime.now(timezone.utc).isoformat()
 
     item = {
+        "userId": user_id,
         "analysisId": tailoring_id,
         "tailoringId": tailoring_id,
         "matchId": match_id,
@@ -707,6 +769,7 @@ def tailor_resume(event):
         QueueUrl=resume_analysis_queue_url,
         MessageBody=json.dumps(
             {
+                "userId": user_id,
                 "jobType": "resumeTailoring",
                 "tailoringId": tailoring_id,
                 "analysisProvider": requested_provider,
@@ -717,11 +780,14 @@ def tailor_resume(event):
     return build_response(202, item)
 
 
-def list_resume_tailorings():
+def list_resume_tailorings(event):
+    user_id = current_user_id(event)
+
     response = table.scan(
-        FilterExpression="recordType = :recordType",
+        FilterExpression="userId = :userId AND recordType = :recordType",
         ExpressionAttributeValues={
-            ":recordType": "resumeTailoring"
+            ":userId": user_id,
+            ":recordType": "resumeTailoring",
         },
     )
 
@@ -735,6 +801,8 @@ def list_resume_tailorings():
 
 
 def get_resume_tailoring(event):
+    user_id = current_user_id(event)
+
     tailoring_id = event.get("pathParameters", {}).get("id")
 
     if not tailoring_id:
@@ -743,6 +811,11 @@ def get_resume_tailoring(event):
     response = table.get_item(Key={"analysisId": tailoring_id})
     item = response.get("Item")
 
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
+
     if not item:
         return build_response(404, {"error": "tailoring not found"})
 
@@ -750,20 +823,28 @@ def get_resume_tailoring(event):
 
 
 def get_resume_tailoring_by_match(event):
+    user_id = current_user_id(event)
+
     match_id = event.get("pathParameters", {}).get("matchId")
 
     if not match_id:
         return build_response(400, {"error": "match id is required"})
 
     response = table.scan(
-        FilterExpression="recordType = :recordType AND matchId = :matchId",
+        FilterExpression="recordType = :recordType AND matchId = :matchId AND userId = :userId",
         ExpressionAttributeValues={
             ":recordType": "resumeTailoring",
             ":matchId": match_id,
+            ":userId": user_id,
         },
     )
 
     items = response.get("Items", [])
+
+    try:
+        assert_item_owner(items[0], user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
 
     if not items:
         return build_response(404, {"error": "tailoring not found for match"})
@@ -775,6 +856,83 @@ def get_resume_tailoring_by_match(event):
     )
 
     return build_response(200, items[0])
+
+
+def current_user_id(event):
+    claims = (
+        event.get("requestContext", {})
+        .get("authorizer", {})
+        .get("jwt", {})
+        .get("claims", {})
+    )
+
+    user_id = claims.get("sub")
+
+    if not user_id:
+        raise ValueError("Unauthorized: missing user identity")
+
+    return user_id
+
+
+def assert_item_owner(item, user_id):
+    if item.get("userId") != user_id:
+        raise PermissionError("Forbidden")
+
+
+def get_profile(event):
+    user_id = current_user_id(event)
+    profile_id = f"PROFILE#{user_id}"
+
+    response = table.get_item(Key={"analysisId": profile_id})
+    item = response.get("Item")
+
+    if not item:
+        return build_response(
+            200,
+            {
+                "analysisId": profile_id,
+                "recordType": "userProfile",
+                "userId": user_id,
+                "name": "",
+                "currentTitle": "",
+                "targetTitle": "",
+                "yearsExperience": "",
+                "certifications": "",
+                "preferredProvider": "openai",
+                "resumeStyle": "executive",
+            },
+        )
+
+    return build_response(200, item)
+
+
+def update_profile(event):
+    user_id = current_user_id(event)
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    profile_id = f"PROFILE#{user_id}"
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    item = {
+        "analysisId": profile_id,
+        "recordType": "userProfile",
+        "userId": user_id,
+        "updatedAt": updated_at,
+        "name": body.get("name", "").strip(),
+        "currentTitle": body.get("currentTitle", "").strip(),
+        "targetTitle": body.get("targetTitle", "").strip(),
+        "yearsExperience": body.get("yearsExperience", "").strip(),
+        "certifications": body.get("certifications", "").strip(),
+        "preferredProvider": body.get("preferredProvider", "openai").strip(),
+        "resumeStyle": body.get("resumeStyle", "executive").strip(),
+    }
+
+    table.put_item(Item=item)
+
+    return build_response(200, item)
 
 
 def lambda_handler(event, context):
@@ -796,7 +954,7 @@ def lambda_handler(event, context):
         return analyze_uploaded_resume(event)
 
     if route == "GET /analyses":
-        return list_analyses()
+        return list_analyses(event)
 
     if route == "GET /analysis/{id}":
         return get_analysis(event)
@@ -805,7 +963,7 @@ def lambda_handler(event, context):
         return match_job_description(event)
 
     if route == "GET /job-matches":
-        return list_job_matches()
+        return list_job_matches(event)
 
     if route == "GET /job-match/{id}":
         return get_job_match(event)
@@ -814,13 +972,13 @@ def lambda_handler(event, context):
         return delete_analysis(event)
 
     if route == "DELETE /analyses":
-        return delete_all_analyses()
+        return delete_all_analyses(event)
 
     if route == "DELETE /job-match/{id}":
         return delete_job_match(event)
 
     if route == "DELETE /job-matches":
-        return delete_all_job_matches()
+        return delete_all_job_matches(event)
 
     if route == "GET /analysis/{id}/download-url":
         return get_resume_download_url(event)
@@ -829,7 +987,7 @@ def lambda_handler(event, context):
         return tailor_resume(event)
 
     if route == "GET /resume-tailorings":
-        return list_resume_tailorings()
+        return list_resume_tailorings(event)
 
     if route == "GET /resume-tailoring/{id}":
         return get_resume_tailoring(event)
@@ -837,4 +995,9 @@ def lambda_handler(event, context):
     if route == "GET /job-match/{matchId}/tailoring":
         return get_resume_tailoring_by_match(event)
 
+    if route == "GET /profile":
+        return get_profile(event)
+
+    if route == "PUT /profile":
+        return update_profile(event)
     return build_response(404, {"error": "Route not found", "route": route})

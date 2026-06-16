@@ -42,3 +42,13 @@ output "resume_analysis_worker_function_name" {
   description = "Lambda worker function that processes asynchronous resume analysis jobs."
   value       = aws_lambda_function.resume_analysis_worker.function_name
 }
+
+output "cognito_user_pool_id" {
+  value       = aws_cognito_user_pool.users.id
+  description = "Cognito User Pool ID"
+}
+
+output "cognito_user_pool_client_id" {
+  value       = aws_cognito_user_pool_client.web.id
+  description = "Cognito User Pool Web Client ID"
+}

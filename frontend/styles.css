@@ -451,3 +451,17 @@ button.secondary:hover {
 .resume-download-section {
   margin-bottom: 24px;
 }
+
+.nav-button {
+  background: transparent;
+  border: 1px solid #6b7280;
+  color: #d1d5db;
+  padding: 6px 10px;
+  border-radius: 6px;
+  cursor: pointer;
+}
+
+.nav-button:hover {
+  color: white;
+  border-color: white;
+}

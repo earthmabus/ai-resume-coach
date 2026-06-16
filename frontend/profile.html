@@ -1,0 +1,70 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Profile | AI Resume Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body data-page="profile">
+  <nav class="top-nav">
+    <a class="brand" href="./index.html">AI Resume Coach</a>
+    <div class="nav-links">
+      <a href="./resume-analysis.html">Resume Analysis</a>
+      <a href="./job-matching.html">Job Matching</a>
+      <a class="disabled" href="#">Notifications</a>
+      <a class="active" href="./profile.html">Profile</a>
+      <button class="nav-button" onclick="signOut()">Logout</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Profile</h1>
+      <p>Set your career context and default preferences for resume analysis and job matching.</p>
+    </section>
+
+    <section class="card">
+      <label for="profileName">Name</label>
+      <input id="profileName" type="text" placeholder="Example: Michael Popovich" />
+
+      <label for="currentTitle">Current Title</label>
+      <input id="currentTitle" type="text" placeholder="Example: Senior Software Engineering Manager" />
+
+      <label for="targetTitle">Target Title</label>
+      <input id="targetTitle" type="text" placeholder="Example: Director, Software Engineering" />
+
+      <label for="yearsExperience">Years Experience</label>
+      <input id="yearsExperience" type="text" placeholder="Example: 20+" />
+
+      <label for="certifications">Certifications</label>
+      <textarea id="certifications" rows="5" placeholder="Example: CISSP, CCSP, AWS Solutions Architect Professional"></textarea>
+
+      <label for="preferredProvider">Preferred Provider</label>
+      <select id="preferredProvider">
+        <option value="openai">OpenAI</option>
+        <option value="rule-based">Rule-based</option>
+      </select>
+
+      <label for="resumeStyle">Resume Style</label>
+      <select id="resumeStyle">
+        <option value="executive">Executive</option>
+        <option value="technical">Technical</option>
+        <option value="balanced">Balanced</option>
+      </select>
+
+      <button id="saveProfileButton">Save Profile</button>
+    </section>
+
+    <section class="card">
+      <h2>Profile Status</h2>
+      <div id="profileResult" class="result-panel">Profile not loaded.</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
+  <script src="./config.js"></script>
+  <script src="./auth.js"></script>
+  <script src="./profile.js"></script>
+</body>
+</html>
