@@ -197,3 +197,110 @@ Job Description:
             "atsOptimizationAdvice": parsed.get("atsOptimizationAdvice", []),
             "rewriteWarnings": parsed.get("rewriteWarnings", []),
         }
+
+    def prepare_interview(self, resume_text: str, job_description_text: str) -> dict:
+        prompt = f"""
+You are an expert interview coach for senior software engineering managers,
+cloud architects, and director-level engineering candidates.
+
+Generate an interview preparation package based on the resume and job description.
+
+Return only valid JSON with this exact shape:
+
+{{
+  "behavioralQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "leadershipQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "systemDesignQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "cloudArchitectureQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "securityQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "resumeSpecificQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "jobSpecificQuestions": [
+    {{
+      "question": "string",
+      "answerFramework": ["string"],
+      "followUpQuestions": ["string"]
+    }}
+  ],
+  "interviewReadinessSummary": "string"
+}}
+
+Rules:
+- Generate practical questions likely to be asked in a Director-level engineering interview.
+- Make questions specific to the resume and job description.
+- Include leadership, architecture, cloud, security, AI, delivery, and stakeholder themes where relevant.
+- Do not invent experience. Base resume-specific questions on the resume content.
+- Provide answer frameworks, not full scripted answers.
+- Generate 5 questions per category.
+
+Resume:
+\"\"\"
+{resume_text[:8000]}
+\"\"\"
+
+Job Description:
+\"\"\"
+{job_description_text[:8000]}
+\"\"\"
+"""
+
+        response = self.client.responses.create(
+            model=self.model,
+            input=prompt,
+            text={
+                "format": {
+                    "type": "json_object"
+                }
+            },
+        )
+
+        parsed = json.loads(response.output_text)
+
+        return {
+            "provider": self.provider_name,
+            "model": self.model,
+            "analysisVersion": f"interview-prep-{self.model}-v1",
+            "behavioralQuestions": parsed.get("behavioralQuestions", []),
+            "leadershipQuestions": parsed.get("leadershipQuestions", []),
+            "systemDesignQuestions": parsed.get("systemDesignQuestions", []),
+            "cloudArchitectureQuestions": parsed.get("cloudArchitectureQuestions", []),
+            "securityQuestions": parsed.get("securityQuestions", []),
+            "resumeSpecificQuestions": parsed.get("resumeSpecificQuestions", []),
+            "jobSpecificQuestions": parsed.get("jobSpecificQuestions", []),
+            "interviewReadinessSummary": parsed.get("interviewReadinessSummary", ""),
+        }

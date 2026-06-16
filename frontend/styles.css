@@ -490,8 +490,153 @@ button.secondary:hover {
 
 .auth-actions {
   display: flex;
-  gap: 16px;
-  flex-wrap: wrap;
-  margin-top: 16px;
+  flex-direction: column;
+  gap: 12px;
+  margin-top: 24px;
   margin-bottom: 16px;
 }
+
+.interview-section {
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  margin-top: 12px;
+  background: #ffffff;
+}
+
+.interview-section summary {
+  cursor: pointer;
+  font-weight: 700;
+  padding: 12px;
+  background: #f3f4f6;
+  border-radius: 8px;
+}
+
+.interview-section[open] summary {
+  border-bottom: 1px solid #e5e7eb;
+  border-radius: 8px 8px 0 0;
+}
+
+.question-card {
+  padding: 12px;
+  border-top: 1px solid #e5e7eb;
+}
+
+.question-card:first-of-type {
+  border-top: none;
+}
+
+.secondary-button {
+  width: 100%;
+  background: white;
+  color: #2563eb;
+  border: 1px solid #2563eb;
+  padding: 12px;
+  border-radius: 8px;
+  cursor: pointer;
+  font-size: 15px;
+  font-weight: 600;
+}
+
+.secondary-button:hover {
+  background: #eff6ff;
+}
+
+.auth-button-separator {
+  height: 24px;
+}
+
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 24px;
+}
+
+.dashboard-action-card {
+  min-height: 180px;
+}
+
+.card-action {
+  display: inline-block;
+  margin-top: 16px;
+  font-weight: 700;
+  color: #2563eb;
+}
+
+.stats-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 16px;
+}
+
+.stat-card {
+  background: #f9fafb;
+  border: 1px solid #e5e7eb;
+  border-radius: 10px;
+  padding: 18px;
+  text-align: center;
+}
+
+.stat-value {
+  display: block;
+  font-size: 32px;
+  font-weight: 800;
+  color: #111827;
+}
+
+.stat-label {
+  display: block;
+  margin-top: 6px;
+  color: #6b7280;
+  font-weight: 600;
+}
+
+.recent-activity {
+  border-top: 4px solid #111827;
+  margin-top: 12px;
+  padding-top: 12px;
+}
+
+.activity-item {
+  display: flex;
+  justify-content: space-between;
+  gap: 16px;
+  padding: 16px 0;
+  border-top: 1px solid #e5e7eb;
+  text-decoration: none;
+  color: inherit;
+}
+
+.activity-item:first-child {
+  border-top: none;
+}
+
+.activity-item:hover {
+  background: #f9fafb;
+}
+
+.activity-item p {
+  margin: 6px 0;
+}
+
+.activity-date {
+  color: #6b7280;
+  font-size: 14px;
+  white-space: nowrap;
+}
+
+@media (max-width: 900px) {
+  .dashboard-grid,
+  .stats-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .activity-item {
+    flex-direction: column;
+  }
+
+  .activity-date {
+    white-space: normal;
+  }
+}
+

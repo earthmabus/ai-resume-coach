@@ -195,6 +195,14 @@ resource "aws_apigatewayv2_route" "update_profile_route" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
+resource "aws_apigatewayv2_route" "get_interview_prep_by_match_route" {
+  api_id             = aws_apigatewayv2_api.http_api.id
+  route_key          = "GET /job-match/{matchId}/interview-prep"
+  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+  authorization_type = "JWT"
+  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
+}
+
 resource "aws_apigatewayv2_authorizer" "cognito_jwt" {
   api_id           = aws_apigatewayv2_api.http_api.id
   authorizer_type  = "JWT"

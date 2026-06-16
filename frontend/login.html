@@ -21,9 +21,22 @@
 
       <button id="loginButton">Sign In</button>
 
+      <div class="auth-button-separator"></div>
+
       <div class="auth-actions">
-        <a class="secondary-link" href="./signup.html">Create new account</a>
-        <a class="secondary-link" href="./confirm-account.html">Confirm new account</a>
+        <button
+          type="button"
+          class="secondary-button"
+          onclick="window.location.href='./signup.html'">
+          Create New Account
+        </button>
+
+        <button
+          type="button"
+          class="secondary-button"
+          onclick="window.location.href='./confirm-account.html'">
+          Confirm New Account
+        </button>
       </div>
 
       <div id="authResult" class="result-panel">Enter your credentials.</div>

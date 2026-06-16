@@ -101,3 +101,32 @@ class RuleBasedProvider(AnalysisProvider):
                 "Rule-based tailoring is generic. Use OpenAI for stronger job-specific recommendations."
             ],
         }
+
+    def prepare_interview(self, resume_text: str, job_description_text: str) -> dict:
+        sample_question = {
+            "question": "Tell me about a complex engineering initiative you led and the measurable outcome.",
+            "answerFramework": [
+                "Describe the business context.",
+                "Explain your leadership role.",
+                "Describe technical and delivery challenges.",
+                "Share measurable outcomes."
+            ],
+            "followUpQuestions": [
+                "How did you measure success?",
+                "What would you do differently?"
+            ]
+        }
+
+        return {
+            "provider": self.provider_name,
+            "model": "",
+            "analysisVersion": "interview-prep-rule-based-v1",
+            "behavioralQuestions": [sample_question],
+            "leadershipQuestions": [sample_question],
+            "systemDesignQuestions": [sample_question],
+            "cloudArchitectureQuestions": [sample_question],
+            "securityQuestions": [sample_question],
+            "resumeSpecificQuestions": [sample_question],
+            "jobSpecificQuestions": [sample_question],
+            "interviewReadinessSummary": "Rule-based interview preparation generated. Use OpenAI for job-specific questions."
+        }

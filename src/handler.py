@@ -394,10 +394,13 @@ def match_job_description(event):
     
     tailoring_id = str(uuid.uuid4())
 
+    interview_prep_id = str(uuid.uuid4())
+
     item = {
         "userId": user_id,
         "analysisId": match_id,
         "tailoringId": tailoring_id,
+        "interviewPrepId": interview_prep_id,
         "matchId": match_id,
         "resumeAnalysisId": analysis_id,
         "recordType": "jobMatch",
@@ -477,6 +480,36 @@ def match_job_description(event):
     }
 
     table.put_item(Item=tailoring_item)
+
+    interview_prep_item = {
+        "analysisId": interview_prep_id,
+        "interviewPrepId": interview_prep_id,
+        "matchId": match_id,
+        "resumeAnalysisId": analysis_id,
+        "recordType": "interviewPreparation",
+        "createdAt": created_at,
+        "status": "waiting",
+        "userId": user_id,
+        "provider": requested_provider or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+        "model": os.getenv("OPENAI_MODEL", ""),
+        "analysisVersion": "interview-prep-waiting-v1",
+        "analysisDurationMs": 0,
+        "jobName": job_name,
+        "jobUrl": job_url,
+        "resumeName": resume_item.get("resumeName", "Untitled Resume"),
+        "resumeText": resume_text,
+        "jobDescriptionText": job_description_text,
+        "behavioralQuestions": [],
+        "leadershipQuestions": [],
+        "systemDesignQuestions": [],
+        "cloudArchitectureQuestions": [],
+        "securityQuestions": [],
+        "resumeSpecificQuestions": [],
+        "jobSpecificQuestions": [],
+        "interviewReadinessSummary": "",
+    }
+
+    table.put_item(Item=interview_prep_item)
 
     return build_response(202, item)
 
@@ -937,6 +970,36 @@ def update_profile(event):
     return build_response(200, item)
 
 
+def get_interview_prep_by_match(event):
+    user_id = current_user_id(event)
+    match_id = event.get("pathParameters", {}).get("matchId")
+
+    if not match_id:
+        return build_response(400, {"error": "match id is required"})
+
+    response = table.scan(
+        FilterExpression="recordType = :recordType AND matchId = :matchId AND userId = :userId",
+        ExpressionAttributeValues={
+            ":recordType": "interviewPreparation",
+            ":matchId": match_id,
+            ":userId": user_id,
+        },
+    )
+
+    items = response.get("Items", [])
+
+    if not items:
+        return build_response(404, {"error": "interview preparation not found for match"})
+
+    items = sorted(
+        items,
+        key=lambda item: item.get("createdAt", ""),
+        reverse=True,
+    )
+
+    return build_response(200, items[0])
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -1002,4 +1065,8 @@ def lambda_handler(event, context):
 
     if route == "PUT /profile":
         return update_profile(event)
+
+    if route == "GET /job-match/{matchId}/interview-prep":
+        return get_interview_prep_by_match(event)
+
     return build_response(404, {"error": "Route not found", "route": route})

@@ -334,7 +334,7 @@ function showPanel(panelName) {
   }
 }
 
-function renderJobMatch(data, tailoring = null) {
+function renderJobMatch(data, tailoring = null, interviewPrep = null) {
   const matchedKeywords = (data.matchedKeywords || [])
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
@@ -437,6 +437,7 @@ function renderJobMatch(data, tailoring = null) {
     }
 
     ${renderTailoringSection(tailoring)}
+    ${renderInterviewPrepSection(interviewPrep)}
   ` : `
     <p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>
   `}
@@ -560,8 +561,9 @@ async function loadJobMatchDetail(matchId) {
     }
 
     const tailoring = await fetchTailoringForMatch(matchId);
+    const interviewPrep = await fetchInterviewPrepForMatch(matchId);
 
-    renderJobMatch(data, tailoring);
+    renderJobMatch(data, tailoring, interviewPrep);
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
@@ -1064,6 +1066,93 @@ function renderTailoringSection(tailoring) {
         </div>
       ` : `
         <p><strong>Status:</strong> Resume tailoring is still processing. Refresh this job match shortly.</p>
+      `}
+    </section>
+  `;
+}
+
+async function fetchInterviewPrepForMatch(matchId) {
+  try {
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}/interview-prep`, {
+      headers: await authHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      return null;
+    }
+
+    return data;
+  } catch {
+    return null;
+  }
+}
+
+function renderQuestionItems(items) {
+  if (!items || items.length === 0) {
+    return "<p>No questions available yet.</p>";
+  }
+
+  return items.map((item, index) => `
+    <div class="question-card">
+      <p><strong>${index + 1}. ${escapeHtml(item.question || "")}</strong></p>
+
+      <p><strong>Answer Framework</strong></p>
+      <ul>${listToHtml(item.answerFramework || [])}</ul>
+
+      <p><strong>Follow-up Questions</strong></p>
+      <ul>${listToHtml(item.followUpQuestions || [])}</ul>
+    </div>
+  `).join("");
+}
+
+function renderInterviewQuestionSection(title, questions) {
+  return `
+    <details class="interview-section">
+      <summary>${escapeHtml(title)}</summary>
+      ${renderQuestionItems(questions)}
+    </details>
+  `;
+}
+
+function renderInterviewPrepSection(interviewPrep) {
+  if (!interviewPrep) {
+    return `
+      <section class="result-box">
+        <h3>Interview Preparation</h3>
+        <p>No interview preparation result found yet. Refresh this job match shortly.</p>
+      </section>
+    `;
+  }
+
+  const isCompleted = interviewPrep.status === "completed";
+  const statusClass = isCompleted ? "" : "status-pending";
+
+  return `
+    <section class="result-box">
+      <h3>Interview Preparation</h3>
+
+      <div class="metrics">
+        <span class="metric ${statusClass}">Status: ${escapeHtml(interviewPrep.status || "unknown")}</span>
+        <span class="metric">Provider: ${escapeHtml(interviewPrep.provider || "unknown")}</span>
+        <span class="metric">Model: ${escapeHtml(interviewPrep.model || "N/A")}</span>
+        <span class="metric">Duration: ${escapeHtml(interviewPrep.analysisDurationMs || 0)} ms</span>
+      </div>
+
+      ${isCompleted ? `
+        <h4>Interview Readiness Summary</h4>
+        <p>${escapeHtml(interviewPrep.interviewReadinessSummary || "No summary available.")}</p>
+
+        ${renderInterviewQuestionSection("Behavioral Questions", interviewPrep.behavioralQuestions)}
+        ${renderInterviewQuestionSection("Leadership Questions", interviewPrep.leadershipQuestions)}
+        ${renderInterviewQuestionSection("System Design Questions", interviewPrep.systemDesignQuestions)}
+        ${renderInterviewQuestionSection("Cloud Architecture Questions", interviewPrep.cloudArchitectureQuestions)}
+        ${renderInterviewQuestionSection("Security Questions", interviewPrep.securityQuestions)}
+        ${renderInterviewQuestionSection("Resume-Specific Questions", interviewPrep.resumeSpecificQuestions)}
+        ${renderInterviewQuestionSection("Job-Specific Questions", interviewPrep.jobSpecificQuestions)}
+      ` : `
+        <p><strong>Status:</strong> Interview preparation is still processing. Refresh this job match shortly.</p>
       `}
     </section>
   `;

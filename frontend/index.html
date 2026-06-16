@@ -6,7 +6,7 @@
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
-<body>
+<body data-page="home">
   <nav class="top-nav">
     <a class="brand" href="./index.html">AI Resume Coach</a>
     <div class="nav-links">
@@ -14,26 +14,65 @@
       <a href="./job-matching.html">Job Matching</a>
       <a class="disabled" href="#">Notifications</a>
       <a href="./profile.html">Profile</a>
+      <button class="nav-button" onclick="signOut()">Logout</button>
     </div>
   </nav>
 
   <main class="container">
     <section class="hero">
-      <h1>AI Resume Coach</h1>
-      <p>Analyze resumes, upload PDFs, and match your resume against job descriptions.</p>
+      <h1>Welcome to AI Resume Coach</h1>
+      <p>Analyze resumes, match them against jobs, generate tailored resume guidance, and prepare for interviews.</p>
     </section>
 
-    <section class="grid">
-      <a class="card nav-card" href="./resume-analysis.html">
+    <section class="dashboard-grid">
+      <a class="card nav-card dashboard-action-card" href="./resume-analysis.html">
         <h2>Resume Analysis</h2>
-        <p>Paste resume text, upload PDFs, run AI analysis, and review resume history.</p>
+        <p>Upload a PDF or paste resume text, then get AI-powered scoring, gaps, strengths, and recommendations.</p>
+        <span class="card-action">Open Resume Analysis →</span>
       </a>
 
-      <a class="card nav-card" href="./job-matching.html">
+      <a class="card nav-card dashboard-action-card" href="./job-matching.html">
         <h2>Job Matching</h2>
-        <p>Compare a saved resume analysis against a pasted job description.</p>
+        <p>Compare a saved resume against a job description, then receive match analysis, tailoring, and interview prep.</p>
+        <span class="card-action">Open Job Matching →</span>
       </a>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Quick Stats</h2>
+        <button id="refreshDashboardButton">Refresh Dashboard</button>
+      </div>
+
+      <div id="dashboardStats" class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Resumes</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Job Matches</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Completed Matches</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Processing</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Recent Activity</h2>
+      <div id="recentActivity" class="recent-activity">Loading recent activity...</div>
     </section>
   </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
+  <script src="./config.js?v=2"></script>
+  <script src="./auth.js?v=2"></script>
+  <script src="./dashboard.js?v=1"></script>
 </body>
 </html>

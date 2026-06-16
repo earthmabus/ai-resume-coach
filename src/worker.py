@@ -217,6 +217,29 @@ def process_job_match(match_id):
 
         process_resume_tailoring(tailoring_id)
 
+        match_response = table.get_item(Key={"analysisId": match_id})
+        updated_match_item = match_response.get("Item", {})
+
+        interview_prep_id = updated_match_item.get("interviewPrepId")
+
+        if interview_prep_id:
+            table.update_item(
+                Key={"analysisId": interview_prep_id},
+                UpdateExpression="""
+                    SET #s = :status,
+                        analysisVersion = :analysisVersion
+                """,
+                ExpressionAttributeNames={
+                    "#s": "status",
+                },
+                ExpressionAttributeValues={
+                    ":status": "processing",
+                    ":analysisVersion": "interview-prep-queued-v1",
+                },
+            )
+
+            process_interview_preparation(interview_prep_id)
+
 
 def process_resume_tailoring(tailoring_id):
     tailoring_response = table.get_item(Key={"analysisId": tailoring_id})
@@ -275,6 +298,73 @@ def process_resume_tailoring(tailoring_id):
                 ":rolePositioningAdvice": tailoring_result.get("rolePositioningAdvice", []),
                 ":atsOptimizationAdvice": tailoring_result.get("atsOptimizationAdvice", []),
                 ":rewriteWarnings": tailoring_result.get("rewriteWarnings", []),
+                ":completedAt": datetime.now(timezone.utc).isoformat(),
+            }
+        ),
+    )
+
+
+def process_interview_preparation(interview_prep_id):
+    response = table.get_item(Key={"analysisId": interview_prep_id})
+    item = response.get("Item")
+
+    if not item:
+        raise ValueError(f"Interview preparation not found: {interview_prep_id}")
+
+    resume_text = item.get("resumeText", "").strip()
+    job_description_text = item.get("jobDescriptionText", "").strip()
+
+    if not resume_text:
+        raise ValueError(f"No resumeText found for interview prep: {interview_prep_id}")
+
+    if not job_description_text:
+        raise ValueError(f"No jobDescriptionText found for interview prep: {interview_prep_id}")
+
+    requested_provider = item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based")
+
+    started = time.perf_counter()
+
+    provider = get_analysis_provider(requested_provider)
+    prep_result = provider.prepare_interview(resume_text, job_description_text)
+
+    duration_ms = int((time.perf_counter() - started) * 1000)
+
+    table.update_item(
+        Key={"analysisId": interview_prep_id},
+        UpdateExpression="""
+            SET #s = :status,
+                provider = :provider,
+                model = :model,
+                analysisVersion = :analysisVersion,
+                analysisDurationMs = :analysisDurationMs,
+                behavioralQuestions = :behavioralQuestions,
+                leadershipQuestions = :leadershipQuestions,
+                systemDesignQuestions = :systemDesignQuestions,
+                cloudArchitectureQuestions = :cloudArchitectureQuestions,
+                securityQuestions = :securityQuestions,
+                resumeSpecificQuestions = :resumeSpecificQuestions,
+                jobSpecificQuestions = :jobSpecificQuestions,
+                interviewReadinessSummary = :interviewReadinessSummary,
+                completedAt = :completedAt
+        """,
+        ExpressionAttributeNames={
+            "#s": "status",
+        },
+        ExpressionAttributeValues=to_dynamodb_value(
+            {
+                ":status": "completed",
+                ":provider": prep_result["provider"],
+                ":model": prep_result.get("model", ""),
+                ":analysisVersion": prep_result["analysisVersion"],
+                ":analysisDurationMs": duration_ms,
+                ":behavioralQuestions": prep_result.get("behavioralQuestions", []),
+                ":leadershipQuestions": prep_result.get("leadershipQuestions", []),
+                ":systemDesignQuestions": prep_result.get("systemDesignQuestions", []),
+                ":cloudArchitectureQuestions": prep_result.get("cloudArchitectureQuestions", []),
+                ":securityQuestions": prep_result.get("securityQuestions", []),
+                ":resumeSpecificQuestions": prep_result.get("resumeSpecificQuestions", []),
+                ":jobSpecificQuestions": prep_result.get("jobSpecificQuestions", []),
+                ":interviewReadinessSummary": prep_result.get("interviewReadinessSummary", ""),
                 ":completedAt": datetime.now(timezone.utc).isoformat(),
             }
         ),

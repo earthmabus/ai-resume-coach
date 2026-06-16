@@ -23,7 +23,7 @@ document.getElementById("loginButton").addEventListener("click", () => {
 
   user.authenticateUser(authDetails, {
     onSuccess: () => {
-      window.location.href = "./resume-analysis.html";
+      window.location.href = "./index.html";
     },
     onFailure: (error) => {
       authResult.textContent = `Login failed: ${error.message || error}`;
