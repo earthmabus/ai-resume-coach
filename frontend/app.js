@@ -413,6 +413,7 @@ async function loadAnalysisDetail(analysisId) {
     }
 
     renderAnalysis(data);
+    setAccordionOpen("resumeResultCard", true);
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
@@ -679,6 +680,7 @@ async function loadJobMatchDetail(matchId) {
     const interviewPrep = await fetchInterviewPrepForMatch(matchId);
 
     renderJobMatch(data, tailoring, interviewPrep);
+    setAccordionOpen("jobResultCard", true);
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
