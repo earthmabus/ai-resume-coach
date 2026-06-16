@@ -333,7 +333,7 @@ def process_resume_tailoring(tailoring_id):
             }
         ),
     )
-    logger.info("Completed interview prep: %s", str(interview_prep_id))
+    logger.info("Completed interview prep: %s", str(tailoring_id))
 
 
 def process_interview_preparation(interview_prep_id):

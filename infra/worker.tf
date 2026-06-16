@@ -30,6 +30,7 @@ resource "aws_lambda_function" "resume_analysis_worker" {
       ANALYSIS_PROVIDER     = var.analysis_provider
       OPENAI_MODEL          = var.openai_model
       OPENAI_API_KEY        = var.openai_api_key
+      RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.resume_analysis_jobs.url
     }
   }
 }

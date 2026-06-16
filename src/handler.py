@@ -34,7 +34,7 @@ def build_response(status_code, body):
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Headers": "Content-Type",
+            "Access-Control-Allow-Headers": "Content-Type,Authorization",
             "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
         },
         "body": json.dumps(body, default=json_default),
@@ -96,7 +96,7 @@ def analyze_and_save_resume(
     analysis_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
-    provider = get_analysis_provider()
+    provider = get_analysis_provider(requested_provider)
     analysis_result = provider.analyze(resume_text)
 
     analysis_duration_ms = int((time.perf_counter() - analysis_started) * 1000)
