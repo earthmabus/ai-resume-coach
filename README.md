@@ -1,5 +1,3 @@
-# ai-resume-coach
-
 # AI Resume & Interview Coach for Engineering Leaders
 
 AI Resume & Interview Coach is a serverless AWS application that helps engineering leaders improve resumes, evaluate job fit, and generate tailored resume recommendations using AI.
