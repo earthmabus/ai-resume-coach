@@ -8,9 +8,15 @@ import boto3
 
 from providers.factory import get_analysis_provider
 
+import logging
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
+sqs = boto3.client("sqs")
+queue_url = os.getenv("RESUME_ANALYSIS_QUEUE_URL")
+
+logger = logging.getLogger()
+logger.setLevel(logging.INFO)
 
 
 def to_dynamodb_value(value):
@@ -112,30 +118,36 @@ def process_resume_analysis(analysis_id):
 
 
 def process_job_match(match_id):
+    logger.info("Starting job match: %s", str(match_id))
     match_response = table.get_item(Key={"analysisId": match_id})
     match_item = match_response.get("Item")
 
     if not match_item:
+        logger.info("Raised ValueError since job match not found: %s", str(match_id))
         raise ValueError(f"Job match not found: {match_id}")
 
     resume_analysis_id = match_item.get("resumeAnalysisId")
     job_description_text = match_item.get("jobDescriptionText", "").strip()
 
     if not resume_analysis_id:
+        logger.info("Raised ValueError since resumeAnalysisId not found for job match: %s", str(match_id))
         raise ValueError(f"No resumeAnalysisId found for job match: {match_id}")
 
     if not job_description_text:
+        logger.info("Raised ValueError since jobDescriptionText not found for job match: %s", str(match_id))
         raise ValueError(f"No jobDescriptionText found for job match: {match_id}")
 
     resume_response = table.get_item(Key={"analysisId": resume_analysis_id})
     resume_item = resume_response.get("Item")
 
     if not resume_item:
+        logger.info("Raised ValueError resume analysis not found for resume analysis: %s", str(resume_analysis_id))
         raise ValueError(f"Resume analysis not found: {resume_analysis_id}")
 
     resume_text = resume_item.get("resumeText", "").strip()
 
     if not resume_text:
+        logger.info("Raised ValueError since resumeText not found for resume analysis: %s", str(resume_analysis_id))
         raise ValueError(f"No resumeText found for resume analysis: {resume_analysis_id}")
 
     requested_provider = match_item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based")
@@ -215,7 +227,14 @@ def process_job_match(match_id):
             },
         )
 
-        process_resume_tailoring(tailoring_id)
+        sqs.send_message(
+            QueueUrl=queue_url,
+            MessageBody=json.dumps({
+                "jobType": "resumeTailoring",
+                "tailoringId": tailoring_id
+            })
+        )
+
 
         match_response = table.get_item(Key={"analysisId": match_id})
         updated_match_item = match_response.get("Item", {})
@@ -238,23 +257,35 @@ def process_job_match(match_id):
                 },
             )
 
-            process_interview_preparation(interview_prep_id)
+            sqs.send_message(
+                QueueUrl=queue_url,
+                MessageBody=json.dumps({
+                    "jobType": "interviewPreparation",
+                    "interviewPrepId": interview_prep_id
+                })
+            )
+        
+        logger.info("Completed job match: %s", str(match_id))
 
 
 def process_resume_tailoring(tailoring_id):
+    logger.info("Starting resume tailoring: %s", str(tailoring_id))
     tailoring_response = table.get_item(Key={"analysisId": tailoring_id})
     tailoring_item = tailoring_response.get("Item")
 
     if not tailoring_item:
+        logger.info("Raised ValueError since tailoring not found for interview prep: %s", str(interview_prep_id))
         raise ValueError(f"Resume tailoring not found: {tailoring_id}")
 
     resume_text = tailoring_item.get("resumeText", "").strip()
     job_description_text = tailoring_item.get("jobDescriptionText", "").strip()
 
     if not resume_text:
+        logger.info("Raised ValueError since resumeText not found for interview prep: %s", str(interview_prep_id))
         raise ValueError(f"No resumeText found for tailoring: {tailoring_id}")
 
     if not job_description_text:
+        logger.info("Raised ValueError since jobDescriptionText not found for interview prep: %s", str(interview_prep_id))
         raise ValueError(f"No jobDescriptionText found for tailoring: {tailoring_id}")
 
     requested_provider = tailoring_item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based")
@@ -302,22 +333,27 @@ def process_resume_tailoring(tailoring_id):
             }
         ),
     )
+    logger.info("Completed interview prep: %s", str(interview_prep_id))
 
 
 def process_interview_preparation(interview_prep_id):
+    logger.info("Starting interview prep: %s", str(interview_prep_id))
     response = table.get_item(Key={"analysisId": interview_prep_id})
     item = response.get("Item")
 
     if not item:
+        logger.info("Raised ValueError since Interview preparation not found: %s", str(interview_prep_id))
         raise ValueError(f"Interview preparation not found: {interview_prep_id}")
 
     resume_text = item.get("resumeText", "").strip()
     job_description_text = item.get("jobDescriptionText", "").strip()
 
     if not resume_text:
+        logger.info("Raised ValueError since resumeText was not found for interview prep: %s", str(interview_prep_id))
         raise ValueError(f"No resumeText found for interview prep: {interview_prep_id}")
 
     if not job_description_text:
+        logger.info("Raised ValueError since jobDescriptionText was not found for interview prep: %s", str(interview_prep_id))
         raise ValueError(f"No jobDescriptionText found for interview prep: {interview_prep_id}")
 
     requested_provider = item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based")
@@ -369,6 +405,7 @@ def process_interview_preparation(interview_prep_id):
             }
         ),
     )
+    logger.info("Completed interview prep: %s", str(interview_prep_id))
 
 
 def lambda_handler(event, context):
@@ -382,6 +419,8 @@ def lambda_handler(event, context):
                 process_job_match(body["matchId"])
             elif job_type == "resumeTailoring":
                 process_resume_tailoring(body["tailoringId"])
+            elif job_type == "interviewPreparation":
+                process_interview_preparation(body["interviewPrepId"])
             else:
                 process_resume_analysis(body["analysisId"])
 
