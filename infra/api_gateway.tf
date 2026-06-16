@@ -138,3 +138,9 @@ resource "aws_apigatewayv2_route" "get_resume_tailoring_route" {
   route_key = "GET /resume-tailoring/{id}"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
+
+resource "aws_apigatewayv2_route" "get_tailoring_by_match_route" {
+  api_id    = aws_apigatewayv2_api.http_api.id
+  route_key = "GET /job-match/{matchId}/tailoring"
+  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
+}

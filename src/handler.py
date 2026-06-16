@@ -370,9 +370,12 @@ def match_job_description(event):
 
     match_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
+    
+    tailoring_id = str(uuid.uuid4())
 
     item = {
         "analysisId": match_id,
+        "tailoringId": tailoring_id,
         "matchId": match_id,
         "resumeAnalysisId": analysis_id,
         "recordType": "jobMatch",
@@ -421,6 +424,36 @@ def match_job_description(event):
             }
         ),
     )
+
+    tailoring_item = {
+        "analysisId": tailoring_id,
+        "tailoringId": tailoring_id,
+        "matchId": match_id,
+        "resumeAnalysisId": analysis_id,
+        "recordType": "resumeTailoring",
+        "createdAt": created_at,
+        "status": "waiting",
+        "provider": requested_provider or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+        "model": os.getenv("OPENAI_MODEL", ""),
+        "analysisVersion": "resume-tailoring-waiting-v1",
+        "analysisDurationMs": 0,
+        "jobName": job_name,
+        "jobUrl": job_url,
+        "resumeName": resume_item.get("resumeName", "Untitled Resume"),
+        "resumeText": resume_text,
+        "jobDescriptionText": job_description_text,
+        "resumeDocumentBucket": resume_item.get("documentBucket", ""),
+        "resumeDocumentKey": resume_item.get("documentKey", ""),
+        "resumeFileName": resume_item.get("fileName", ""),
+        "tailoredExecutiveSummary": "",
+        "tailoredResumeBullets": [],
+        "keywordsToAdd": [],
+        "rolePositioningAdvice": [],
+        "atsOptimizationAdvice": [],
+        "rewriteWarnings": [],
+    }
+
+    table.put_item(Item=tailoring_item)
 
     return build_response(202, item)
 
@@ -716,6 +749,34 @@ def get_resume_tailoring(event):
     return build_response(200, item)
 
 
+def get_resume_tailoring_by_match(event):
+    match_id = event.get("pathParameters", {}).get("matchId")
+
+    if not match_id:
+        return build_response(400, {"error": "match id is required"})
+
+    response = table.scan(
+        FilterExpression="recordType = :recordType AND matchId = :matchId",
+        ExpressionAttributeValues={
+            ":recordType": "resumeTailoring",
+            ":matchId": match_id,
+        },
+    )
+
+    items = response.get("Items", [])
+
+    if not items:
+        return build_response(404, {"error": "tailoring not found for match"})
+
+    items = sorted(
+        items,
+        key=lambda item: item.get("createdAt", ""),
+        reverse=True,
+    )
+
+    return build_response(200, items[0])
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -772,5 +833,8 @@ def lambda_handler(event, context):
 
     if route == "GET /resume-tailoring/{id}":
         return get_resume_tailoring(event)
+
+    if route == "GET /job-match/{matchId}/tailoring":
+        return get_resume_tailoring_by_match(event)
 
     return build_response(404, {"error": "Route not found", "route": route})

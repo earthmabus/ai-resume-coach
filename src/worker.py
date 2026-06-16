@@ -194,6 +194,29 @@ def process_job_match(match_id):
         ),
     )
 
+    match_response = table.get_item(Key={"analysisId": match_id})
+    updated_match_item = match_response.get("Item", {})
+
+    tailoring_id = updated_match_item.get("tailoringId")
+
+    if tailoring_id:
+        table.update_item(
+            Key={"analysisId": tailoring_id},
+            UpdateExpression="""
+                SET #s = :status,
+                analysisVersion = :analysisVersion
+            """,
+            ExpressionAttributeNames={
+                "#s": "status",
+            },
+            ExpressionAttributeValues={
+                ":status": "processing",
+                ":analysisVersion": "resume-tailoring-queued-v1",
+            },
+        )
+
+        process_resume_tailoring(tailoring_id)
+
 
 def process_resume_tailoring(tailoring_id):
     tailoring_response = table.get_item(Key={"analysisId": tailoring_id})

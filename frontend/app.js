@@ -42,15 +42,8 @@ const jobMatchSummary = document.getElementById("jobMatchSummary");
 const jobSearchInput = document.getElementById("jobSearchInput");
 const jobSortSelect = document.getElementById("jobSortSelect");
 
-const refreshTailoringsButton = document.getElementById("refreshTailoringsButton");
-const tailoringSummary = document.getElementById("tailoringSummary");
-const tailoringSearchInput = document.getElementById("tailoringSearchInput");
-const tailoringSortSelect = document.getElementById("tailoringSortSelect");
-const tailorings = document.getElementById("tailorings");
-
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
-let cachedResumeTailorings = [];
 
 function escapeHtml(value) {
   return String(value || "")
@@ -422,15 +415,6 @@ function renderJobMatch(data) {
       <ul>${recommendedChanges}</ul>
     </div>
 
-    <!-- TODO: double check the placement of this : start -->
-    <button class="secondary" onclick="tailorResume('${escapeHtml(data.matchId)}')">Generate Tailored Resume Suggestions</button>
-    ${
-      item.status === "completed"
-        ? `<button class="secondary" onclick="tailorResume('${escapeHtml(item.matchId)}')">Tailor Resume</button>`
-        : ""
-    }
-    <!-- TODO: double check the placement of this : end -->
-
     <h3>Resume Text Preview</h3>
     <div class="resume-preview">${resumePreview}</div>
 
@@ -512,7 +496,7 @@ async function matchJobDescription() {
       throw new Error(data.error || "Job match failed");
     }
 
-    renderJobMatch(data);
+    renderJobMatch(data, null);
     await loadJobMatches();
 
     if (response.status === 202) {
@@ -559,7 +543,9 @@ async function loadJobMatchDetail(matchId) {
       throw new Error(data.error || "Could not load job match detail");
     }
 
-    renderJobMatch(data);
+    renderJobMatch(data, tailoring = null);
+
+    ${renderTailoringSection(tailoring)}
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
@@ -922,39 +908,6 @@ function renderJobMatchHistory() {
   }).join("");
 }
 
-async function tailorResume(matchId) {
-  if (!matchId) {
-    result.textContent = "Missing job match id.";
-    return;
-  }
-
-  result.textContent = "Queueing resume tailoring...";
-
-  try {
-    const response = await fetch(`${API_BASE_URL}/tailor-resume`, {
-      method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
-      body: JSON.stringify({
-        matchId: matchId,
-        analysisProvider: selectedProvider()
-      })
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Resume tailoring failed");
-    }
-
-    renderResumeTailoring(data);
-    await loadResumeTailorings();
-  } catch (error) {
-    result.textContent = `Error: ${error.message}`;
-  }
-}
-
 function renderResumeTailoring(data) {
   const isCompleted = data.status === "completed";
   const statusClass = isCompleted ? "" : "status-pending";
@@ -1016,88 +969,80 @@ function renderResumeTailoring(data) {
   `;
 }
 
-async function loadResumeTailorings() {
-  if (!tailorings) {
-    return;
-  }
-
-  tailorings.textContent = "Loading resume tailorings...";
-
+async function fetchTailoringForMatch(matchId) {
   try {
-    const response = await fetch(`${API_BASE_URL}/resume-tailorings`);
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}/tailoring`);
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Could not load resume tailorings");
+      return null;
     }
 
-    cachedResumeTailorings = data.tailorings || [];
-    renderResumeTailoringHistory();
-  } catch (error) {
-    tailorings.textContent = `Error: ${error.message}`;
+    return data;
+  } catch {
+    return null;
   }
 }
 
-function renderResumeTailoringHistory() {
-  if (!tailorings) {
-    return;
+function renderTailoringSection(tailoring) {
+  if (!tailoring) {
+    return `
+      <section class="result-box">
+        <h3>Resume Tailoring</h3>
+        <p>No tailoring result found yet. Refresh this job match shortly.</p>
+      </section>
+    `;
   }
 
-  const searchValue = tailoringSearchInput?.value.trim().toLowerCase() || "";
-  const sortValue = tailoringSortSelect?.value || "newest";
+  const isCompleted = tailoring.status === "completed";
+  const statusClass = isCompleted ? "" : "status-pending";
 
-  let filtered = cachedResumeTailorings.filter(item => {
-    const job = (item.jobName || "Untitled Job").toLowerCase();
-    const resume = (item.resumeName || "Untitled Resume").toLowerCase();
-    const text = (item.jobDescriptionText || "").toLowerCase();
+  return `
+    <section class="result-box">
+      <h3>Resume Tailoring</h3>
 
-    return job.includes(searchValue) || resume.includes(searchValue) || text.includes(searchValue);
-  });
-
-  filtered = sortItems(filtered, sortValue, "analysisDurationMs");
-
-  renderStatusSummary(tailoringSummary, "Total Tailorings", cachedResumeTailorings);
-
-  if (filtered.length === 0) {
-    tailorings.textContent = "No resume tailorings found.";
-    return;
-  }
-
-  tailorings.innerHTML = filtered.map(item => `
-    <div class="history-item">
-      <div>
-        <span class="badge">tailoring</span>
-        <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
-        <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+      <div class="metrics">
+        <span class="metric ${statusClass}">Status: ${escapeHtml(tailoring.status || "unknown")}</span>
+        <span class="metric">Provider: ${escapeHtml(tailoring.provider || "unknown")}</span>
+        <span class="metric">Model: ${escapeHtml(tailoring.model || "N/A")}</span>
+        <span class="metric">Duration: ${escapeHtml(tailoring.analysisDurationMs || 0)} ms</span>
       </div>
 
-      <p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
-      <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-      <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
-      <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
+      ${isCompleted ? `
+        <h4>Tailored Executive Summary</h4>
+        <p>${escapeHtml(tailoring.tailoredExecutiveSummary || "No tailored summary available.")}</p>
 
-      <div class="button-row">
-        <button class="secondary" onclick="loadResumeTailoringDetail('${escapeHtml(item.tailoringId)}')">View Details</button>
-      </div>
-    </div>
-  `).join("");
-}
+        <h4>Tailored Resume Bullets</h4>
+        <ul>${listToHtml(tailoring.tailoredResumeBullets)}</ul>
 
-async function loadResumeTailoringDetail(tailoringId) {
-  result.textContent = "Loading resume tailoring detail...";
+        <div class="result-grid">
+          <div class="result-box">
+            <h4>Keywords to Add</h4>
+            <ul>${listToHtml(tailoring.keywordsToAdd)}</ul>
+          </div>
 
-  try {
-    const response = await fetch(`${API_BASE_URL}/resume-tailoring/${tailoringId}`);
-    const data = await response.json();
+          <div class="result-box">
+            <h4>Role Positioning Advice</h4>
+            <ul>${listToHtml(tailoring.rolePositioningAdvice)}</ul>
+          </div>
+        </div>
 
-    if (!response.ok) {
-      throw new Error(data.error || "Could not load resume tailoring detail");
-    }
+        <div class="result-grid">
+          <div class="result-box">
+            <h4>ATS Optimization Advice</h4>
+            <ul>${listToHtml(tailoring.atsOptimizationAdvice)}</ul>
+          </div>
 
-    renderResumeTailoring(data);
-  } catch (error) {
-    result.textContent = `Error: ${error.message}`;
-  }
+          <div class="result-box">
+            <h4>Rewrite Warnings</h4>
+            <ul>${listToHtml(tailoring.rewriteWarnings)}</ul>
+          </div>
+        </div>
+      ` : `
+        <p><strong>Status:</strong> Resume tailoring is still processing. Refresh this job match shortly.</p>
+      `}
+    </section>
+  `;
 }
 
 function listToHtml(items) {
@@ -1158,18 +1103,6 @@ if (pdfTab) {
   pdfTab.addEventListener("click", () => showPanel("pdf"));
 }
 
-if (refreshTailoringsButton) {
-  refreshTailoringsButton.addEventListener("click", loadResumeTailorings);
-}
-
-if (tailoringSearchInput) {
-  tailoringSearchInput.addEventListener("input", renderResumeTailoringHistory);
-}
-
-if (tailoringSortSelect) {
-  tailoringSortSelect.addEventListener("change", renderResumeTailoringHistory);
-}
-
 if (page === "resume-analysis") {
   loadHistory();
 }
@@ -1177,7 +1110,6 @@ if (page === "resume-analysis") {
 if (page === "job-matching") {
   loadHistory();
   loadJobMatches();
-  loadResumeTailorings();
 }
 
 
