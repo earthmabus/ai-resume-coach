@@ -1292,7 +1292,11 @@ if (uploadButton) {
 }
 
 if (refreshHistoryButton) {
-  refreshHistoryButton.addEventListener("click", loadHistory);
+  console.log("Binding Refresh History button");
+  refreshHistoryButton.addEventListener("click", async () => {
+    console.log("Refresh History clicked");
+    await loadHistory();
+  });
 }
 
 if (deleteAllAnalysesButton) {
@@ -1304,7 +1308,11 @@ if (matchJobButton) {
 }
 
 if (refreshJobMatchesButton) {
-  refreshJobMatchesButton.addEventListener("click", loadJobMatches);
+  console.log("Binding Refresh Matches button");
+  refreshJobMatchesButton.addEventListener("click", async () => {
+    console.log("Refresh Matches clicked");
+    await loadJobMatches();
+  });
 }
 
 if (deleteAllJobMatchesButton) {

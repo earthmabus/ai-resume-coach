@@ -525,6 +525,16 @@ button.secondary:hover {
   border-top: none;
 }
 
+.primary-button,
+.secondary-button {
+  width: 100%;
+  padding: 12px;
+  border-radius: 8px;
+  font-size: 15px;
+  font-weight: 600;
+  box-sizing: border-box;
+}
+
 .secondary-button {
   width: 100%;
   background: white;
