@@ -71,6 +71,7 @@ def version():
     )
 
 def analyze_and_save_resume(
+    user_id,
     resume_text,
     source_type,
     document_bucket_name="",
@@ -79,8 +80,6 @@ def analyze_and_save_resume(
     requested_provider=None,
     resume_name="Untitled Resume",
 ):
-    provider = get_analysis_provider(requested_provider)
-
     analysis_started = time.perf_counter()
     resume_text = (resume_text or "").strip()
 
@@ -137,13 +136,11 @@ def analyze_and_save_resume(
 def analyze_resume(event):
     body = parse_body(event)
 
-    user_id = current_user_id(event)
-
-    resume_name = body.get("resumeName", "").strip() or "Untitled Resume"
-
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
+    user_id = current_user_id(event)
+    resume_name = body.get("resumeName", "").strip() or "Untitled Resume"
     resume_text = body.get("resumeText", "").strip()
 
     if not resume_text:
@@ -152,6 +149,7 @@ def analyze_resume(event):
     requested_provider = body.get("analysisProvider")
 
     return analyze_and_save_resume(
+        user_id=user_id,
         resume_text=resume_text,
         source_type="text",
         requested_provider=requested_provider,
@@ -227,9 +225,9 @@ def analyze_uploaded_resume(event):
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
+    file_name = body.get("fileName", "").strip()
     resume_name = body.get("resumeName", "").strip() or file_name or "Untitled Resume"
     document_key = body.get("documentKey", "").strip()
-    file_name = body.get("fileName", "").strip()
     bucket_name = body.get("documentBucket", document_bucket).strip()
 
     if not document_key:
@@ -348,13 +346,13 @@ def get_analysis(event):
     response = table.get_item(Key={"analysisId": analysis_id})
     item = response.get("Item")
 
+    if not item:
+        return build_response(404, {"error": "analysis not found"})
+
     try:
         assert_item_owner(item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not item:
-        return build_response(404, {"error": "analysis not found"})
 
     return build_response(200, item)
 
@@ -513,13 +511,13 @@ def get_job_match(event):
     response = table.get_item(Key={"analysisId": match_id})
     item = response.get("Item")
 
+    if not item:
+        return build_response(404, {"error": "job match not found"})
+
     try:
         assert_item_owner(item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not item:
-        return build_response(404, {"error": "job match not found"})
 
     return build_response(200, item)
 
@@ -546,13 +544,13 @@ def delete_analysis(event):
     response = table.get_item(Key={"analysisId": analysis_id})
     item = response.get("Item")
 
+    if not item:
+        return build_response(404, {"error": "analysis not found"})
+
     try:
         assert_item_owner(item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not item:
-        return build_response(404, {"error": "analysis not found"})
 
     if item.get("recordType") == "jobMatch":
         return build_response(400, {"error": "use /job-match/{id} to delete job matches"})
@@ -573,7 +571,12 @@ def delete_analysis(event):
 def delete_all_analyses(event):
     user_id = current_user_id(event)
 
-    response = table.scan()
+    response = table.scan(
+        FilterExpression="userId = :userId",
+        ExpressionAttributeValues={
+            ":userId": user_id,
+        },
+    )
     deleted = 0
 
     for item in response.get("Items", []):
@@ -604,13 +607,13 @@ def delete_job_match(event):
     response = table.get_item(Key={"analysisId": match_id})
     item = response.get("Item")
 
+    if not item:
+        return build_response(404, {"error": "job match not found"})
+
     try:
         assert_item_owner(item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not item:
-        return build_response(404, {"error": "job match not found"})
 
     if item.get("recordType") != "jobMatch":
         return build_response(400, {"error": "record is not a job match"})
@@ -630,15 +633,18 @@ def delete_all_job_matches(event):
     user_id = current_user_id(event)
 
     response = table.scan(
-        FilterExpression="recordType = :recordType",
+        FilterExpression="userId = :userId AND recordType = :recordType",
         ExpressionAttributeValues={
-            ":recordType": "jobMatch"
+            ":userId": user_id,
+            ":recordType": "jobMatch",
         },
     )
 
     deleted = 0
 
     for item in response.get("Items", []):
+        if item.get("recordType") in ["jobMatch", "resumeTailoring", "userProfile"]:
+            continue
         table.delete_item(Key={"analysisId": item["analysisId"]})
         deleted += 1
 
@@ -811,13 +817,13 @@ def get_resume_tailoring(event):
     response = table.get_item(Key={"analysisId": tailoring_id})
     item = response.get("Item")
 
+    if not item:
+        return build_response(404, {"error": "tailoring not found"})
+
     try:
         assert_item_owner(item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not item:
-        return build_response(404, {"error": "tailoring not found"})
 
     return build_response(200, item)
 
@@ -840,11 +846,6 @@ def get_resume_tailoring_by_match(event):
     )
 
     items = response.get("Items", [])
-
-    try:
-        assert_item_owner(items[0], user_id)
-    except PermissionError:
-        return build_response(403, {"error": "forbidden"})
 
     if not items:
         return build_response(404, {"error": "tailoring not found for match"})
