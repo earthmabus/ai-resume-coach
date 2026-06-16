@@ -311,6 +311,7 @@ button.secondary:hover {
   display: flex;
   gap: 16px;
   flex-wrap: wrap;
+  align-items: center;
 }
 
 .nav-links a {
@@ -459,6 +460,9 @@ button.secondary:hover {
   padding: 6px 10px;
   border-radius: 6px;
   cursor: pointer;
+  margin: 0;
+  font: inherit;
+  line-height: 1.2;
 }
 
 .nav-button:hover {

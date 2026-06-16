@@ -223,9 +223,7 @@ async function uploadPdfResume() {
 
     const analysisResponse = await fetch(`${API_BASE_URL}/analyze-uploaded-resume`, {
       method: "POST",
-      headers: {
-        "Content-Type": "application/json"
-      },
+      headers: await jsonHeaders(),
       body: JSON.stringify({
 	resumeName: resumeName?.value.trim() || uploadData.fileName || "Untitled Resume",
         documentBucket: uploadData.documentBucket,
