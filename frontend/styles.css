@@ -291,6 +291,16 @@ button.secondary:hover {
   background: #1f2937;
 }
 
+.secondary-link {
+  color: #2563eb;
+  font-weight: 600;
+  text-decoration: none;
+}
+
+.secondary-link:hover {
+  text-decoration: underline;
+}
+
 .top-nav {
   background: #111827;
   color: white;
@@ -468,4 +478,20 @@ button.secondary:hover {
 .nav-button:hover {
   color: white;
   border-color: white;
+}
+
+.auth-container {
+  max-width: 640px;
+}
+
+.auth-card {
+  margin-top: 48px;
+}
+
+.auth-actions {
+  display: flex;
+  gap: 16px;
+  flex-wrap: wrap;
+  margin-top: 16px;
+  margin-bottom: 16px;
 }

@@ -2,37 +2,35 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Login | AI Resume Coach</title>
+  <title>Confirm Account | AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
   <link rel="stylesheet" href="./styles.css" />
 </head>
 <body>
   <main class="container auth-container">
     <section class="card auth-card">
-      <h1>AI Resume Coach</h1>
+      <h1>Confirm Account</h1>
 
-      <h2>Sign In</h2>
+      <label for="confirmEmail">Email</label>
+      <input id="confirmEmail" type="email" autocomplete="email" />
 
-      <label for="loginEmail">Email</label>
-      <input id="loginEmail" type="email" autocomplete="email" />
+      <label for="confirmCode">Confirmation Code</label>
+      <input id="confirmCode" type="text" />
 
-      <label for="loginPassword">Password</label>
-      <input id="loginPassword" type="password" autocomplete="current-password" />
-
-      <button id="loginButton">Sign In</button>
+      <button id="confirmButton">Confirm Account</button>
 
       <div class="auth-actions">
+        <a class="secondary-link" href="./login.html">Back to sign in</a>
         <a class="secondary-link" href="./signup.html">Create new account</a>
-        <a class="secondary-link" href="./confirm-account.html">Confirm new account</a>
       </div>
 
-      <div id="authResult" class="result-panel">Enter your credentials.</div>
+      <div id="confirmResult" class="result-panel">Enter your confirmation code.</div>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js?v=2"></script>
   <script src="./auth.js?v=2"></script>
-  <script src="./login.js?v=2"></script>
+  <script src="./confirm-account.js?v=2"></script>
 </body>
 </html>

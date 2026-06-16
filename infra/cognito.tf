@@ -5,6 +5,20 @@ resource "aws_cognito_user_pool" "users" {
 
   auto_verified_attributes = ["email"]
 
+  verification_message_template {
+    default_email_option  = "CONFIRM_WITH_LINK"
+    email_subject_by_link = "Verify your AI Resume Coach account"
+    email_message_by_link = <<EOT
+Welcome to AI Resume Coach!
+
+Please verify your email address by clicking the link below:
+
+{##Verify your email##}
+
+After verification, return to the AI Resume Coach login page and sign in.
+EOT
+  }
+
   password_policy {
     minimum_length    = 8
     require_lowercase = true

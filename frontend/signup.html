@@ -1,0 +1,39 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Create Account | AI Resume Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css" />
+</head>
+<body>
+  <main class="container auth-container">
+    <section class="card auth-card">
+      <h1>Create Account</h1>
+
+      <label for="signupEmail">Email</label>
+      <input id="signupEmail" type="email" autocomplete="email" />
+
+      <label for="signupPassword">Password</label>
+      <input id="signupPassword" type="password" autocomplete="new-password" />
+
+      <label for="signupPasswordConfirm">Confirm Password</label>
+      <input id="signupPasswordConfirm" type="password" autocomplete="new-password" />
+
+      <button id="signupButton">Create Account</button>
+
+      <div class="auth-actions">
+        <a class="secondary-link" href="./login.html">Back to sign in</a>
+        <a class="secondary-link" href="./confirm-account.html">Confirm new account</a>
+      </div>
+
+      <div id="signupResult" class="result-panel">Create your account.</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
+  <script src="./config.js?v=2"></script>
+  <script src="./auth.js?v=2"></script>
+  <script src="./signup.js?v=2"></script>
+</body>
+</html>

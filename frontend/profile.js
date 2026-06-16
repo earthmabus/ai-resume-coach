@@ -1,7 +1,6 @@
 requireAuth();
 
 const API_BASE_URL = window.APP_CONFIG.apiEndpoint;
-const profileResult = document.getElementById("profileResult");
 
 async function loadProfile() {
   try {
@@ -22,16 +21,12 @@ async function loadProfile() {
     document.getElementById("certifications").value = data.certifications || "";
     document.getElementById("preferredProvider").value = data.preferredProvider || "openai";
     document.getElementById("resumeStyle").value = data.resumeStyle || "executive";
-
-    profileResult.textContent = "Profile loaded.";
   } catch (error) {
-    profileResult.textContent = `Error: ${error.message}`;
+    alert(`Error loading profile: ${error.message}`);
   }
 }
 
 async function saveProfile() {
-  profileResult.textContent = "Saving profile...";
-
   try {
     const response = await fetch(`${API_BASE_URL}/profile`, {
       method: "PUT",
@@ -53,9 +48,9 @@ async function saveProfile() {
       throw new Error(data.error || "Could not save profile");
     }
 
-    profileResult.textContent = `Profile saved at ${new Date().toLocaleString()}.`;
+    alert("Profile saved successfully.");
   } catch (error) {
-    profileResult.textContent = `Error: ${error.message}`;
+    alert(`Error saving profile: ${error.message}`);
   }
 }
 
