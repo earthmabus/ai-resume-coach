@@ -640,3 +640,50 @@ button.secondary:hover {
   }
 }
 
+.card + .card,
+.accordion-card + .accordion-card {
+  margin-top: 24px;
+}
+
+.dashboard-grid + .card,
+.card + .card {
+  margin-top: 24px;
+}
+
+.accordion-card {
+  padding: 0;
+  overflow: hidden;
+}
+
+.accordion-card summary {
+  cursor: pointer;
+  font-size: 1.5rem;
+  font-weight: 700;
+  padding: 24px;
+  list-style: none;
+  background: #ffffff;
+}
+
+.accordion-card summary::-webkit-details-marker {
+  display: none;
+}
+
+.accordion-card summary::before {
+  content: "▶";
+  display: inline-block;
+  margin-right: 10px;
+  font-size: 0.9rem;
+  transition: transform 0.15s ease;
+}
+
+.accordion-card[open] summary::before {
+  transform: rotate(90deg);
+}
+
+.accordion-card[open] summary {
+  border-bottom: 1px solid #e5e7eb;
+}
+
+.accordion-body {
+  padding: 24px;
+}

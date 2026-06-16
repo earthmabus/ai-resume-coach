@@ -42,6 +42,23 @@ const jobMatchSummary = document.getElementById("jobMatchSummary");
 const jobSearchInput = document.getElementById("jobSearchInput");
 const jobSortSelect = document.getElementById("jobSortSelect");
 
+const urlParams = new URLSearchParams(window.location.search);
+const deepLinkAnalysisId = urlParams.get("analysisId");
+const deepLinkMatchId = urlParams.get("matchId");
+
+const accordionConfigs = {
+  "resume-analysis": [
+    "analyzeResumeCard",
+    "resumeResultCard",
+    "analysisHistoryCard"
+  ],
+  "job-matching": [
+    "matchJobCard",
+    "jobResultCard",
+    "jobHistoryCard"
+  ]
+};
+
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
 
@@ -49,6 +66,85 @@ const protectedPages = ["resume-analysis", "job-matching"];
 
 if (protectedPages.includes(page) && !requireAuth()) {
   throw new Error("Authentication required");
+}
+
+function accordionKey(id) {
+  return `accordion:${page}:${id}`;
+}
+
+function hasAccordionSessionState() {
+  return (accordionConfigs[page] || []).some(id =>
+    sessionStorage.getItem(accordionKey(id)) !== null
+  );
+}
+
+function setAccordionOpen(id, isOpen) {
+  const element = document.getElementById(id);
+
+  if (!element) {
+    return;
+  }
+
+  element.open = isOpen;
+  sessionStorage.setItem(accordionKey(id), String(isOpen));
+}
+
+function setupAccordionPersistence() {
+  const ids = accordionConfigs[page] || [];
+
+  ids.forEach(id => {
+    const element = document.getElementById(id);
+
+    if (!element) {
+      return;
+    }
+
+    const savedValue = sessionStorage.getItem(accordionKey(id));
+
+    if (savedValue !== null) {
+      element.open = savedValue === "true";
+    }
+
+    element.addEventListener("toggle", () => {
+      sessionStorage.setItem(accordionKey(id), String(element.open));
+    });
+  });
+}
+
+function openResumeDetailView() {
+  setAccordionOpen("analyzeResumeCard", false);
+  setAccordionOpen("resumeResultCard", true);
+  setAccordionOpen("analysisHistoryCard", true);
+}
+
+function openJobDetailView() {
+  setAccordionOpen("matchJobCard", false);
+  setAccordionOpen("jobResultCard", true);
+  setAccordionOpen("jobHistoryCard", true);
+}
+
+function applyDefaultResumeAccordionState() {
+  if (hasAccordionSessionState() || deepLinkAnalysisId) {
+    return;
+  }
+
+  const hasResumes = cachedResumeAnalyses.length > 0;
+
+  setAccordionOpen("analyzeResumeCard", !hasResumes);
+  setAccordionOpen("resumeResultCard", false);
+  setAccordionOpen("analysisHistoryCard", hasResumes);
+}
+
+function applyDefaultJobAccordionState() {
+  if (hasAccordionSessionState() || deepLinkMatchId) {
+    return;
+  }
+
+  const hasMatches = cachedJobMatches.length > 0;
+
+  setAccordionOpen("matchJobCard", !hasMatches);
+  setAccordionOpen("jobResultCard", false);
+  setAccordionOpen("jobHistoryCard", hasMatches);
 }
 
 function escapeHtml(value) {
@@ -168,6 +264,7 @@ async function analyzeTextResume() {
     }
 
     renderAnalysis(data);
+    setAccordionOpen("resumeResultCard", true);
     await loadHistory();
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
@@ -240,6 +337,7 @@ async function uploadPdfResume() {
     }
 
     renderAnalysis(analysisData);
+    setAccordionOpen("resumeResultCard", true);
     await loadHistory();
 
     if (analysisResponse.status === 202) {
@@ -285,6 +383,14 @@ async function loadHistory() {
 
     if (history) {
       renderResumeHistory();
+    }
+
+    applyDefaultResumeAccordionState();
+
+    if (deepLinkAnalysisId) {
+      openResumeDetailView();
+      await loadAnalysisDetail(deepLinkAnalysisId);
+      window.history.replaceState({}, document.title, window.location.pathname);
     }
   } catch (error) {
     if (history) {
@@ -510,6 +616,7 @@ async function matchJobDescription() {
     }
 
     renderJobMatch(data, null);
+    setAccordionOpen("jobResultCard", true);
     await loadJobMatches();
 
     if (response.status === 202) {
@@ -542,6 +649,14 @@ async function loadJobMatches() {
 
     cachedJobMatches = data.jobMatches || [];
     renderJobMatchHistory();
+
+    applyDefaultJobAccordionState();
+
+    if (deepLinkMatchId) {
+      openJobDetailView();
+      await loadJobMatchDetail(deepLinkMatchId);
+      window.history.replaceState({}, document.title, window.location.pathname);
+    }
   } catch (error) {
     jobMatches.textContent = `Error: ${error.message}`;
   }
@@ -1163,6 +1278,8 @@ function listToHtml(items) {
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
 }
+
+setupAccordionPersistence();
 
 if (analyzeButton) {
   analyzeButton.addEventListener("click", analyzeTextResume);

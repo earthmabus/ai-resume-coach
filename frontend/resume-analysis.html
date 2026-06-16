@@ -24,45 +24,50 @@
       <p>Analyze resume text or upload a PDF. Results are saved to history.</p>
     </section>
 
-    <section class="card">
-      <h2>Analyze Resume</h2>
 
-      <label for="resumeName">Resume name</label>
-      <input id="resumeName" type="text" placeholder="Example: Michael - Director Cloud Resume" />
+    <details id="analyzeResumeCard" class="card accordion-card">
+      <summary>Analyze Resume</summary>
+      <div class="accordion-body">
 
-      <label for="analysisProvider">Analysis Provider</label>
-      <select id="analysisProvider">
-        <option value="openai" selected>OpenAI</option>
-        <option value="rule-based">Rule-based</option>
-      </select>
+        <label for="resumeName">Resume name</label>
+        <input id="resumeName" type="text" placeholder="Example: Michael - Director Cloud Resume" />
 
-      <div class="tabs">
-        <button id="textTab" class="tab active" type="button">Paste Text</button>
-        <button id="pdfTab" class="tab" type="button">Upload PDF</button>
+        <label for="analysisProvider">Analysis Provider</label>
+        <select id="analysisProvider">
+          <option value="openai" selected>OpenAI</option>
+          <option value="rule-based">Rule-based</option>
+        </select>
+
+        <div class="tabs">
+          <button id="textTab" class="tab active" type="button">Paste Text</button>
+          <button id="pdfTab" class="tab" type="button">Upload PDF</button>
+        </div>
+
+        <section id="textPanel" class="input-panel">
+          <label for="resumeText">Resume text</label>
+          <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
+          <button id="analyzeButton">Analyze Text</button>
+        </section>
+
+        <section id="pdfPanel" class="input-panel hidden">
+          <label for="resumeFile">PDF file</label>
+          <input id="resumeFile" type="file" accept="application/pdf" />
+          <button id="uploadButton">Upload PDF</button>
+          <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and queued for async AI analysis.</p>
+        </section>
       </div>
+    </details>
 
-      <section id="textPanel" class="input-panel">
-        <label for="resumeText">Resume text</label>
-        <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
-        <button id="analyzeButton">Analyze Text</button>
-      </section>
+    <details id="resumeResultCard" class="card accordion-card">
+      <summary>Resume Analysis Result</summary>
+      <div class="accordion-body">
+        <div id="result" class="result-panel">Results will appear here.</div>
+      </div>
+    </details>
 
-      <section id="pdfPanel" class="input-panel hidden">
-        <label for="resumeFile">PDF file</label>
-        <input id="resumeFile" type="file" accept="application/pdf" />
-        <button id="uploadButton">Upload PDF</button>
-        <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and queued for async AI analysis.</p>
-      </section>
-    </section>
-
-    <section class="card">
-      <h2>Resume Analysis Result</h2>
-      <div id="result" class="result-panel">Results will appear here.</div>
-    </section>
-
-    <section class="card">
-      <div class="section-header">
-        <h2>Analysis History</h2>
+    <details id="analysisHistoryCard" class="card accordion-card">
+      <summary>Analysis History</summary>
+      <div class="accordion-body">
         <div class="button-row">
           <button id="refreshHistoryButton">Refresh History</button>
           <button id="deleteAllAnalysesButton" class="danger">Delete All</button>
@@ -81,9 +86,10 @@
           <option value="processingFirst">Processing first</option>
         </select>
       </div>
+      </div>
+    </details>
 
-      <div id="history" class="history">No history loaded.</div>
-    </section>
+
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>

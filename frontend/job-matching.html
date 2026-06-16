@@ -24,62 +24,64 @@
       <p>Compare a saved resume analysis against a pasted job description.</p>
     </section>
 
-    <section class="card">
-      <h2>Match Job Description</h2>
+    <details id="matchJobCard" class="card accordion-card">
+      <summary>Match Job Description</summary>
+      <div class="accordion-body">
+        <label for="analysisProvider">Analysis Provider</label>
+        <select id="analysisProvider">
+          <option value="openai" selected>OpenAI</option>
+          <option value="rule-based">Rule-based</option>
+        </select>
 
-      <label for="analysisProvider">Analysis Provider</label>
-      <select id="analysisProvider">
-        <option value="openai" selected>OpenAI</option>
-        <option value="rule-based">Rule-based</option>
-      </select>
+        <label for="resumeAnalysisSelect">Resume Analysis</label>
+        <select id="resumeAnalysisSelect">
+          <option value="">Load history to select a resume analysis</option>
+        </select>
 
-      <label for="resumeAnalysisSelect">Resume Analysis</label>
-      <select id="resumeAnalysisSelect">
-        <option value="">Load history to select a resume analysis</option>
-      </select>
+        <label for="jobName">Job name</label>
+        <input id="jobName" type="text" placeholder="Example: Director of Software Engineering - AWS Platform" />
 
-      <label for="jobName">Job name</label>
-      <input id="jobName" type="text" placeholder="Example: Director of Software Engineering - AWS Platform" />
+        <label for="jobUrl">URL</label>
+        <input id="jobUrl" type="url" placeholder="https://example.com/job-posting" />
 
-      <label for="jobUrl">URL</label>
-      <input id="jobUrl" type="url" placeholder="https://example.com/job-posting" />
+        <label for="jobDescriptionText">Job description</label>
+        <textarea id="jobDescriptionText" rows="12" placeholder="Paste job description here..."></textarea>
 
-      <label for="jobDescriptionText">Job description</label>
-      <textarea id="jobDescriptionText" rows="12" placeholder="Paste job description here..."></textarea>
+        <button id="matchJobButton">Match Resume to Job</button>
+      </div>
+    </details>
 
-      <button id="matchJobButton">Match Resume to Job</button>
-    </section>
+    <details id="jobResultCard" class="card accordion-card">
+      <summary>Job Match Result</summary>
+      <div class="accordion-body">
+        <div id="result" class="result-panel">Job match results will appear here.</div>
+      </div>
+    </details>
 
-    <section class="card">
-      <h2>Job Match Result</h2>
-      <div id="result" class="result-panel">Job match results will appear here.</div>
-    </section>
-
-    <section class="card">
-      <div class="section-header">
-        <h2>Job Match History</h2>
+    <details id="jobHistoryCard" class="card accordion-card">
+      <summary>Job Match History</summary>
+      <div class="accordion-body">
         <div class="button-row">
           <button id="refreshJobMatchesButton">Refresh Matches</button>
           <button id="deleteAllJobMatchesButton" class="danger">Delete All</button>
         </div>
+
+        <div class="summary-bar" id="jobMatchSummary">No job match summary loaded.</div>
+
+        <div class="filter-row">
+          <input id="jobSearchInput" type="text" placeholder="Search jobs by name..." />
+
+          <select id="jobSortSelect">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="highestScore">Highest match score</option>
+            <option value="lowestScore">Lowest match score</option>
+            <option value="processingFirst">Processing first</option>
+          </select>
+        </div>
       </div>
-
-      <div class="summary-bar" id="jobMatchSummary">No job match summary loaded.</div>
-
-      <div class="filter-row">
-        <input id="jobSearchInput" type="text" placeholder="Search jobs by name..." />
-
-        <select id="jobSortSelect">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="highestScore">Highest match score</option>
-          <option value="lowestScore">Lowest match score</option>
-          <option value="processingFirst">Processing first</option>
-        </select>
-      </div>
-
-      <div id="jobMatches" class="history">No job matches loaded.</div>
-    </section>
+    </details>
+ 
   </main>
  
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>

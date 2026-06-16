@@ -74,7 +74,7 @@ function renderRecentActivity(analyses, matches) {
     subtitle: `${item.sourceType || "resume"} | score ${item.score || 0}`,
     status: item.status || "unknown",
     createdAt: item.createdAt || "",
-    href: "./resume-analysis.html"
+    href: `./resume-analysis.html?analysisId=${encodeURIComponent(item.analysisId)}`
   }));
 
   const matchActivities = matches.map(item => ({
@@ -83,7 +83,7 @@ function renderRecentActivity(analyses, matches) {
     subtitle: `${item.resumeName || "Untitled Resume"} | match score ${item.matchScore || 0}`,
     status: item.status || "unknown",
     createdAt: item.createdAt || "",
-    href: "./job-matching.html"
+    href: `./job-matching.html?matchId=${encodeURIComponent(item.matchId)}`
   }));
 
   const activities = [...resumeActivities, ...matchActivities]
