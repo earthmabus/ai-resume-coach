@@ -330,7 +330,7 @@ function showPanel(panelName) {
   }
 }
 
-function renderJobMatch(data) {
+function renderJobMatch(data, tailoring = null) {
   const matchedKeywords = (data.matchedKeywords || [])
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
@@ -423,6 +423,8 @@ function renderJobMatch(data) {
         ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button>`
         : ""
     }
+
+    ${renderTailoringSection(tailoring)}
   ` : `
     <p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>
   `}
@@ -543,9 +545,9 @@ async function loadJobMatchDetail(matchId) {
       throw new Error(data.error || "Could not load job match detail");
     }
 
-    renderJobMatch(data, tailoring = null);
+    const tailoring = await fetchTailoringForMatch(matchId);
 
-    ${renderTailoringSection(tailoring)}
+    renderJobMatch(data, tailoring);
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
