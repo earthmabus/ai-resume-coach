@@ -1292,7 +1292,10 @@ if (uploadButton) {
 }
 
 if (refreshHistoryButton) {
-  refreshHistoryButton.addEventListener("click", async () => {
+  refreshHistoryButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
     setAccordionOpen("analysisHistoryCard", true);
 
     if (history) {
@@ -1312,7 +1315,10 @@ if (matchJobButton) {
 }
 
 if (refreshJobMatchesButton) {
-  refreshJobMatchesButton.addEventListener("click", async () => {
+  refreshJobMatchesButton.addEventListener("click", async (event) => {
+    event.preventDefault();
+    event.stopPropagation();
+
     setAccordionOpen("jobHistoryCard", true);
 
     if (jobMatches) {
