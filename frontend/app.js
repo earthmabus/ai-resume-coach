@@ -420,7 +420,15 @@ function renderJobMatch(data, tailoring = null) {
 
     ${
       data.resumeDocumentBucket && data.resumeDocumentKey
-        ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button>`
+        ? `
+          <div class="resume-download-section">
+            <button
+              class="secondary"
+              onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">
+              Download Resume PDF
+            </button>
+          </div>
+        `
         : ""
     }
 

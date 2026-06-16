@@ -6,9 +6,10 @@ body {
 }
 
 .container {
-  max-width: 1100px;
+  max-width: 1400px;
+  width: calc(100% - 48px);
   margin: 0 auto;
-  padding: 48px 24px;
+  padding: 32px 0;
 }
 
 .hero {
@@ -32,7 +33,11 @@ body {
 }
 
 .card {
+  background: #ffffff;
+  border: 1px solid #e5e7eb;
+  border-radius: 12px;
   padding: 24px;
+  box-shadow: 0 2px 8px rgba(17, 24, 39, 0.08);
 }
 
 h2 {
@@ -41,18 +46,25 @@ h2 {
 
 label {
   display: block;
-  font-weight: bold;
+  margin-top: 18px;
   margin-bottom: 8px;
+  font-weight: 600;
 }
 
-textarea,
-input {
+label:first-child {
+  margin-top: 0;
+}
+
+input,
+select,
+textarea {
   width: 100%;
   box-sizing: border-box;
   padding: 12px;
   font-size: 15px;
   border-radius: 8px;
   border: 1px solid #d1d5db;
+  margin-bottom: 16px;
 }
 
 button {
@@ -123,17 +135,25 @@ button:hover {
 .section-header {
   display: flex;
   justify-content: space-between;
-  align-items: flex-start;
+  align-items: center;
+  gap: 16px;
   margin-bottom: 20px;
 }
 
 .section-header h2 {
   margin: 0;
+  line-height: 1.2;
 }
 
 .section-header .button-row {
   display: flex;
   gap: 8px;
+  align-items: center;
+  margin: 0;
+}
+
+.section-header .button-row button {
+  margin: 0;
 }
 
 .result-panel {
@@ -220,16 +240,6 @@ button:hover {
 
 ul {
   margin-top: 8px;
-}
-
-select {
-  width: 100%;
-  box-sizing: border-box;
-  padding: 12px;
-  font-size: 15px;
-  border-radius: 8px;
-  border: 1px solid #d1d5db;
-  margin-bottom: 20px;
 }
 
 .tabs {
@@ -323,10 +333,12 @@ button.secondary:hover {
   text-decoration: none;
   color: inherit;
   display: block;
+  transition: transform 0.15s ease, box-shadow 0.15s ease;
 }
 
 .nav-card:hover {
   transform: translateY(-2px);
+  box-shadow: 0 6px 18px rgba(17, 24, 39, 0.12);
 }
 
 .status-pending {
@@ -421,7 +433,21 @@ button.secondary:hover {
 }
 
 @media (max-width: 700px) {
+  .container {
+    width: calc(100% - 24px);
+    padding: 20px 0;
+  }
+
+  .section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+
   .filter-row {
     grid-template-columns: 1fr;
   }
+}
+
+.resume-download-section {
+  margin-bottom: 24px;
 }

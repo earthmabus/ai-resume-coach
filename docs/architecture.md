@@ -1,170 +1,120 @@
-# AI Resume Coach - Architecture Overview
+# Architecture Overview
 
-## Purpose
+## High-Level Architecture
 
-AI Resume Coach is a cloud-native application that analyzes resumes and provides actionable recommendations to improve candidate positioning, clarity, and effectiveness.
-
-The initial implementation focuses on establishing a secure, automated deployment pipeline and serverless application architecture.
-
-## Goals
-
-* Demonstrate modern cloud-native architecture patterns
-* Demonstrate Infrastructure as Code (IaC) using Terraform
-* Demonstrate secure CI/CD using GitHub Actions and AWS OIDC federation
-* Provide a foundation for future AI-powered resume analysis capabilities
-
-## Architecture
-
-### Current Architecture
-
-Text Resume
-        \
-         \
-          → Provider Factory
-         /          \
-        /            \
-PDF Resume        OpenAI
-     ↓               ↓
-    S3           AI Analysis
-     ↓               ↓
-Text Extraction   Leadership Score
-     ↓            Technical Score
-     ↓            ATS Score
-     ↓            Executive Summary
-     ↓
-DynamoDB
-     ↓
-History
-
-                 +----------------+
-                 |  Static Site   |
-                 |      S3        |
-                 +--------+-------+
-                          |
-                          |
-                    API Gateway
-                          |
-                          |
-                    AWS Lambda
-                    /        \
-                   /          \
-                  /            \
-           DynamoDB        S3 Documents
-        ResumeAnalysis      PDF Uploads
-
-
-
-Client - Upload resume as text
+User Browser
 ↓
 S3 Static Website
 ↓
-Amazon API Gateway
+API Gateway
 ↓
-AWS Lambda (ai-resume-coach-dev-api)
+Lambda API
 ↓
-DynamoDB (ai-resume-coach-dev-resume-analysis)
+DynamoDB
 
+For long-running AI workloads:
 
-
-Client - Upload resume as PDF
-↓
-Presigned URL
-↓
-S3 Document Bucket (ai-resume-coach-dev-documents-940827434048)
-↓
-API Lambda
-↓
-DynamoDB (processing)
+Lambda API
 ↓
 SQS
 ↓
 Worker Lambda
 ↓
-OpenAI
+OpenAI API
 ↓
-DynamoDB (ai-resume-coach-dev-resume-analysis)
+DynamoDB
 
+## Components
 
+### Frontend
 
+Hosted in Amazon S3.
 
-## Infrastructure Management
+Responsibilities:
 
-All infrastructure is managed through Terraform.
+* Resume analysis workflow
+* Job matching workflow
+* Resume history
+* Job match history
+* Result visualization
 
-No manual infrastructure changes are intended after initial bootstrap.
+### API Lambda
 
-## Security
+Responsibilities:
 
-### Authentication
+* Request validation
+* DynamoDB persistence
+* Resume upload handling
+* Queueing asynchronous jobs
+* API responses
 
-GitHub Actions uses OpenID Connect (OIDC) federation to assume AWS IAM roles.
+### Worker Lambda
 
-No long-lived AWS access keys are stored in GitHub.
+Responsibilities:
 
-### IAM
+* Resume analysis
+* Job matching
+* Resume tailoring
+* OpenAI integration
+* Updating DynamoDB records
 
-Least privilege principles will be applied to deployment roles and application execution roles.
+### DynamoDB
 
-Current Roles
-* GitHubActionsDeployRole - Used for deployment validation and AWS access verification.
-* GitHubActionsTerraformRole-ai-resume-coach - Used for Terraform infrastructure deployment.
-* Lambda Execution Role - Used by the application runtime.
+Stores:
 
-### Encryption
+* Resume analyses
+* Job matches
+* Resume tailoring results
 
-AWS-managed encryption is enabled where supported.
+Single-table design using record types:
 
-## Cost Management
+* resumeAnalysis
+* jobMatch
+* resumeTailoring
 
-The project is deployed into a dedicated AWS portfolio account.
+### SQS
 
-Controls include:
+Provides:
 
-* AWS Budgets
-* AWS Cost Anomaly Detection
-* Separate AWS account isolation
-* Serverless-first architecture
+* Decoupling
+* Retry handling
+* Long-running workload support
+* API Gateway timeout avoidance
 
-## Deployment
+### OpenAI
 
-Deployment is fully automated through GitHub Actions.
+Provides:
 
-Workflow:
+* Resume analysis
+* Job matching
+* Resume tailoring
 
-GitHub Push
-↓
-GitHub Actions
-↓
-OIDC Federation
-↓
-Terraform Apply
-↓
-AWS Infrastructure Update
+Provider abstraction allows future providers such as:
 
-## Current Endpoints
+* Anthropic
+* Azure OpenAI
+* Bedrock
 
-GET /health
+## Design Decisions
 
-Returns application health status.
+### Why Serverless?
 
-GET /version
+* Minimal operational overhead
+* Cost efficiency
+* Fast deployment
+* Easy scalability
 
-Returns application version information.
+### Why SQS?
 
-POST /analyze-resume
+Initial synchronous implementation exceeded API Gateway limits.
 
-Returns resume analysis results.
+SQS allowed:
 
-(Current implementation uses placeholder analysis responses.)
+* Asynchronous processing
+* Improved reliability
+* Better user experience
 
-## Future Enhancements
+### Why Provider Abstraction?
 
-* Phase 3
-  * Resume scoring engine
-  * Interview preparation recommendations
-* Phase 4
-  * Multi-model AI support
-* Phase 5
-  * User authentication
-  * Historical analysis storage
+Allows AI providers to be replaced without changing business logic.
 
