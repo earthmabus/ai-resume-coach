@@ -9,17 +9,30 @@ function getCurrentUser() {
   return userPool.getCurrentUser();
 }
 
+function requireAuth() {
+  const user = getCurrentUser();
+
+  if (!user) {
+    window.location.href = "./login.html";
+    return false;
+  }
+
+  return true;
+}
+
 function getCurrentSession() {
   return new Promise((resolve, reject) => {
     const user = getCurrentUser();
 
     if (!user) {
+      window.location.href = "./login.html";
       reject(new Error("No current user"));
       return;
     }
 
     user.getSession((error, session) => {
       if (error || !session || !session.isValid()) {
+        window.location.href = "./login.html";
         reject(error || new Error("Invalid session"));
         return;
       }
@@ -42,14 +55,6 @@ async function jsonHeaders() {
     "Content-Type": "application/json",
     ...(await authHeaders())
   };
-}
-
-function requireAuth() {
-  const user = getCurrentUser();
-
-  if (!user) {
-    window.location.href = "./login.html";
-  }
 }
 
 function signOut() {

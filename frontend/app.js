@@ -45,8 +45,10 @@ const jobSortSelect = document.getElementById("jobSortSelect");
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
 
-if (document.body.dataset.page !== "home") {
-  requireAuth();
+const protectedPages = ["resume-analysis", "job-matching"];
+
+if (protectedPages.includes(page) && !requireAuth()) {
+  throw new Error("Authentication required");
 }
 
 function escapeHtml(value) {
