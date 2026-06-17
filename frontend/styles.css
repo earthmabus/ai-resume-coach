@@ -573,6 +573,7 @@ button.secondary:hover {
 }
 
 .secondary-button {
+  background: #eff6ff;
   color: #2563eb;
   border: 1px solid #2563eb;
   cursor: pointer;
@@ -580,6 +581,7 @@ button.secondary:hover {
 
 .secondary-button:hover {
   background: #eff6ff;
+  color: #2563eb;
 }
 
 .auth-button-separator {
