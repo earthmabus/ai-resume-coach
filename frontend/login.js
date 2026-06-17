@@ -14,11 +14,8 @@ function clearAuthError() {
 async function signIn() {
   clearAuthError();
 
-  const emailInput = document.getElementById("loginEmail");
-  const passwordInput = document.getElementById("loginPassword");
-
-  const email = emailInput.value.trim();
-  const password = passwordInput.value;
+  const email = document.getElementById("loginEmail").value.trim();
+  const password = document.getElementById("loginPassword").value;
 
   if (!email || !password) {
     showAuthError("Email and password are required.");
