@@ -549,17 +549,6 @@ button.secondary:hover {
   height: 24px;
 }
 
-.dashboard-action-card {
-  min-height: 220px;
-  height: 100%;
-  display: flex;
-  flex-direction: column;
-}
-
-.dashboard-action-card .card-action {
-  margin-top: auto;
-}
-
 .card-action {
   display: inline-block;
   font-weight: 700;
@@ -632,21 +621,28 @@ button.secondary:hover {
   display: grid;
   grid-template-columns: repeat(2, minmax(0, 1fr));
   gap: 24px;
-  margin-bottom: 32px;
+  margin-bottom: 40px;
   align-items: stretch;
 }
 
-.dashboard-grid + .card {
-  margin-top: 32px;
+.dashboard-action-card {
+  min-height: 220px;
+  display: flex;
+  flex-direction: column;
+  box-sizing: border-box;
+}
+
+.dashboard-action-card .card-action {
+  margin-top: auto;
+}
+
+.dashboard-grid .card {
+  margin-top: 0;
 }
 
 main > .card + .card,
 main > .accordion-card + .accordion-card {
   margin-top: 32px;
-}
-
-.dashboard-grid .card {
-  margin-top: 0;
 }
 
 @media (max-width: 900px) {

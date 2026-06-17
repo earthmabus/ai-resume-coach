@@ -127,15 +127,15 @@ async function loadDashboard() {
     const matchesData = await matchesResponse.json();
 
     if (!analysesResponse.ok) {
-      throw new Error(analysesData.error || "Could not load analyses");
+      console.warn("Could not load analyses:", analysesData);
     }
 
     if (!matchesResponse.ok) {
-      throw new Error(matchesData.error || "Could not load job matches");
+      console.warn("Could not load job matches:", matchesData);
     }
 
-    const analyses = analysesData.analyses || [];
-    const matches = matchesData.jobMatches || [];
+    const analyses = analysesResponse.ok ? analysesData.analyses || [] : [];
+    const matches = matchesResponse.ok ? matchesData.jobMatches || [] : [];
 
     renderStats(analyses, matches);
     renderRecentActivity(analyses, matches);
