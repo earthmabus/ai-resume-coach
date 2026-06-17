@@ -30,7 +30,13 @@ def to_dynamodb_value(value):
     return value
 
 
-def update_record_failed(record_id, error_message):
+def update_record_failed(record_id, error_message, expected_record_type=None):
+    item = get_entity_by_id(record_id, expected_record_type)
+
+    if not item:
+        logger.warning("Could not mark record failed because it was not found: %s", record_id)
+        return
+
     table.update_item(
         Key={"pk": item["pk"], "sk": item["sk"]},
         UpdateExpression="""
@@ -38,12 +44,10 @@ def update_record_failed(record_id, error_message):
                 errorMessage = :errorMessage,
                 completedAt = :completedAt
         """,
-        ExpressionAttributeNames={
-            "#s": "status",
-        },
+        ExpressionAttributeNames={"#s": "status"},
         ExpressionAttributeValues={
             ":status": "failed",
-            ":errorMessage": error_message[:1000],
+            ":errorMessage": error_message,
             ":completedAt": datetime.now(timezone.utc).isoformat(),
         },
     )
@@ -439,7 +443,19 @@ def lambda_handler(event, context):
 
         except Exception as error:
             record_id = body.get("matchId") or body.get("analysisId")
-            update_record_failed(record_id, str(error))
+
+            expected_record_type = None
+
+            if job_type == "resumeAnalysis":
+                expected_record_type = "resumeAnalysis"
+            elif job_type == "jobMatch":
+                expected_record_type = "jobMatch"
+            elif job_type == "resumeTailoring":
+                expected_record_type = "resumeTailoring"
+            elif job_type == "interviewPreparation":
+                expected_record_type = "interviewPreparation"
+
+            update_record_failed(record_id, str(error), expected_record_type)
             raise
 
     return {"status": "ok"}
