@@ -1284,6 +1284,30 @@ function renderInterviewPrepSection(interviewPrep) {
   `;
 }
 
+async function applyPreferredProviderFromProfile() {
+  if (!providerSelect) {
+    return;
+  }
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/profile`, {
+      headers: await authHeaders()
+    });
+
+    const profile = await response.json();
+
+    if (!response.ok) {
+      return;
+    }
+
+    if (profile.preferredProvider) {
+      providerSelect.value = profile.preferredProvider;
+    }
+  } catch (error) {
+    console.warn("Could not load preferred provider:", error);
+  }
+}
+
 window.refreshAnalysisHistory = async function (event) {
   if (event) {
     event.preventDefault();
@@ -1412,12 +1436,12 @@ if (pdfTab) {
 }
 
 if (page === "resume-analysis") {
-  loadHistory();
+  applyPreferredProviderFromProfile().then(loadHistory);
 }
 
 if (page === "job-matching") {
-  loadHistory();
-  loadJobMatches();
+  applyPreferredProviderFromProfile().then(() => {
+    loadHistory();
+    loadJobMatches();
+  });
 }
-
-

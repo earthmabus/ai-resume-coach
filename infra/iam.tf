@@ -34,9 +34,14 @@ resource "aws_iam_role_policy" "lambda_dynamodb_access" {
           "dynamodb:GetItem",
           "dynamodb:Scan",
           "dynamodb:UpdateItem",
-          "dynamodb:DeleteItem"
+          "dynamodb:DeleteItem",
+          "dynamodb:Scan",
+          "dynamodb:Query"
         ]
-        Resource = aws_dynamodb_table.resume_analysis.arn
+        Resource = [
+          aws_dynamodb_table.resume_analysis.arn,
+          "${aws_dynamodb_table.resume_analysis.arn}/index/*"
+        ]
       }
     ]
   })
