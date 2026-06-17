@@ -36,7 +36,6 @@ def build_response(status_code, body):
             "Content-Type": "application/json",
             "Access-Control-Allow-Origin": "*",
             "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Headers": "Content-Type,Authorization",
             "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
         },
         "body": json.dumps(body, default=json_default),
@@ -314,9 +313,9 @@ def analyze_uploaded_resume(event):
             "targetCareer": target_career,
             "targetRoleTitle": target_career.get("roleTitle", ""),
             "targetIndustry": target_career.get("industry", ""),
-            "dynamicScores": analysis_result.get("dynamicScores", []),
-            "roleFitSummary": analysis_result.get("roleFitSummary", ""),
-            "roleSpecificGaps": analysis_result.get("roleSpecificGaps", []),
+            "dynamicScores": [],
+            "roleFitSummary": "",
+            "roleSpecificGaps": [],
         }
 
         table.put_item(Item=item)
