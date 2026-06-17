@@ -60,16 +60,17 @@
 
     <details id="jobHistoryCard" class="card accordion-card">
       <summary>Job Match History</summary>
+
       <div class="accordion-body">
         <div class="button-row">
-	  <button id="refreshJobMatchesButton" type="button" onclick="refreshJobMatchHistory(event)">Refresh Matches</button>
+          <button id="refreshJobMatchesButton" type="button" onclick="refreshJobMatchHistory(event)">Refresh Matches</button>
           <button id="deleteAllJobMatchesButton" class="danger" type="button">Delete All</button>
         </div>
 
         <div class="summary-bar" id="jobMatchSummary">No job match summary loaded.</div>
 
         <div class="filter-row">
-          <input id="jobSearchInput" type="text" placeholder="Search jobs by name..." />
+          <input id="jobSearchInput" type="text" placeholder="Search jobs by name or description..." />
 
           <select id="jobSortSelect">
             <option value="newest">Newest first</option>
@@ -79,6 +80,8 @@
             <option value="processingFirst">Processing first</option>
           </select>
         </div>
+
+        <div id="jobMatches" class="history">No job matches loaded.</div>
       </div>
     </details>
  

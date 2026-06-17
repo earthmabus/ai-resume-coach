@@ -67,29 +67,29 @@
 
     <details id="analysisHistoryCard" class="card accordion-card">
       <summary>Analysis History</summary>
+
       <div class="accordion-body">
         <div class="button-row">
-	  <button id="refreshHistoryButton" type="button" onclick="refreshAnalysisHistory(event)">Refresh History</button>
+          <button id="refreshHistoryButton" type="button" onclick="refreshAnalysisHistory(event)">Refresh History</button>
           <button id="deleteAllAnalysesButton" class="danger" type="button">Delete All</button>
         </div>
-      </div>
 
-      <div class="summary-bar" id="resumeSummary">No resume summary loaded.</div>
+        <div class="summary-bar" id="resumeSummary">No resume summary loaded.</div>
 
-      <div class="filter-row">
-        <input id="resumeSearchInput" type="text" placeholder="Search resumes by name..." />
-        <select id="resumeSortSelect">
-          <option value="newest">Newest first</option>
-          <option value="oldest">Oldest first</option>
-          <option value="highestScore">Highest score</option>
-          <option value="lowestScore">Lowest score</option>
-          <option value="processingFirst">Processing first</option>
-        </select>
-      </div>
+        <div class="filter-row">
+          <input id="resumeSearchInput" type="text" placeholder="Search resumes by name or content..." />
+          <select id="resumeSortSelect">
+            <option value="newest">Newest first</option>
+            <option value="oldest">Oldest first</option>
+            <option value="highestScore">Highest score</option>
+            <option value="lowestScore">Lowest score</option>
+            <option value="processingFirst">Processing first</option>
+          </select>
+        </div>
+
+        <div id="history" class="history">No history loaded.</div>
       </div>
     </details>
-
-
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
