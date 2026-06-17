@@ -536,15 +536,9 @@ button.secondary:hover {
 }
 
 .secondary-button {
-  width: 100%;
-  background: white;
   color: #2563eb;
   border: 1px solid #2563eb;
-  padding: 12px;
-  border-radius: 8px;
   cursor: pointer;
-  font-size: 15px;
-  font-weight: 600;
 }
 
 .secondary-button:hover {
@@ -553,14 +547,6 @@ button.secondary:hover {
 
 .auth-button-separator {
   height: 24px;
-}
-
-.dashboard-grid {
-  display: grid;
-  grid-template-columns: repeat(2, minmax(0, 1fr));
-  gap: 24px;
-  margin-bottom: 24px;
-  align-items: stretch;
 }
 
 .dashboard-action-card {
@@ -642,6 +628,27 @@ button.secondary:hover {
   white-space: nowrap;
 }
 
+.dashboard-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 24px;
+  margin-bottom: 32px;
+  align-items: stretch;
+}
+
+.dashboard-grid + .card {
+  margin-top: 32px;
+}
+
+main > .card + .card,
+main > .accordion-card + .accordion-card {
+  margin-top: 32px;
+}
+
+.dashboard-grid .card {
+  margin-top: 0;
+}
+
 @media (max-width: 900px) {
   .dashboard-grid,
   .stats-grid {
@@ -655,21 +662,6 @@ button.secondary:hover {
   .activity-date {
     white-space: normal;
   }
-}
-
-.card + .card,
-.accordion-card + .accordion-card {
-  margin-top: 24px;
-}
-
-.dashboard-grid + .card,
-main > .card + .card,
-main > .accordion-card + .accordion-card {
-  margin-top: 24px;
-}
-
-.dashboard-grid .card {
-  margin-top: 0;
 }
 
 .accordion-card {

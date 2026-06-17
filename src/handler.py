@@ -735,8 +735,7 @@ def tailor_resume(event):
     if not match_id:
         return build_response(400, {"error": "matchId is required"})
 
-    match_response = table.get_item(Key={"analysisId": match_id})
-    match_item = match_response.get("Item")
+    match_item = get_entity_by_id(match_id, "jobMatch")
 
     if not match_item:
         return build_response(404, {"error": "job match not found"})
@@ -833,8 +832,7 @@ def get_resume_tailoring(event):
     if not tailoring_id:
         return build_response(400, {"error": "tailoring id is required"})
 
-    response = table.get_item(Key={"analysisId": tailoring_id})
-    item = response.get("Item")
+    item = get_entity_by_id(tailoring_id, "resumeTailoring")
 
     if not item:
         return build_response(404, {"error": "tailoring not found"})

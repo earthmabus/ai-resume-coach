@@ -140,7 +140,8 @@ async function loadDashboard() {
     renderStats(analyses, matches);
     renderRecentActivity(analyses, matches);
   } catch (error) {
-    recentActivity.textContent = `Error: ${error.message}`;
+    console.error("Dashboard load failed:", error);
+    recentActivity.textContent = "There is no recent activity.";
   }
 }
 
