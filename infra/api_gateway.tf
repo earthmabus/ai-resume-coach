@@ -155,14 +155,6 @@ resource "aws_apigatewayv2_route" "tailor_resume_route" {
   authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
 }
 
-resource "aws_apigatewayv2_route" "list_resume_tailorings_route" {
-  api_id             = aws_apigatewayv2_api.http_api.id
-  route_key          = "GET /resume-tailorings"
-  target             = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-  authorization_type = "JWT"
-  authorizer_id      = aws_apigatewayv2_authorizer.cognito_jwt.id
-}
-
 resource "aws_apigatewayv2_route" "get_resume_tailoring_route" {
   api_id             = aws_apigatewayv2_api.http_api.id
   route_key          = "GET /resume-tailoring/{id}"

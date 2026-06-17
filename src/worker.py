@@ -104,6 +104,11 @@ def process_resume_analysis(analysis_id):
         },
         ExpressionAttributeValues=to_dynamodb_value(
             {
+                ":dynamicScores": analysis_result.get("dynamicScores", []),
+                ":roleFitSummary": analysis_result.get("roleFitSummary", ""),
+                ":roleSpecificGaps": analysis_result.get("roleSpecificGaps", []),
+                ":targetRoleTitle": target_career.get("roleTitle", ""),
+                ":targetIndustry": target_career.get("industry", ""),
                 ":status": "completed",
                 ":provider": analysis_result["provider"],
                 ":model": analysis_result.get("model", ""),
@@ -161,7 +166,7 @@ def process_job_match(match_id):
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     table.update_item(
-        Key={"pk": item["pk"], "sk": item["sk"]},
+        Key={"pk": match_item["pk"], "sk": match_item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 provider = :provider,
@@ -212,8 +217,10 @@ def process_job_match(match_id):
     tailoring_id = updated_match_item.get("tailoringId")
 
     if tailoring_id:
+        tailoring_item = get_entity_by_id(tailoring_id, "resumeTailoring")
+
         table.update_item(
-            Key={"pk": item["pk"], "sk": item["sk"]},
+            Key={"pk": tailoring_item["pk"], "sk": tailoring_item["sk"]},
             UpdateExpression="""
                 SET #s = :status,
                 analysisVersion = :analysisVersion
@@ -236,12 +243,13 @@ def process_job_match(match_id):
         )
 
         updated_match_item = get_entity_by_id(match_id, "jobMatch")
-
         interview_prep_id = updated_match_item.get("interviewPrepId")
 
         if interview_prep_id:
+            interview_item = get_entity_by_id(interview_prep_id, "interviewPreparation")
+
             table.update_item(
-                Key={"pk": item["pk"], "sk": item["sk"]},
+                Key={"pk": interview_item["pk"], "sk": interview_item["sk"]},
                 UpdateExpression="""
                     SET #s = :status,
                         analysisVersion = :analysisVersion
@@ -271,18 +279,18 @@ def process_resume_tailoring(tailoring_id):
     tailoring_item = get_entity_by_id(tailoring_id, "resumeTailoring")
 
     if not tailoring_item:
-        logger.info("Raised ValueError since tailoring not found for interview prep: %s", str(interview_prep_id))
+        logger.info("Raised ValueError since tailoring not found for interview prep: %s", str(tailoring_id))
         raise ValueError(f"Resume tailoring not found: {tailoring_id}")
 
     resume_text = tailoring_item.get("resumeText", "").strip()
     job_description_text = tailoring_item.get("jobDescriptionText", "").strip()
 
     if not resume_text:
-        logger.info("Raised ValueError since resumeText not found for interview prep: %s", str(interview_prep_id))
+        logger.info("Raised ValueError since resumeText not found for interview prep: %s", str(tailoring_id))
         raise ValueError(f"No resumeText found for tailoring: {tailoring_id}")
 
     if not job_description_text:
-        logger.info("Raised ValueError since jobDescriptionText not found for interview prep: %s", str(interview_prep_id))
+        logger.info("Raised ValueError since jobDescriptionText not found for interview prep: %s", str(tailoring_id))
         raise ValueError(f"No jobDescriptionText found for tailoring: {tailoring_id}")
 
     requested_provider = tailoring_item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based")
@@ -295,7 +303,7 @@ def process_resume_tailoring(tailoring_id):
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     table.update_item(
-        Key={"pk": item["pk"], "sk": item["sk"]},
+        Key={"pk": tailoring_item["pk"], "sk": tailoring_item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 provider = :provider,
@@ -330,7 +338,7 @@ def process_resume_tailoring(tailoring_id):
             }
         ),
     )
-    logger.info("Completed interview prep: %s", str(tailoring_id))
+    logger.info("Completed resume tailoring: %s", str(tailoring_id))
 
 
 def process_interview_preparation(interview_prep_id):
@@ -442,7 +450,12 @@ def lambda_handler(event, context):
                 process_resume_analysis(body["analysisId"])
 
         except Exception as error:
-            record_id = body.get("matchId") or body.get("analysisId")
+            record_id = (
+                body.get("analysisId")
+                or body.get("matchId")
+                or body.get("tailoringId")
+                or body.get("interviewPrepId")
+            )
 
             expected_record_type = None
 

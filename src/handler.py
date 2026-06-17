@@ -406,6 +406,11 @@ def match_job_description(event):
 
     resume_item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
+    try:
+        assert_item_owner(resume_item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
+
     if not resume_item:
         return build_response(404, {"error": "resume analysis not found"})
 
@@ -435,7 +440,6 @@ def match_job_description(event):
         "resumeAnalysisId": analysis_id,
         "tailoringId": tailoring_id,
         "interviewPrepId": interview_prep_id,
-        "recordType": "jobMatch",
         "createdAt": created_at,
         "status": "processing",
         "jobName": job_name,
@@ -496,7 +500,6 @@ def match_job_description(event):
         "tailoringId": tailoring_id,
         "matchId": match_id,
         "resumeAnalysisId": analysis_id,
-        "recordType": "resumeTailoring",
         "createdAt": created_at,
         "status": "waiting",
         "provider": requested_provider or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
@@ -534,7 +537,6 @@ def match_job_description(event):
         "interviewPrepId": interview_prep_id,
         "matchId": match_id,
         "resumeAnalysisId": analysis_id,
-        "recordType": "interviewPreparation",
         "createdAt": created_at,
         "status": "waiting",
         "userId": user_id,
@@ -669,9 +671,29 @@ def delete_job_match(event):
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
 
-    table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+    deleted = 0
 
-    return build_response(200, {"deleted": True, "matchId": match_id})
+    child_response = table.query(
+        KeyConditionExpression=Key("pk").eq(f"MATCH#{match_id}")
+    )
+
+    for child in child_response.get("Items", []):
+        try:
+            assert_item_owner(child, user_id)
+        except PermissionError:
+            continue
+
+        table.delete_item(Key={"pk": child["pk"], "sk": child["sk"]})
+        deleted += 1
+
+    table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+    deleted += 1
+
+    return build_response(200, {
+        "deleted": True,
+        "deletedCount": deleted,
+        "matchId": match_id
+    })
 
 
 def delete_all_job_matches(event):
@@ -683,11 +705,30 @@ def delete_all_job_matches(event):
 
     deleted = 0
 
-    for item in response.get("Items", []):
-        table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
+    for match in response.get("Items", []):
+        match_id = match.get("matchId")
+
+        if match_id:
+            child_response = table.query(
+                KeyConditionExpression=Key("pk").eq(f"MATCH#{match_id}")
+            )
+
+            for child in child_response.get("Items", []):
+                try:
+                    assert_item_owner(child, user_id)
+                except PermissionError:
+                    continue
+
+                table.delete_item(Key={"pk": child["pk"], "sk": child["sk"]})
+                deleted += 1
+
+        table.delete_item(Key={"pk": match["pk"], "sk": match["sk"]})
         deleted += 1
 
-    return build_response(200, {"deleted": deleted, "recordType": "jobMatch"})
+    return build_response(200, {
+        "deleted": deleted,
+        "recordType": "jobMatchBundle"
+    })
 
 
 def get_resume_download_url(event):
@@ -821,26 +862,6 @@ def tailor_resume(event):
     )
 
     return build_response(202, item)
-
-
-def list_resume_tailorings(event):
-    user_id = current_user_id(event)
-
-    response = table.scan(
-        FilterExpression="userId = :userId AND recordType = :recordType",
-        ExpressionAttributeValues={
-            ":userId": user_id,
-            ":recordType": "resumeTailoring",
-        },
-    )
-
-    tailorings = sorted(
-        response.get("Items", []),
-        key=lambda item: item.get("createdAt", ""),
-        reverse=True,
-    )
-
-    return build_response(200, {"tailorings": tailorings})
 
 
 def get_resume_tailoring(event):
@@ -1192,9 +1213,6 @@ def lambda_handler(event, context):
 
     if route == "POST /tailor-resume":
         return tailor_resume(event)
-
-    if route == "GET /resume-tailorings":
-        return list_resume_tailorings(event)
 
     if route == "GET /resume-tailoring/{id}":
         return get_resume_tailoring(event)
