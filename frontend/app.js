@@ -240,11 +240,14 @@ function renderAnalysis(data) {
 }
 
 async function analyzeTextResume() {
-  if (!resumeText) {
+  const resumeTextValue = textarea.value.trim();
+
+  if (!resumeTextValue) {
     result.textContent = "Please enter resume text.";
     return;
   }
 
+  setButtonLoading(analyzeTextButton, "Analyzing...");
   result.textContent = "Analyzing resume text...";
   focusAccordionCard("resumeResultCard");
 
@@ -252,10 +255,9 @@ async function analyzeTextResume() {
     const response = await fetch(`${API_BASE_URL}/analyze-resume`, {
       method: "POST",
       headers: await jsonHeaders(),
-
       body: JSON.stringify({
-	resumeName: resumeName?.value.trim() || "Untitled Resume",
-        resumeText: textarea.value,
+        resumeName: resumeName?.value.trim() || "Untitled Resume",
+        resumeText: resumeTextValue,
         analysisProvider: selectedProvider()
       })
     });
@@ -269,8 +271,11 @@ async function analyzeTextResume() {
     renderAnalysis(data);
     setAccordionOpen("resumeResultCard", true);
     await loadHistory();
+
+    setButtonSaved(analyzeTextButton, "Complete ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
+    resetButton(analyzeTextButton);
   }
 }
 
@@ -287,6 +292,7 @@ async function uploadPdfResume() {
     return;
   }
 
+  setButtonLoading(uploadPdfButton, "Uploading...");
   focusAccordionCard("resumeResultCard");
   result.textContent = "Uploading and analyzing PDF...";
 
@@ -350,8 +356,11 @@ async function uploadPdfResume() {
         `<p><strong>Status:</strong> PDF uploaded and queued for AI analysis. Refresh history in a moment to view the completed result.</p>`
       );
     }
+
+    setButtonSaved(uploadPdfButton, "Queued ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
+    resetButton(uploadPdfButton);
   }
 }
 
@@ -599,6 +608,7 @@ async function matchJobDescription() {
     return;
   }
 
+  setButtonLoading(matchButton, "Matching...");
   focusAccordionCard("jobResultCard");
   result.textContent = "Matching resume to job description...";
 
@@ -631,8 +641,11 @@ async function matchJobDescription() {
         `<p><strong>Status:</strong> Job match queued for AI analysis. Refresh matches in a moment to view the completed result.</p>`
       );
     }
+
+    setButtonSaved(matchButton, "Queued ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
+    resetButton(matchButton);
   }
 }
 
@@ -1372,6 +1385,32 @@ function renderDynamicScores(dynamicScores) {
       `).join("")}
     </div>
   `;
+}
+
+function setButtonLoading(button, label) {
+  if (!button) return;
+
+  button.disabled = true;
+  button.dataset.originalText = button.dataset.originalText || button.textContent;
+  button.textContent = label;
+}
+
+function setButtonSaved(button, label = "Queued ✓", resetDelayMs = 2000) {
+  if (!button) return;
+
+  button.disabled = true;
+  button.textContent = label;
+
+  setTimeout(() => {
+    resetButton(button);
+  }, resetDelayMs);
+}
+
+function resetButton(button) {
+  if (!button) return;
+
+  button.disabled = false;
+  button.textContent = button.dataset.originalText || button.textContent;
 }
 
 setupAccordionPersistence();
