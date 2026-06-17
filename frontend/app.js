@@ -243,7 +243,13 @@ function renderAnalysis(data) {
 }
 
 async function analyzeTextResume() {
+  if (!resumeText) {
+    result.textContent = "Please enter resume text.";
+    return;
+  }
+
   result.textContent = "Analyzing resume text...";
+  focusAccordionCard("resumeResultCard");
 
   try {
     const response = await fetch(`${API_BASE_URL}/analyze-resume`, {
@@ -284,7 +290,8 @@ async function uploadPdfResume() {
     return;
   }
 
-  result.textContent = "Requesting upload URL...";
+  focusAccordionCard("resumeResultCard");
+  result.textContent = "Uploading and analyzing PDF...";
 
   try {
     const uploadUrlResponse = await fetch(`${API_BASE_URL}/resume-upload-url`, {
@@ -595,6 +602,7 @@ async function matchJobDescription() {
     return;
   }
 
+  focusAccordionCard("jobResultCard");
   result.textContent = "Matching resume to job description...";
 
   try {
@@ -1312,6 +1320,19 @@ function listToHtml(items) {
   return (items || [])
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
+}
+
+function focusAccordionCard(cardId) {
+  setAccordionOpen(cardId, true);
+
+  const card = document.getElementById(cardId);
+
+  if (card) {
+    card.scrollIntoView({
+      behavior: "smooth",
+      block: "start"
+    });
+  }
 }
 
 setupAccordionPersistence();
