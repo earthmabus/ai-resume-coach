@@ -69,9 +69,14 @@
       <summary>Analysis History</summary>
 
       <div class="accordion-body">
-        <div class="button-row">
-          <button id="refreshHistoryButton" type="button" onclick="refreshAnalysisHistory(event)">Refresh History</button>
-          <button id="deleteAllAnalysesButton" class="danger" type="button">Delete All</button>
+
+        <div class="summary-toolbar">
+          <div class="summary-bar" id="resumeSummary">No resume summary loaded.</div>
+
+          <div class="summary-actions">
+            <button id="refreshHistoryButton" type="button" onclick="refreshAnalysisHistory(event)">Refresh History</button>
+            <button id="deleteAllAnalysesButton" class="danger" type="button" onclick="deleteAllAnalyses()">Delete All</button>
+          </div>
         </div>
 
         <div class="summary-bar" id="resumeSummary">No resume summary loaded.</div>

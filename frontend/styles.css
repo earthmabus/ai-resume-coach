@@ -403,22 +403,47 @@ button.secondary:hover {
   }
 }
 
+.summary-toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: stretch;
+  gap: 16px;
+  margin-bottom: 16px;
+}
+
 .summary-bar {
   display: flex;
   gap: 12px;
   flex-wrap: wrap;
+  align-items: center;
+  flex: 1;
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
   padding: 12px;
   border-radius: 8px;
-  margin-bottom: 16px;
+  margin-bottom: 0;
 }
 
 .summary-bar span {
+  display: inline-flex;
+  align-items: center;
+  min-height: 36px;
   background: white;
   border: 1px solid #e5e7eb;
   border-radius: 9999px;
   padding: 6px 10px;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 8px;
+  align-items: stretch;
+}
+
+.summary-actions button {
+  margin: 0;
+  min-height: 44px;
+  white-space: nowrap;
 }
 
 .filter-row {
@@ -456,6 +481,18 @@ button.secondary:hover {
 
   .filter-row {
     grid-template-columns: 1fr;
+  }
+
+  .summary-toolbar {
+    flex-direction: column;
+  }
+
+  .summary-actions {
+    width: 100%;
+  }
+
+  .summary-actions button {
+    flex: 1;
   }
 }
 
