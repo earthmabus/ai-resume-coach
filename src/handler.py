@@ -701,13 +701,13 @@ def get_resume_download_url(event):
 
     item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
+    if not item:
+        return build_response(404, {"error": "analysis not found"})
+
     try:
         assert_item_owner(item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not item:
-        return build_response(404, {"error": "analysis not found"})
 
     bucket = item.get("documentBucket", "")
     key = item.get("documentKey", "")
@@ -773,6 +773,12 @@ def tailor_resume(event):
     created_at = datetime.now(timezone.utc).isoformat()
 
     item = {
+        **base_keys(
+            pk=tailoring_pk(match_id),
+            sk=tailoring_sk(tailoring_id),
+            entity_id=tailoring_id,
+            record_type="resumeTailoring",
+        ),
         "userId": user_id,
         "analysisId": tailoring_id,
         "tailoringId": tailoring_id,
