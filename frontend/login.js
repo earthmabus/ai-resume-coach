@@ -1,32 +1,39 @@
-const authResult = document.getElementById("authResult");
+const loginButton = document.getElementById("loginButton");
+const authError = document.getElementById("authError");
 
-document.getElementById("loginButton").addEventListener("click", () => {
-  const email = document.getElementById("loginEmail").value.trim();
-  const password = document.getElementById("loginPassword").value;
+function showAuthError(message) {
+  authError.textContent = message;
+  authError.classList.remove("hidden");
+}
+
+function clearAuthError() {
+  authError.textContent = "";
+  authError.classList.add("hidden");
+}
+
+async function signIn() {
+  clearAuthError();
+
+  const email = document.getElementById("email").value.trim();
+  const password = document.getElementById("password").value;
 
   if (!email || !password) {
-    authResult.textContent = "Email and password are required.";
+    showAuthError("Email and password are required.");
     return;
   }
 
-  const user = new AmazonCognitoIdentity.CognitoUser({
-    Username: email,
-    Pool: userPool
-  });
+  loginButton.disabled = true;
+  loginButton.textContent = "Signing in...";
 
-  const authDetails = new AmazonCognitoIdentity.AuthenticationDetails({
-    Username: email,
-    Password: password
-  });
+  try {
+    await signInUser(email, password);
+    window.location.href = "./index.html";
+  } catch (error) {
+    showAuthError(error.message || "Unable to sign in. Check your email and password.");
+  } finally {
+    loginButton.disabled = false;
+    loginButton.textContent = "Sign In";
+  }
+}
 
-  authResult.textContent = "Signing in...";
-
-  user.authenticateUser(authDetails, {
-    onSuccess: () => {
-      window.location.href = "./index.html";
-    },
-    onFailure: (error) => {
-      authResult.textContent = `Login failed: ${error.message || error}`;
-    }
-  });
-});
+loginButton.addEventListener("click", signIn);

@@ -2,6 +2,29 @@ requireAuth();
 
 const API_BASE_URL = window.APP_CONFIG.apiEndpoint;
 
+const saveProfileButton = document.getElementById("saveProfileButton");
+const profileError = document.getElementById("profileError");
+
+function showProfileError(message) {
+  profileError.textContent = message;
+  profileError.classList.remove("hidden");
+}
+
+function clearProfileError() {
+  profileError.textContent = "";
+  profileError.classList.add("hidden");
+}
+
+function showProfileSavedState() {
+  saveProfileButton.disabled = true;
+  saveProfileButton.textContent = "Saved ✓";
+
+  setTimeout(() => {
+    saveProfileButton.disabled = false;
+    saveProfileButton.textContent = "Save Profile";
+  }, 2000);
+}
+
 async function loadProfile() {
   try {
     const response = await fetch(`${API_BASE_URL}/profile`, {
@@ -27,6 +50,11 @@ async function loadProfile() {
 }
 
 async function saveProfile() {
+  clearProfileError();
+
+  saveProfileButton.disabled = true;
+  saveProfileButton.textContent = "Saving...";
+
   try {
     const response = await fetch(`${API_BASE_URL}/profile`, {
       method: "PUT",
@@ -48,9 +76,12 @@ async function saveProfile() {
       throw new Error(data.error || "Could not save profile");
     }
 
-    alert("Profile saved successfully.");
+    showProfileSavedState();
   } catch (error) {
-    alert(`Error saving profile: ${error.message}`);
+    saveProfileButton.disabled = false;
+    saveProfileButton.textContent = "Save Profile";
+
+    showProfileError(error.message || "Unable to save profile.");
   }
 }
 

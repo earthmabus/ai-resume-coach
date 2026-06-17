@@ -736,3 +736,13 @@ main > .accordion-card + .accordion-card {
 .accordion-body {
   padding: 24px;
 }
+
+.error-banner {
+  margin-top: 16px;
+  padding: 12px 14px;
+  border-radius: 8px;
+  border: 1px solid #fecaca;
+  background: #fef2f2;
+  color: #991b1b;
+  font-weight: 600;
+}
