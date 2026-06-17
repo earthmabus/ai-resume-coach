@@ -667,19 +667,32 @@ def delete_all_job_matches(event):
     user_id = current_user_id(event)
 
     response = table.scan(
-        FilterExpression="userId = :userId AND recordType = :recordType",
+        FilterExpression="userId = :userId",
         ExpressionAttributeValues={
             ":userId": user_id,
-            ":recordType": "jobMatch",
         },
     )
 
     deleted = 0
 
     for item in response.get("Items", []):
-        if item.get("recordType") in ["jobMatch", "resumeTailoring", "userProfile"]:
+        item_record_type = item.get("recordType", "")
+
+        is_job_match = (
+            item_record_type == "jobMatch"
+            or "matchId" in item
+            or "matchScore" in item
+        )
+
+        if not is_job_match:
             continue
-        table.delete_item(Key={"analysisId": item["analysisId"]})
+
+        analysis_id = item.get("analysisId")
+
+        if not analysis_id:
+            continue
+
+        table.delete_item(Key={"analysisId": analysis_id})
         deleted += 1
 
     return build_response(
