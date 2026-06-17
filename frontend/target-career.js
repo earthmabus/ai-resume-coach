@@ -20,7 +20,6 @@ const result = document.getElementById("targetCareerResult");
 const targetCareerError = document.getElementById("targetCareerError");
 const targetCareerSuccess = document.getElementById("targetCareerSuccess");
 const saveButton = document.getElementById("saveTargetCareerButton");
-const targetCareerError = document.getElementById("targetCareerError");
 
 function readForm() {
   const payload = {};
