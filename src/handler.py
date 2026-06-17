@@ -7,6 +7,8 @@ from decimal import Decimal
 from io import BytesIO
 
 import boto3
+from boto3.dynamodb.conditions import Key, Attr
+
 from pypdf import PdfReader
 
 from providers.factory import get_analysis_provider
@@ -102,6 +104,13 @@ def analyze_and_save_resume(
     analysis_duration_ms = int((time.perf_counter() - analysis_started) * 1000)
 
     item = {
+        **base_keys(
+            pk=user_pk(user_id),
+            sk=resume_sk(analysis_id),
+            entity_id=analysis_id,
+            record_type="resumeAnalysis",
+        ),
+        "recordType": "resumeAnalysis",
         "userId": user_id,
         "analysisId": analysis_id,
         "createdAt": created_at,
@@ -255,6 +264,13 @@ def analyze_uploaded_resume(event):
         requested_provider = body.get("analysisProvider", os.getenv("ANALYSIS_PROVIDER", "rule-based"))
 
         item = {
+            **base_keys(
+                pk=user_pk(user_id),
+                sk=resume_sk(analysis_id),
+                entity_id=analysis_id,
+                record_type="resumeAnalysis",
+            ),
+            "recordType": "resumeAnalysis",
             "userId": user_id,
             "analysisId": analysis_id,
             "createdAt": created_at,
@@ -317,14 +333,12 @@ def analyze_uploaded_resume(event):
             },
         )
 
+
 def list_analyses(event):
     user_id = current_user_id(event)
 
-    response = table.scan(
-        FilterExpression="userId = :userId AND attribute_not_exists(recordType)",
-        ExpressionAttributeValues={
-            ":userId": user_id,
-        },
+    response = table.query(
+        KeyConditionExpression=Key("pk").eq(user_pk(user_id)) & Key("sk").begins_with("RESUME#")
     )
 
     analyses = sorted(
@@ -344,8 +358,7 @@ def get_analysis(event):
     if not analysis_id:
         return build_response(400, {"error": "analysis id is required"})
 
-    response = table.get_item(Key={"analysisId": analysis_id})
-    item = response.get("Item")
+    item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
     if not item:
         return build_response(404, {"error": "analysis not found"})
@@ -378,8 +391,7 @@ def match_job_description(event):
     if not job_description_text:
         return build_response(400, {"error": "jobDescriptionText is required"})
 
-    resume_response = table.get_item(Key={"analysisId": analysis_id})
-    resume_item = resume_response.get("Item")
+    resume_item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
     if not resume_item:
         return build_response(404, {"error": "resume analysis not found"})
@@ -397,12 +409,19 @@ def match_job_description(event):
     interview_prep_id = str(uuid.uuid4())
 
     item = {
+        **base_keys(
+            pk=user_pk(user_id),
+            sk=match_sk(match_id),
+            entity_id=match_id,
+            record_type="jobMatch",
+        ),
+        "recordType": "jobMatch",
         "userId": user_id,
         "analysisId": match_id,
-        "tailoringId": tailoring_id,
-        "interviewPrepId": interview_prep_id,
         "matchId": match_id,
         "resumeAnalysisId": analysis_id,
+        "tailoringId": tailoring_id,
+        "interviewPrepId": interview_prep_id,
         "recordType": "jobMatch",
         "createdAt": created_at,
         "status": "processing",
@@ -452,6 +471,14 @@ def match_job_description(event):
     )
 
     tailoring_item = {
+        **base_keys(
+            pk=tailoring_pk(match_id),
+            sk=tailoring_sk(tailoring_id),
+            entity_id=tailoring_id,
+            record_type="resumeTailoring",
+        ),
+        "recordType": "resumeTailoring",
+        "userId": user_id,
         "analysisId": tailoring_id,
         "tailoringId": tailoring_id,
         "matchId": match_id,
@@ -482,6 +509,14 @@ def match_job_description(event):
     table.put_item(Item=tailoring_item)
 
     interview_prep_item = {
+        **base_keys(
+            pk=tailoring_pk(match_id),
+            sk=interview_sk(interview_prep_id),
+            entity_id=interview_prep_id,
+            record_type="interviewPreparation",
+        ),
+        "recordType": "interviewPreparation",
+        "userId": user_id,
         "analysisId": interview_prep_id,
         "interviewPrepId": interview_prep_id,
         "matchId": match_id,
@@ -517,12 +552,8 @@ def match_job_description(event):
 def list_job_matches(event):
     user_id = current_user_id(event)
 
-    response = table.scan(
-        FilterExpression="userId = :userId AND recordType = :recordType",
-        ExpressionAttributeValues={
-            ":userId": user_id,
-            ":recordType": "jobMatch",
-        },
+    response = table.query(
+        KeyConditionExpression=Key("pk").eq(user_pk(user_id)) & Key("sk").begins_with("MATCH#")
     )
 
     matches = sorted(
@@ -535,15 +566,13 @@ def list_job_matches(event):
 
 
 def get_job_match(event):
+    user_id = current_user_id(event)
     match_id = event.get("pathParameters", {}).get("id")
 
-    user_id = current_user_id(event)
-
     if not match_id:
-        return build_response(400, {"error": "job match id is required"})
+        return build_response(400, {"error": "match id is required"})
 
-    response = table.get_item(Key={"analysisId": match_id})
-    item = response.get("Item")
+    item = get_entity_by_id(match_id, "jobMatch")
 
     if not item:
         return build_response(404, {"error": "job match not found"})
@@ -568,15 +597,13 @@ def delete_s3_document_if_present(item):
 
 
 def delete_analysis(event):
-    analysis_id = event.get("pathParameters", {}).get("id")
-
     user_id = current_user_id(event)
+    analysis_id = event.get("pathParameters", {}).get("id")
 
     if not analysis_id:
         return build_response(400, {"error": "analysis id is required"})
 
-    response = table.get_item(Key={"analysisId": analysis_id})
-    item = response.get("Item")
+    item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
     if not item:
         return build_response(404, {"error": "analysis not found"})
@@ -586,60 +613,40 @@ def delete_analysis(event):
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
 
-    if item.get("recordType") == "jobMatch":
-        return build_response(400, {"error": "use /job-match/{id} to delete job matches"})
-
-    delete_s3_document_if_present(item)
-
-    table.delete_item(Key={"analysisId": analysis_id})
-
-    return build_response(
-        200,
-        {
-            "deleted": True,
-            "analysisId": analysis_id,
-        },
+    table.delete_item(
+        Key={
+            "pk": item["pk"],
+            "sk": item["sk"],
+        }
     )
+
+    return build_response(200, {"deleted": True, "analysisId": analysis_id})
 
 
 def delete_all_analyses(event):
     user_id = current_user_id(event)
 
-    response = table.scan(
-        FilterExpression="userId = :userId",
-        ExpressionAttributeValues={
-            ":userId": user_id,
-        },
+    response = table.query(
+        KeyConditionExpression=Key("pk").eq(user_pk(user_id)) & Key("sk").begins_with("RESUME#")
     )
+
     deleted = 0
 
     for item in response.get("Items", []):
-        if item.get("recordType") == "jobMatch":
-            continue
-
-        delete_s3_document_if_present(item)
-        table.delete_item(Key={"analysisId": item["analysisId"]})
+        table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
         deleted += 1
 
-    return build_response(
-        200,
-        {
-            "deleted": deleted,
-            "recordType": "resumeAnalysis",
-        },
-    )
+    return build_response(200, {"deleted": deleted, "recordType": "resumeAnalysis"})
 
 
 def delete_job_match(event):
+    user_id = current_user_id(event)
     match_id = event.get("pathParameters", {}).get("id")
 
-    user_id = current_user_id(event)
-
     if not match_id:
-        return build_response(400, {"error": "job match id is required"})
+        return build_response(400, {"error": "match id is required"})
 
-    response = table.get_item(Key={"analysisId": match_id})
-    item = response.get("Item")
+    item = get_entity_by_id(match_id, "jobMatch")
 
     if not item:
         return build_response(404, {"error": "job match not found"})
@@ -649,59 +656,25 @@ def delete_job_match(event):
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
 
-    if item.get("recordType") != "jobMatch":
-        return build_response(400, {"error": "record is not a job match"})
+    table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
 
-    table.delete_item(Key={"analysisId": match_id})
-
-    return build_response(
-        200,
-        {
-            "deleted": True,
-            "matchId": match_id,
-        },
-    )
+    return build_response(200, {"deleted": True, "matchId": match_id})
 
 
 def delete_all_job_matches(event):
     user_id = current_user_id(event)
 
-    response = table.scan(
-        FilterExpression="userId = :userId",
-        ExpressionAttributeValues={
-            ":userId": user_id,
-        },
+    response = table.query(
+        KeyConditionExpression=Key("pk").eq(user_pk(user_id)) & Key("sk").begins_with("MATCH#")
     )
 
     deleted = 0
 
     for item in response.get("Items", []):
-        item_record_type = item.get("recordType", "")
-
-        is_job_match = (
-            item_record_type == "jobMatch"
-            or "matchId" in item
-            or "matchScore" in item
-        )
-
-        if not is_job_match:
-            continue
-
-        analysis_id = item.get("analysisId")
-
-        if not analysis_id:
-            continue
-
-        table.delete_item(Key={"analysisId": analysis_id})
+        table.delete_item(Key={"pk": item["pk"], "sk": item["sk"]})
         deleted += 1
 
-    return build_response(
-        200,
-        {
-            "deleted": deleted,
-            "recordType": "jobMatch",
-        },
-    )
+    return build_response(200, {"deleted": deleted, "recordType": "jobMatch"})
 
 
 def get_resume_download_url(event):
@@ -712,8 +685,7 @@ def get_resume_download_url(event):
     if not analysis_id:
         return build_response(400, {"error": "analysis id is required"})
 
-    response = table.get_item(Key={"analysisId": analysis_id})
-    item = response.get("Item")
+    item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
     try:
         assert_item_owner(item, user_id)
@@ -877,19 +849,13 @@ def get_resume_tailoring(event):
 
 def get_resume_tailoring_by_match(event):
     user_id = current_user_id(event)
-
     match_id = event.get("pathParameters", {}).get("matchId")
 
     if not match_id:
         return build_response(400, {"error": "match id is required"})
 
-    response = table.scan(
-        FilterExpression="recordType = :recordType AND matchId = :matchId AND userId = :userId",
-        ExpressionAttributeValues={
-            ":recordType": "resumeTailoring",
-            ":matchId": match_id,
-            ":userId": user_id,
-        },
+    response = table.query(
+        KeyConditionExpression=Key("pk").eq(f"MATCH#{match_id}") & Key("sk").begins_with("TAILORING#")
     )
 
     items = response.get("Items", [])
@@ -897,13 +863,15 @@ def get_resume_tailoring_by_match(event):
     if not items:
         return build_response(404, {"error": "tailoring not found for match"})
 
-    items = sorted(
-        items,
-        key=lambda item: item.get("createdAt", ""),
-        reverse=True,
-    )
+    items = sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
+    item = items[0]
 
-    return build_response(200, items[0])
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
+
+    return build_response(200, item)
 
 
 def current_user_id(event):
@@ -929,16 +897,22 @@ def assert_item_owner(item, user_id):
 
 def get_profile(event):
     user_id = current_user_id(event)
-    profile_id = f"PROFILE#{user_id}"
 
-    response = table.get_item(Key={"analysisId": profile_id})
+    response = table.get_item(
+        Key={
+            "pk": user_pk(user_id),
+            "sk": profile_sk(),
+        }
+    )
+
     item = response.get("Item")
 
     if not item:
         return build_response(
             200,
             {
-                "analysisId": profile_id,
+                "pk": user_pk(user_id),
+                "sk": profile_sk(),
                 "recordType": "userProfile",
                 "userId": user_id,
                 "name": "",
@@ -965,7 +939,8 @@ def update_profile(event):
     updated_at = datetime.now(timezone.utc).isoformat()
 
     item = {
-        "analysisId": profile_id,
+        "pk": user_pk(user_id),
+        "sk": profile_sk(),
         "recordType": "userProfile",
         "userId": user_id,
         "updatedAt": updated_at,
@@ -990,13 +965,8 @@ def get_interview_prep_by_match(event):
     if not match_id:
         return build_response(400, {"error": "match id is required"})
 
-    response = table.scan(
-        FilterExpression="recordType = :recordType AND matchId = :matchId AND userId = :userId",
-        ExpressionAttributeValues={
-            ":recordType": "interviewPreparation",
-            ":matchId": match_id,
-            ":userId": user_id,
-        },
+    response = table.query(
+        KeyConditionExpression=Key("pk").eq(f"MATCH#{match_id}") & Key("sk").begins_with("INTERVIEW#")
     )
 
     items = response.get("Items", [])
@@ -1004,13 +974,73 @@ def get_interview_prep_by_match(event):
     if not items:
         return build_response(404, {"error": "interview preparation not found for match"})
 
-    items = sorted(
-        items,
-        key=lambda item: item.get("createdAt", ""),
-        reverse=True,
+    items = sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
+    item = items[0]
+
+    try:
+        assert_item_owner(item, user_id)
+    except PermissionError:
+        return build_response(403, {"error": "forbidden"})
+
+    return build_response(200, item)
+
+
+def user_pk(user_id):
+    return f"USER#{user_id}"
+
+
+def resume_sk(analysis_id):
+    return f"RESUME#{analysis_id}"
+
+
+def match_sk(match_id):
+    return f"MATCH#{match_id}"
+
+
+def tailoring_pk(match_id):
+    return f"MATCH#{match_id}"
+
+
+def tailoring_sk(tailoring_id):
+    return f"TAILORING#{tailoring_id}"
+
+
+def interview_sk(interview_prep_id):
+    return f"INTERVIEW#{interview_prep_id}"
+
+
+def profile_sk():
+    return "PROFILE"
+
+
+def entity_gsi_pk(entity_id):
+    return f"ENTITY#{entity_id}"
+
+
+def base_keys(pk, sk, entity_id, record_type):
+    return {
+        "pk": pk,
+        "sk": sk,
+        "gsi1pk": entity_gsi_pk(entity_id),
+        "gsi1sk": record_type,
+    }
+
+
+def get_entity_by_id(entity_id, expected_record_type=None):
+    response = table.query(
+        IndexName="gsi1",
+        KeyConditionExpression=Key("gsi1pk").eq(entity_gsi_pk(entity_id)),
     )
 
-    return build_response(200, items[0])
+    items = response.get("Items", [])
+
+    if expected_record_type:
+        items = [
+            item for item in items
+            if item.get("recordType") == expected_record_type
+        ]
+
+    return items[0] if items else None
 
 
 def lambda_handler(event, context):

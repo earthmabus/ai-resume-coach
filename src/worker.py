@@ -5,6 +5,7 @@ from datetime import datetime, timezone
 from decimal import Decimal
 
 import boto3
+from boto3.dynamodb.conditions import Key
 
 from providers.factory import get_analysis_provider
 
@@ -31,7 +32,7 @@ def to_dynamodb_value(value):
 
 def update_record_failed(record_id, error_message):
     table.update_item(
-        Key={"analysisId": record_id},
+        Key={"pk": item["pk"], "sk": item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 errorMessage = :errorMessage,
@@ -49,8 +50,7 @@ def update_record_failed(record_id, error_message):
 
 
 def process_resume_analysis(analysis_id):
-    response = table.get_item(Key={"analysisId": analysis_id})
-    item = response.get("Item")
+    item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
     if not item:
         raise ValueError(f"Analysis not found: {analysis_id}")
@@ -70,7 +70,7 @@ def process_resume_analysis(analysis_id):
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     table.update_item(
-        Key={"analysisId": analysis_id},
+        Key={"pk": item["pk"], "sk": item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 provider = :provider,
@@ -119,8 +119,7 @@ def process_resume_analysis(analysis_id):
 
 def process_job_match(match_id):
     logger.info("Starting job match: %s", str(match_id))
-    match_response = table.get_item(Key={"analysisId": match_id})
-    match_item = match_response.get("Item")
+    match_item = get_entity_by_id(match_id, "jobMatch")
 
     if not match_item:
         logger.info("Raised ValueError since job match not found: %s", str(match_id))
@@ -137,8 +136,7 @@ def process_job_match(match_id):
         logger.info("Raised ValueError since jobDescriptionText not found for job match: %s", str(match_id))
         raise ValueError(f"No jobDescriptionText found for job match: {match_id}")
 
-    resume_response = table.get_item(Key={"analysisId": resume_analysis_id})
-    resume_item = resume_response.get("Item")
+    resume_item = get_entity_by_id(resume_analysis_id, "resumeAnalysis")
 
     if not resume_item:
         logger.info("Raised ValueError resume analysis not found for resume analysis: %s", str(resume_analysis_id))
@@ -160,7 +158,7 @@ def process_job_match(match_id):
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     table.update_item(
-        Key={"analysisId": match_id},
+        Key={"pk": item["pk"], "sk": item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 provider = :provider,
@@ -206,14 +204,13 @@ def process_job_match(match_id):
         ),
     )
 
-    match_response = table.get_item(Key={"analysisId": match_id})
-    updated_match_item = match_response.get("Item", {})
+    updated_match_item = get_entity_by_id(match_id, "jobMatch")
 
     tailoring_id = updated_match_item.get("tailoringId")
 
     if tailoring_id:
         table.update_item(
-            Key={"analysisId": tailoring_id},
+            Key={"pk": item["pk"], "sk": item["sk"]},
             UpdateExpression="""
                 SET #s = :status,
                 analysisVersion = :analysisVersion
@@ -235,15 +232,13 @@ def process_job_match(match_id):
             })
         )
 
-
-        match_response = table.get_item(Key={"analysisId": match_id})
-        updated_match_item = match_response.get("Item", {})
+        updated_match_item = get_entity_by_id(match_id, "jobMatch")
 
         interview_prep_id = updated_match_item.get("interviewPrepId")
 
         if interview_prep_id:
             table.update_item(
-                Key={"analysisId": interview_prep_id},
+                Key={"pk": item["pk"], "sk": item["sk"]},
                 UpdateExpression="""
                     SET #s = :status,
                         analysisVersion = :analysisVersion
@@ -270,8 +265,7 @@ def process_job_match(match_id):
 
 def process_resume_tailoring(tailoring_id):
     logger.info("Starting resume tailoring: %s", str(tailoring_id))
-    tailoring_response = table.get_item(Key={"analysisId": tailoring_id})
-    tailoring_item = tailoring_response.get("Item")
+    tailoring_item = get_entity_by_id(tailoring_id, "resumeTailoring")
 
     if not tailoring_item:
         logger.info("Raised ValueError since tailoring not found for interview prep: %s", str(interview_prep_id))
@@ -298,7 +292,7 @@ def process_resume_tailoring(tailoring_id):
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     table.update_item(
-        Key={"analysisId": tailoring_id},
+        Key={"pk": item["pk"], "sk": item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 provider = :provider,
@@ -338,8 +332,7 @@ def process_resume_tailoring(tailoring_id):
 
 def process_interview_preparation(interview_prep_id):
     logger.info("Starting interview prep: %s", str(interview_prep_id))
-    response = table.get_item(Key={"analysisId": interview_prep_id})
-    item = response.get("Item")
+    item = get_entity_by_id(interview_prep_id, "interviewPreparation")
 
     if not item:
         logger.info("Raised ValueError since Interview preparation not found: %s", str(interview_prep_id))
@@ -366,7 +359,7 @@ def process_interview_preparation(interview_prep_id):
     duration_ms = int((time.perf_counter() - started) * 1000)
 
     table.update_item(
-        Key={"analysisId": interview_prep_id},
+        Key={"pk": item["pk"], "sk": item["sk"]},
         UpdateExpression="""
             SET #s = :status,
                 provider = :provider,
@@ -406,6 +399,27 @@ def process_interview_preparation(interview_prep_id):
         ),
     )
     logger.info("Completed interview prep: %s", str(interview_prep_id))
+
+
+def entity_gsi_pk(entity_id):
+    return f"ENTITY#{entity_id}"
+
+
+def get_entity_by_id(entity_id, expected_record_type=None):
+    response = table.query(
+        IndexName="gsi1",
+        KeyConditionExpression=Key("gsi1pk").eq(entity_gsi_pk(entity_id)),
+    )
+
+    items = response.get("Items", [])
+
+    if expected_record_type:
+        items = [
+            item for item in items
+            if item.get("recordType") == expected_record_type
+        ]
+
+    return items[0] if items else None
 
 
 def lambda_handler(event, context):
