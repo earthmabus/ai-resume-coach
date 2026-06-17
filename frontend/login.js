@@ -11,6 +11,29 @@ function clearAuthError() {
   authError.classList.add("hidden");
 }
 
+function signInUser(email, password) {
+  return new Promise((resolve, reject) => {
+    const authenticationDetails =
+      new AmazonCognitoIdentity.AuthenticationDetails({
+        Username: email,
+        Password: password
+      });
+
+    const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+      Username: email,
+      Pool: userPool
+    });
+
+    cognitoUser.authenticateUser(authenticationDetails, {
+      onSuccess: resolve,
+      onFailure: reject,
+      newPasswordRequired: () => {
+        reject(new Error("A new password is required before signing in."));
+      }
+    });
+  });
+}
+
 async function signIn() {
   clearAuthError();
 
@@ -37,3 +60,9 @@ async function signIn() {
 }
 
 loginButton.addEventListener("click", signIn);
+
+document.getElementById("loginPassword").addEventListener("keydown", event => {
+  if (event.key === "Enter") {
+    signIn();
+  }
+});
