@@ -69,7 +69,7 @@
       <summary>Analysis History</summary>
       <div class="accordion-body">
         <div class="button-row">
-          <button id="refreshHistoryButton" type="button">Refresh History</button>
+	  <button id="refreshHistoryButton" type="button" onclick="refreshAnalysisHistory(event)">Refresh History</button>
           <button id="deleteAllAnalysesButton" class="danger" type="button">Delete All</button>
         </div>
       </div>
@@ -95,6 +95,6 @@
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js"></script>
   <script src="./auth.js"></script>
-  <script src="./app.js?v=5"></script>
+  <script src="./app.js?v=6"></script>
 </body>
 </html>

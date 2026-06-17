@@ -1275,6 +1275,36 @@ function renderInterviewPrepSection(interviewPrep) {
   `;
 }
 
+window.refreshAnalysisHistory = async function (event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  setAccordionOpen("analysisHistoryCard", true);
+
+  if (history) {
+    history.textContent = "Refreshing history...";
+  }
+
+  await loadHistory();
+};
+
+window.refreshJobMatchHistory = async function (event) {
+  if (event) {
+    event.preventDefault();
+    event.stopPropagation();
+  }
+
+  setAccordionOpen("jobHistoryCard", true);
+
+  if (jobMatches) {
+    jobMatches.textContent = "Refreshing job matches...";
+  }
+
+  await loadJobMatches();
+};
+
 function listToHtml(items) {
   return (items || [])
     .map(item => `<li>${escapeHtml(item)}</li>`)
