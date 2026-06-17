@@ -292,7 +292,7 @@ async function uploadPdfResume() {
     return;
   }
 
-  setButtonLoading(uploadPdfButton, "Uploading...");
+  setButtonLoading(uploadButton, "Uploading...");
   focusAccordionCard("resumeResultCard");
   result.textContent = "Uploading and analyzing PDF...";
 
@@ -357,10 +357,10 @@ async function uploadPdfResume() {
       );
     }
 
-    setButtonSaved(uploadPdfButton, "Queued ✓");
+    setButtonSaved(uploadButton, "Queued ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
-    resetButton(uploadPdfButton);
+    resetButton(uploadButton);
   }
 }
 
@@ -608,7 +608,7 @@ async function matchJobDescription() {
     return;
   }
 
-  setButtonLoading(matchButton, "Matching...");
+  setButtonLoading(matchJobButton, "Matching...");
   focusAccordionCard("jobResultCard");
   result.textContent = "Matching resume to job description...";
 
@@ -642,10 +642,10 @@ async function matchJobDescription() {
       );
     }
 
-    setButtonSaved(matchButton, "Queued ✓");
+    setButtonSaved(matchJobButton, "Queued ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
-    resetButton(matchButton);
+    resetButton(matchJobButton);
   }
 }
 
