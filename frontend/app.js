@@ -770,6 +770,7 @@ async function deleteAllJobMatches() {
     });
 
     const data = await response.json();
+    console.log("Delete all job matches response:", data);
 
     if (!response.ok) {
       throw new Error(data.error || "Delete all failed");
@@ -1304,6 +1305,8 @@ window.refreshJobMatchHistory = async function (event) {
 
   await loadJobMatches();
 };
+
+window.deleteAllJobMatches = deleteAllJobMatches;
 
 function listToHtml(items) {
   return (items || [])
