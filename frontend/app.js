@@ -148,7 +148,7 @@ function applyDefaultJobAccordionState() {
 }
 
 function escapeHtml(value) {
-  return String(value || "")
+  return String(value ?? "")
     .replaceAll("&", "&amp;")
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
