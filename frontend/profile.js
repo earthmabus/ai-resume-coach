@@ -45,7 +45,7 @@ async function loadProfile() {
     document.getElementById("preferredProvider").value = data.preferredProvider || "openai";
     document.getElementById("resumeStyle").value = data.resumeStyle || "executive";
   } catch (error) {
-    alert(`Error loading profile: ${error.message}`);
+    showProfileError(error.message || "Unable to load profile.");
   }
 }
 
