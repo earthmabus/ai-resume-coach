@@ -14,36 +14,61 @@ class OpenAIProvider(AnalysisProvider):
         self.analysis_version = f"openai-{self.model}-v1"
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
-    def analyze(self, resume_text: str) -> dict:
+    def analyze(self, resume_text: str, target_career: dict) -> dict:
         prompt = f"""
-You are an expert resume coach for senior software engineering leaders, cloud architects, and engineering managers.
+You are an expert resume coach.
 
-Analyze the resume below and return only valid JSON with this exact shape:
+The user is targeting this career:
+
+Role Title: {target_career.get("roleTitle", "")}
+Industry: {target_career.get("industry", "")}
+Seniority Level: {target_career.get("seniorityLevel", "")}
+Work Environment: {target_career.get("workEnvironment", "")}
+Key Responsibilities: {target_career.get("keyResponsibilities", "")}
+Required Skills: {target_career.get("requiredSkills", "")}
+Certifications / Licenses: {target_career.get("certifications", "")}
+Physical Requirements: {target_career.get("physicalRequirements", "")}
+Technical Requirements: {target_career.get("technicalRequirements", "")}
+Leadership Requirements: {target_career.get("leadershipRequirements", "")}
+Career Goal Summary: {target_career.get("careerGoalSummary", "")}
+
+Analyze the resume for fit against this target career.
+
+You must decide the most appropriate scoring dimensions for this target career.
+Do not always use technical, architecture, or leadership scoring.
+For example, a waste disposal role may need physical ability, safety compliance, reliability, equipment operation, and route efficiency.
+
+Return only valid JSON with this exact shape:
 
 {{
   "score": 0,
-  "leadershipScore": 0,
-  "technicalScore": 0,
-  "architectureScore": 0,
-  "atsScore": 0,
   "wordCount": 0,
+  "roleFitSummary": "string",
+  "dynamicScores": [
+    {{
+      "key": "camelCaseScoreName",
+      "label": "Human readable score name",
+      "score": 0,
+      "explanation": "Why this score was assigned"
+    }}
+  ],
   "strengths": ["string"],
   "recommendations": ["string"],
-  "leadershipGaps": ["string"],
-  "technicalGaps": ["string"],
+  "roleSpecificGaps": ["string"],
   "executiveSummary": "string"
 }}
 
-Scoring rules:
-- score: overall resume quality from 0 to 100
-- leadershipScore: leadership positioning from 0 to 100
-- technicalScore: technical credibility from 0 to 100
-- architectureScore: cloud/software architecture positioning from 0 to 100
-- atsScore: keyword and scanability strength from 0 to 100
+Rules:
+- Overall score must be 0-100.
+- Each dynamic score must be 0-100.
+- Generate 4 to 7 dynamic score dimensions.
+- Score dimensions must fit the target career.
+- Do not invent experience not present in the resume.
+- Prefer practical, hiring-manager-relevant dimensions.
 
 Resume:
 \"\"\"
-{resume_text[:2000000]}
+{resume_text[:12000]}
 \"\"\"
 """
 
@@ -59,21 +84,18 @@ Resume:
 
         raw_text = response.output_text
         parsed = json.loads(raw_text)
-
+        
         return {
             "provider": self.provider_name,
             "model": self.model,
-            "analysisVersion": self.analysis_version,
-            "score": int(parsed.get("score", 0)),
-            "leadershipScore": int(parsed.get("leadershipScore", 0)),
-            "technicalScore": int(parsed.get("technicalScore", 0)),
-            "architectureScore": int(parsed.get("architectureScore", 0)),
-            "atsScore": int(parsed.get("atsScore", 0)),
-            "wordCount": int(parsed.get("wordCount", len(resume_text.split()))),
+            "analysisVersion": f"{self.provider_name}-{self.model}-target-career-v1",
+            "score": parsed.get("score", 0),
+            "wordCount": len(resume_text.split()),
+            "roleFitSummary": parsed.get("roleFitSummary", ""),
+            "dynamicScores": parsed.get("dynamicScores", []),
             "strengths": parsed.get("strengths", []),
             "recommendations": parsed.get("recommendations", []),
-            "leadershipGaps": parsed.get("leadershipGaps", []),
-            "technicalGaps": parsed.get("technicalGaps", []),
+            "roleSpecificGaps": parsed.get("roleSpecificGaps", []),
             "executiveSummary": parsed.get("executiveSummary", ""),
         }
 

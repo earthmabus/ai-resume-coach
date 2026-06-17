@@ -98,8 +98,15 @@ def analyze_and_save_resume(
     analysis_id = str(uuid.uuid4())
     created_at = datetime.now(timezone.utc).isoformat()
 
+    target_career = get_target_career_for_user(user_id)
+
+    if not target_career:
+        return build_response(400, {
+            "error": "Target Career is required before analyzing resumes"
+        })
+
     provider = get_analysis_provider(requested_provider)
-    analysis_result = provider.analyze(resume_text)
+    analysis_result = provider.analyze(resume_text, target_career)
 
     analysis_duration_ms = int((time.perf_counter() - analysis_started) * 1000)
 
@@ -121,21 +128,21 @@ def analyze_and_save_resume(
         "analysisVersion": analysis_result["analysisVersion"],
         "analysisDurationMs": analysis_duration_ms,
         "score": analysis_result["score"],
-        "leadershipScore": analysis_result.get("leadershipScore", 0),
-        "technicalScore": analysis_result.get("technicalScore", 0),
-        "architectureScore": analysis_result.get("architectureScore", 0),
-        "atsScore": analysis_result.get("atsScore", 0),
         "wordCount": analysis_result["wordCount"],
         "resumeName": resume_name,
         "resumeText": resume_text,
         "strengths": analysis_result["strengths"],
         "recommendations": analysis_result["recommendations"],
-        "leadershipGaps": analysis_result.get("leadershipGaps", []),
-        "technicalGaps": analysis_result.get("technicalGaps", []),
         "executiveSummary": analysis_result.get("executiveSummary", ""),
         "documentBucket": document_bucket_name,
         "documentKey": document_key,
         "fileName": file_name,
+        "targetCareer": target_career,
+        "targetRoleTitle": target_career.get("roleTitle", ""),
+        "targetIndustry": target_career.get("industry", ""),
+        "dynamicScores": analysis_result.get("dynamicScores", []),
+        "roleFitSummary": analysis_result.get("roleFitSummary", ""),
+        "roleSpecificGaps": analysis_result.get("roleSpecificGaps", []),
     }
 
     table.put_item(Item=item)
@@ -235,6 +242,13 @@ def analyze_uploaded_resume(event):
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
+    target_career = get_target_career_for_user(user_id)
+
+    if not target_career:
+        return build_response(400, {
+            "error": "Target Career is required before analyzing resumes"
+        })
+
     file_name = body.get("fileName", "").strip()
     resume_name = body.get("resumeName", "").strip() or file_name or "Untitled Resume"
     document_key = body.get("documentKey", "").strip()
@@ -281,10 +295,6 @@ def analyze_uploaded_resume(event):
             "analysisVersion": "pdf-extraction-v1",
             "analysisDurationMs": 0,
             "score": 0,
-            "leadershipScore": 0,
-            "technicalScore": 0,
-            "architectureScore": 0,
-            "atsScore": 0,
             "wordCount": len(extracted_text.split()),
             "resumeName": resume_name,
             "resumeText": extracted_text,
@@ -296,13 +306,17 @@ def analyze_uploaded_resume(event):
             "recommendations": [
                  "AI analysis will be completed asynchronously in a future processing phase."
             ],
-            "leadershipGaps": [],
-            "technicalGaps": [],
             "executiveSummary": "PDF text was extracted and saved. AI analysis is pending.",
             "documentBucket": bucket_name,
             "documentKey": document_key,
             "fileName": file_name,
             "requestedProvider": requested_provider,
+            "targetCareer": target_career,
+            "targetRoleTitle": target_career.get("roleTitle", ""),
+            "targetIndustry": target_career.get("industry", ""),
+            "dynamicScores": analysis_result.get("dynamicScores", []),
+            "roleFitSummary": analysis_result.get("roleFitSummary", ""),
+            "roleSpecificGaps": analysis_result.get("roleSpecificGaps", []),
         }
 
         table.put_item(Item=item)
@@ -1041,6 +1055,88 @@ def get_entity_by_id(entity_id, expected_record_type=None):
     return items[0] if items else None
 
 
+def target_career_sk():
+    return "TARGET_CAREER"
+
+
+def get_target_career_for_user(user_id):
+    response = table.get_item(
+        Key={
+            "pk": user_pk(user_id),
+            "sk": target_career_sk(),
+        }
+    )
+    return response.get("Item")
+
+
+def get_target_career(event):
+    user_id = current_user_id(event)
+    item = get_target_career_for_user(user_id)
+
+    if not item:
+        return build_response(200, {
+            "recordType": "targetCareer",
+            "userId": user_id,
+            "roleTitle": "",
+            "industry": "",
+            "seniorityLevel": "",
+            "workEnvironment": "",
+            "keyResponsibilities": "",
+            "requiredSkills": "",
+            "certifications": "",
+            "physicalRequirements": "",
+            "technicalRequirements": "",
+            "leadershipRequirements": "",
+            "careerGoalSummary": "",
+        })
+
+    return build_response(200, item)
+
+
+def update_target_career(event):
+    user_id = current_user_id(event)
+    body = parse_body(event)
+
+    if body is None:
+        return build_response(400, {"error": "Invalid JSON body"})
+
+    role_title = body.get("roleTitle", "").strip()
+    industry = body.get("industry", "").strip()
+
+    if not role_title or not industry:
+        return build_response(400, {"error": "roleTitle and industry are required"})
+
+    target_career_id = f"target-career-{user_id}"
+    updated_at = datetime.now(timezone.utc).isoformat()
+
+    item = {
+        **base_keys(
+            pk=user_pk(user_id),
+            sk=target_career_sk(),
+            entity_id=target_career_id,
+            record_type="targetCareer",
+        ),
+        "recordType": "targetCareer",
+        "targetCareerId": target_career_id,
+        "userId": user_id,
+        "updatedAt": updated_at,
+        "roleTitle": role_title,
+        "industry": industry,
+        "seniorityLevel": body.get("seniorityLevel", "").strip(),
+        "workEnvironment": body.get("workEnvironment", "").strip(),
+        "keyResponsibilities": body.get("keyResponsibilities", "").strip(),
+        "requiredSkills": body.get("requiredSkills", "").strip(),
+        "certifications": body.get("certifications", "").strip(),
+        "physicalRequirements": body.get("physicalRequirements", "").strip(),
+        "technicalRequirements": body.get("technicalRequirements", "").strip(),
+        "leadershipRequirements": body.get("leadershipRequirements", "").strip(),
+        "careerGoalSummary": body.get("careerGoalSummary", "").strip(),
+    }
+
+    table.put_item(Item=item)
+    return build_response(200, item)
+
+
 def lambda_handler(event, context):
     route = event.get("routeKey")
 
@@ -1109,5 +1205,11 @@ def lambda_handler(event, context):
 
     if route == "GET /job-match/{matchId}/interview-prep":
         return get_interview_prep_by_match(event)
+
+    if route == "GET /target-career":
+        return get_target_career(event)
+
+    if route == "PUT /target-career":
+        return update_target_career(event)
 
     return build_response(404, {"error": "Route not found", "route": route})

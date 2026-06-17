@@ -1,0 +1,73 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Target Career | AI Resume Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css?v=2" />
+</head>
+<body data-page="target-career">
+  <nav class="top-nav">
+    <a class="brand" href="./index.html">AI Resume Coach</a>
+    <div class="nav-links">
+      <a href="./resume-analysis.html">Resume Analysis</a>
+      <a href="./job-matching.html">Job Matching</a>
+      <a class="active" href="./target-career.html">Target Career</a>
+      <a class="disabled" href="#">Notifications</a>
+      <a href="./profile.html">Profile</a>
+      <button class="nav-button" onclick="signOut()">Logout</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Target Career</h1>
+      <p>Define the role you want to pursue. Resume analysis will adapt its scoring model to this role.</p>
+    </section>
+
+    <section class="card">
+      <label for="roleTitle">Target Role Title</label>
+      <input id="roleTitle" type="text" placeholder="Director of Software Engineering, Waste Disposal Driver, Nurse Manager..." />
+
+      <label for="industry">Industry / Field</label>
+      <input id="industry" type="text" placeholder="Technology, Waste Management, Healthcare..." />
+
+      <label for="seniorityLevel">Seniority Level</label>
+      <input id="seniorityLevel" type="text" placeholder="Entry-level, Senior, Manager, Director..." />
+
+      <label for="workEnvironment">Work Environment</label>
+      <input id="workEnvironment" type="text" placeholder="Remote, field-based, warehouse, hospital, corporate..." />
+
+      <label for="keyResponsibilities">Key Responsibilities</label>
+      <textarea id="keyResponsibilities" rows="5"></textarea>
+
+      <label for="requiredSkills">Required Skills</label>
+      <textarea id="requiredSkills" rows="5"></textarea>
+
+      <label for="certifications">Certifications / Licenses</label>
+      <textarea id="certifications" rows="3"></textarea>
+
+      <label for="physicalRequirements">Physical Requirements</label>
+      <textarea id="physicalRequirements" rows="3"></textarea>
+
+      <label for="technicalRequirements">Technical Requirements</label>
+      <textarea id="technicalRequirements" rows="3"></textarea>
+
+      <label for="leadershipRequirements">Leadership Requirements</label>
+      <textarea id="leadershipRequirements" rows="3"></textarea>
+
+      <label for="careerGoalSummary">Career Goal Summary</label>
+      <textarea id="careerGoalSummary" rows="5"></textarea>
+
+      <button id="saveTargetCareerButton">Save Target Career</button>
+
+      <div id="targetCareerResult" class="result-panel">Define your target career before analyzing resumes.</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
+  <script src="./config.js?v=2"></script>
+  <script src="./auth.js?v=2"></script>
+  <script src="./target-career.js?v=1"></script>
+</body>
+</html>

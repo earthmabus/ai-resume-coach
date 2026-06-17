@@ -14,3 +14,6 @@ def tailor_resume(self, resume_text: str, job_description_text: str) -> dict:
 
 def prepare_interview(self, resume_text: str, job_description_text: str) -> dict:
     raise NotImplementedError("Provider does not support interview preparation")
+
+def analyze(self, resume_text: str, target_career: dict) -> dict:
+    raise NotImplementedError

@@ -5,30 +5,48 @@ class RuleBasedProvider(AnalysisProvider):
     provider_name = "rule-based"
     analysis_version = "rule-based-v1"
 
-    def analyze(self, resume_text: str) -> dict:
-        word_count = len(resume_text.split())
-
-        strengths = [
-            "Clear technical leadership foundation",
-            "Relevant cloud and engineering management experience",
-            "Strong fit for architecture-focused leadership roles",
-        ]
-
-        recommendations = [
-            "Add measurable business outcomes using numbers, percentages, or dollar impact.",
-            "Highlight leadership scope, including team size, delivery ownership, and stakeholder influence.",
-            "Strengthen cloud architecture examples by naming AWS services, tradeoffs, and results.",
-        ]
-
-        score = min(95, max(60, 70 + min(word_count // 25, 20)))
+    def analyze(self, resume_text: str, target_career: dict) -> dict:
+        words = resume_text.split()
+        role_title = target_career.get("roleTitle", "Target Role")
+        industry = target_career.get("industry", "Target Industry")
 
         return {
             "provider": self.provider_name,
-            "analysisVersion": self.analysis_version,
-            "score": score,
-            "wordCount": word_count,
-            "strengths": strengths,
-            "recommendations": recommendations,
+            "model": "",
+            "analysisVersion": "rule-based-target-career-v1",
+            "score": min(100, max(40, len(words) // 8)),
+            "wordCount": len(words),
+            "roleFitSummary": f"Rule-based analysis for {role_title} in {industry}.",
+            "dynamicScores": [
+                {
+                    "key": "roleAlignmentScore",
+                    "label": "Role Alignment",
+                    "score": 70,
+                    "explanation": "Basic estimate of how clearly the resume aligns to the target role."
+                },
+                {
+                    "key": "keywordCoverageScore",
+                    "label": "Keyword Coverage",
+                    "score": 65,
+                    "explanation": "Basic estimate of target-role keyword coverage."
+                },
+                {
+                    "key": "experienceRelevanceScore",
+                    "label": "Experience Relevance",
+                    "score": 65,
+                    "explanation": "Basic estimate of whether the resume describes relevant experience."
+                },
+                {
+                    "key": "resumeClarityScore",
+                    "label": "Resume Clarity",
+                    "score": 75,
+                    "explanation": "Basic estimate of resume readability and structure."
+                },
+            ],
+            "strengths": ["Resume was analyzed against the saved target career."],
+            "recommendations": ["Use OpenAI analysis for role-specific scoring dimensions."],
+            "roleSpecificGaps": [],
+            "executiveSummary": f"This resume was evaluated for {role_title}.",
         }
 
     def match_job_description(self, resume_text: str, job_description_text: str) -> dict:

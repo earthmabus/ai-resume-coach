@@ -193,10 +193,6 @@ function renderAnalysis(data) {
     </div>
 
     <div class="metrics">
-      <span class="metric">Leadership: ${escapeHtml(data.leadershipScore || 0)}</span>
-      <span class="metric">Technical: ${escapeHtml(data.technicalScore || 0)}</span>
-      <span class="metric">Architecture: ${escapeHtml(data.architectureScore || 0)}</span>
-      <span class="metric">ATS: ${escapeHtml(data.atsScore || 0)}</span>
       <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
       <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
       <span class="metric ${statusClass}">Status: ${escapeHtml(data.status || "unknown")}</span>
@@ -206,21 +202,22 @@ function renderAnalysis(data) {
       <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
     </div>
 
+    <h3>Target Career</h3>
+    <p><strong>Role:</strong> ${escapeHtml(data.targetRoleTitle || "Not specified")}</p>
+    <p><strong>Industry:</strong> ${escapeHtml(data.targetIndustry || "Not specified")}</p>
+
+    <h3>Role-Specific Scores</h3>
+    ${renderDynamicScores(data.dynamicScores)}
+
+    <h3>Role Fit Summary</h3>
+    <p>${escapeHtml(data.roleFitSummary || "")}</p>
+
+    <h3>Role-Specific Gaps</h3>
+    <ul>${listToHtml(data.roleSpecificGaps || [])}</ul>
+
     ${isCompleted ? `
       <h3>Executive Summary</h3>
       <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
-
-      <div class="result-grid">
-        <div class="result-box">
-          <h3>Leadership Gaps</h3>
-          <ul>${leadershipGaps}</ul>
-        </div>
-
-        <div class="result-box">
-          <h3>Technical Gaps</h3>
-          <ul>${technicalGaps}</ul>
-        </div>
-      </div>
 
       <div class="result-grid">
         <div class="result-box">
@@ -1357,6 +1354,24 @@ function focusAccordionCard(cardId) {
       block: "start"
     });
   }
+}
+
+function renderDynamicScores(dynamicScores) {
+  if (!dynamicScores || dynamicScores.length === 0) {
+    return "<p>No role-specific scores available.</p>";
+  }
+
+  return `
+    <div class="result-grid">
+      ${dynamicScores.map(score => `
+        <div class="result-box">
+          <h3>${escapeHtml(score.label || score.key || "Score")}</h3>
+          <div class="score">${escapeHtml(score.score ?? 0)}</div>
+          <p>${escapeHtml(score.explanation || "")}</p>
+        </div>
+      `).join("")}
+    </div>
+  `;
 }
 
 setupAccordionPersistence();

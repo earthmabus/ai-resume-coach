@@ -65,7 +65,13 @@ def process_resume_analysis(analysis_id):
     started = time.perf_counter()
 
     provider = get_analysis_provider(requested_provider)
-    analysis_result = provider.analyze(resume_text)
+
+    target_career = item.get("targetCareer")
+
+    if not target_career:
+        raise ValueError(f"Target career not found for analysis: {analysis_id}")
+
+    analysis_result = provider.analyze(resume_text, target_career)
 
     duration_ms = int((time.perf_counter() - started) * 1000)
 
@@ -78,17 +84,16 @@ def process_resume_analysis(analysis_id):
                 analysisVersion = :analysisVersion,
                 analysisDurationMs = :analysisDurationMs,
                 score = :score,
-                leadershipScore = :leadershipScore,
-                technicalScore = :technicalScore,
-                architectureScore = :architectureScore,
-                atsScore = :atsScore,
                 wordCount = :wordCount,
                 strengths = :strengths,
                 recommendations = :recommendations,
-                leadershipGaps = :leadershipGaps,
-                technicalGaps = :technicalGaps,
                 executiveSummary = :executiveSummary,
-                completedAt = :completedAt
+                completedAt = :completedAt,
+                dynamicScores = :dynamicScores,
+                roleFitSummary = :roleFitSummary,
+                roleSpecificGaps = :roleSpecificGaps,
+                targetRoleTitle = :targetRoleTitle,
+                targetIndustry = :targetIndustry,
         """,
         ExpressionAttributeNames={
             "#s": "status",
