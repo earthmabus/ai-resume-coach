@@ -520,9 +520,7 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
         <h3>Missing Keywords</h3>
         <ul>${missingKeywords}</ul>
       </div>
-    </div>
 
-    <div class="result-grid">
       <div class="result-box">
         <h3>Leadership Gaps</h3>
         <ul>${leadershipGaps}</ul>
@@ -532,11 +530,11 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
         <h3>Technical Gaps</h3>
         <ul>${technicalGaps}</ul>
       </div>
-    </div>
 
-    <div class="result-box">
-      <h3>Recommended Resume Changes</h3>
-      <ul>${recommendedChanges}</ul>
+      <div class="result-box">
+        <h3>Recommended Resume Changes</h3>
+        <ul>${recommendedChanges}</ul>
+      </div>
     </div>
 
     <h3>Resume Text Preview</h3>
