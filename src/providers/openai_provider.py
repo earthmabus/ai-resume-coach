@@ -328,3 +328,16 @@ Job Description:
             "interviewReadinessSummary": parsed.get("interviewReadinessSummary", ""),
         }
 
+    def _parse_json_response(self, response):
+        raw_text = response.output_text.strip()
+
+        if raw_text.startswith("```json"):
+            raw_text = raw_text.removeprefix("```json").strip()
+
+        if raw_text.startswith("```"):
+            raw_text = raw_text.removeprefix("```").strip()
+
+        if raw_text.endswith("```"):
+            raw_text = raw_text.removesuffix("```").strip()
+
+        return json.loads(raw_text)
