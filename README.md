@@ -1,14 +1,12 @@
-# AI Resume & Interview Coach for Engineering Leaders
+# AI Resume & Interview Coach 
 
-AI Resume & Interview Coach is a serverless AWS application that helps engineering leaders improve resumes, evaluate job fit, and generate tailored resume recommendations using AI.
+A multi-tenant SaaS platform that helps professionals:
 
-The application supports:
-
-* Resume analysis (provide text or upload a PDF)
-* AI-powered resume scoring
-* Resume history management
-* Job description matching
-* Resume tailoring recommendations for specific jobs
+* Analyze resumes
+* Match resumes against job descriptions
+* Generate tailored resumes
+* Generate interview preparation content
+* Define a target career profile and receive role-specific AI feedback
 
 ## Features
 
@@ -16,40 +14,34 @@ The application supports:
 
 Users can:
 
-* Provide resumes as text or upload as PDFs
-* Analyze resumes using AI
-* Review historical analyses of previous resume versions
-* Download previously uploaded resumes
+* Input Target Career
 
-Each analysis provides:
+* Input Resume (via text input or upload a PDF)
+* Receive an AI powered resume assessment containing
+  * Resume score
+  * Resume analysis
+  * Comparison against Target Career
+* Manage multiple versions of Resumes
 
-* Overall score
-* Leadership score
-* Technical score
-* Architecture score
-* ATS score
-* Executive summary
-* Strengths
-* Recommendations
-* Gap analysis
+* Receive an AI powered comparison of a Resume against a Job Posting containing
+  * Matched keywords (relevant for ATS system scoring)
+  * Missing keywords (relevant for ATS system scoring)
+  * Gap analysis highlighting missing experiences
+  * Recommended resume changes to improve ATS scoring
+  * Potential Interview specific questions
+* Manage multiple Resume to Job Posting comparisons
+
+* Input user profile
 
 ### Job Matching
 
 Users can:
 
 * Select a previously analyzed resume
-* Enter a job name
-* Enter a job URL
-* Paste a job description
+* Enter a job name, description and URL
 * Compare resume against job requirements
-
-Job matching provides:
-
-* Match score
-* Missing keywords
-* Strengths
-* Weaknesses
-* Executive assessment
+* Receive resume feedback 
+* Receive interview prep questions
 
 ### Resume Tailoring
 
@@ -69,13 +61,29 @@ Frontend
 * CSS
 * JavaScript
 
+* Note: Frontend stores JWT and attaches it to requests
+
 Backend
 
 * AWS Lambda (Python)
-* API Gateway HTTP API
+  * API Lambda - handles authentication, CRUD, validation, persistence, queue submission
+  * Worker Lambda - handles submission of long running AI processing
+* API Gateway HTTP API 
 * DynamoDB
+  * single table, fast access patterns (no joins), cheap at scale
+  * contains primary key, sort key, and gsi1 (used for entity lookup by ID allowing retrieval without knowing primary key and secondary key)
+  * Ex: 
+    * user5 --> resumeX
+    * user5 --> matchZ
+    * matchZ --> tailoringH
+    * matchZ --> interviewQ
 * Amazon S3
 * Amazon SQS
+  * decouples user interactions from AI processing and prevents API Gateway timeouts
+  * user submits resume --> API Lambda --> SQS --> Worker Lambda --> AI --> DynamoDB updates
+* Amazon Cognito
+
+* Note: API validates JWT through API Gateway authorizers
 
 Infrastructure
 
@@ -83,7 +91,7 @@ Infrastructure
 * GitHub Actions
 * OpenID Connect (OIDC)
 
-AI Providers
+AI Providers - supports multiple providers without changing business logic
 
 * OpenAI GPT-5.5
 * Rule-Based Fallback Provider
@@ -96,14 +104,21 @@ AI Providers
 * Provider abstraction layer
 * PDF and text resume support
 * Cost-conscious AWS design
+* Multi-user support
+* User profiles
+* Cognito authentication
+* Interview preparation workflows
 
 ## Future Enhancements
 
-* User profiles
 * Notifications
 * Secrets Manager integration
 * CloudFront distribution
-* Cognito authentication
-* Multi-user support
-* Interview preparation workflows
+* Active/Active Disaster Recovery
+  * Route 53 failover
+  * Multi-region
+  * Global DynamoDB Tables
+  * S3 CRR
+  * Cross-region SQS ?
+* GDPR
 
