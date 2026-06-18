@@ -222,14 +222,20 @@ button:hover {
 }
 
 .result-grid {
-  row-gap: 24px;
-  column-gap: 24px;
+  display: grid;
+  grid-template-columns: 1fr 1fr;
+  gap: 24px;
+  align-items: start;
+}
+
+.result-grid > .result-box {
+  margin: 0;
+  align-self: start;
 }
 
 .result-box + .result-grid,
 .result-grid + .result-grid,
-.result-grid + .result-box,
-.result-box + .result-box {
+.result-grid + .result-box {
   margin-top: 24px;
 }
 
