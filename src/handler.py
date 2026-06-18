@@ -406,13 +406,13 @@ def match_job_description(event):
 
     resume_item = get_entity_by_id(analysis_id, "resumeAnalysis")
 
+    if not resume_item:
+        return build_response(404, {"error": "resume analysis not found"})
+
     try:
         assert_item_owner(resume_item, user_id)
     except PermissionError:
         return build_response(403, {"error": "forbidden"})
-
-    if not resume_item:
-        return build_response(404, {"error": "resume analysis not found"})
 
     resume_text = resume_item.get("resumeText", "").strip()
 
@@ -539,7 +539,6 @@ def match_job_description(event):
         "resumeAnalysisId": analysis_id,
         "createdAt": created_at,
         "status": "waiting",
-        "userId": user_id,
         "provider": requested_provider or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
         "model": os.getenv("OPENAI_MODEL", ""),
         "analysisVersion": "interview-prep-waiting-v1",

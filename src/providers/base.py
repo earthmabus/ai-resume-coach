@@ -17,3 +17,6 @@ def prepare_interview(self, resume_text: str, job_description_text: str) -> dict
 
 def analyze(self, resume_text: str, target_career: dict) -> dict:
     raise NotImplementedError
+
+def analyze(self, resume_text: str, target_career: dict) -> dict:
+    raise NotImplementedError

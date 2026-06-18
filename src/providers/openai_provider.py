@@ -15,13 +15,16 @@ class OpenAIProvider(AnalysisProvider):
         self.client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
 
     def analyze(self, resume_text: str, target_career: dict) -> dict:
+        role_title = target_career.get("roleTitle", "")
+        industry = target_career.get("industry", "")
+
         prompt = f"""
 You are an expert resume coach.
 
 The user is targeting this career:
 
-Role Title: {target_career.get("roleTitle", "")}
-Industry: {target_career.get("industry", "")}
+Role Title: {role_title}
+Industry: {industry}
 Seniority Level: {target_career.get("seniorityLevel", "")}
 Work Environment: {target_career.get("workEnvironment", "")}
 Key Responsibilities: {target_career.get("keyResponsibilities", "")}
@@ -34,9 +37,12 @@ Career Goal Summary: {target_career.get("careerGoalSummary", "")}
 
 Analyze the resume for fit against this target career.
 
-You must decide the most appropriate scoring dimensions for this target career.
-Do not always use technical, architecture, or leadership scoring.
-For example, a waste disposal role may need physical ability, safety compliance, reliability, equipment operation, and route efficiency.
+You must create the most appropriate scoring dimensions for this role.
+Do not always use software engineering, architecture, technical, or leadership dimensions.
+For example:
+- Waste disposal roles may need physical ability, safety compliance, reliability, equipment operation, and route efficiency.
+- Nursing roles may need patient care, clinical judgment, certifications, documentation, and care coordination.
+- Software leadership roles may need engineering leadership, architecture judgment, delivery ownership, cloud strategy, and stakeholder influence.
 
 Return only valid JSON with this exact shape:
 
@@ -62,9 +68,10 @@ Rules:
 - Overall score must be 0-100.
 - Each dynamic score must be 0-100.
 - Generate 4 to 7 dynamic score dimensions.
-- Score dimensions must fit the target career.
-- Do not invent experience not present in the resume.
-- Prefer practical, hiring-manager-relevant dimensions.
+- Dimensions must fit the target role and industry.
+- Do not invent experience not shown in the resume.
+- Prefer practical hiring-manager-relevant criteria.
+- Use concise explanations.
 
 Resume:
 \"\"\"
@@ -75,22 +82,16 @@ Resume:
         response = self.client.responses.create(
             model=self.model,
             input=prompt,
-            text={
-                "format": {
-                    "type": "json_object"
-                }
-            },
         )
 
-        raw_text = response.output_text
-        parsed = json.loads(raw_text)
-        
+        parsed = self._parse_json_response(response)
+
         return {
             "provider": self.provider_name,
             "model": self.model,
             "analysisVersion": f"{self.provider_name}-{self.model}-target-career-v1",
             "score": parsed.get("score", 0),
-            "wordCount": len(resume_text.split()),
+            "wordCount": parsed.get("wordCount", len(resume_text.split())),
             "roleFitSummary": parsed.get("roleFitSummary", ""),
             "dynamicScores": parsed.get("dynamicScores", []),
             "strengths": parsed.get("strengths", []),
@@ -326,3 +327,4 @@ Job Description:
             "jobSpecificQuestions": parsed.get("jobSpecificQuestions", []),
             "interviewReadinessSummary": parsed.get("interviewReadinessSummary", ""),
         }
+

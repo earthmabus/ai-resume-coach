@@ -219,6 +219,9 @@ def process_job_match(match_id):
     if tailoring_id:
         tailoring_item = get_entity_by_id(tailoring_id, "resumeTailoring")
 
+        if not tailoring_item:
+            raise ValueError(f"Resume tailoring not found: {tailoring_id}")
+
         table.update_item(
             Key={"pk": tailoring_item["pk"], "sk": tailoring_item["sk"]},
             UpdateExpression="""
@@ -247,6 +250,9 @@ def process_job_match(match_id):
 
         if interview_prep_id:
             interview_item = get_entity_by_id(interview_prep_id, "interviewPreparation")
+
+            if not interview_item:
+                raise ValueError(f"Interview preparation not found: {interview_prep_id}")
 
             table.update_item(
                 Key={"pk": interview_item["pk"], "sk": interview_item["sk"]},

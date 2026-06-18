@@ -224,6 +224,13 @@ button:hover {
   column-gap: 24px;
 }
 
+.result-box + .result-grid,
+.result-grid + .result-grid,
+.result-grid + .result-box,
+.result-box + .result-box {
+  margin-top: 24px;
+}
+
 .resume-preview {
   margin-top: 20px;
   background: #111827;
