@@ -215,6 +215,15 @@ button:hover {
   margin-top: 0;
 }
 
+.result-grid .result-box {
+  margin: 0;
+}
+
+.result-grid {
+  row-gap: 24px;
+  column-gap: 24px;
+}
+
 .resume-preview {
   margin-top: 20px;
   background: #111827;
@@ -405,9 +414,8 @@ button.secondary:hover {
 
 .summary-toolbar {
   display: flex;
-  justify-content: space-between;
   align-items: stretch;
-  gap: 16px;
+  gap: 12px;
   margin-bottom: 16px;
 }
 
@@ -419,9 +427,25 @@ button.secondary:hover {
   flex: 1;
   background: #f3f4f6;
   border: 1px solid #e5e7eb;
-  padding: 12px;
   border-radius: 8px;
+  padding: 12px;
   margin-bottom: 0;
+}
+
+.summary-actions {
+  display: flex;
+  gap: 8px;
+  background: #f3f4f6;
+  border: 1px solid #e5e7eb;
+  border-radius: 8px;
+  padding: 12px;
+  align-items: center;
+}
+
+.summary-actions button {
+  margin: 0;
+  white-space: nowrap;
+  padding: 8px 14px;
 }
 
 .summary-bar span {
@@ -432,18 +456,6 @@ button.secondary:hover {
   border: 1px solid #e5e7eb;
   border-radius: 9999px;
   padding: 6px 10px;
-}
-
-.summary-actions {
-  display: flex;
-  gap: 8px;
-  align-items: center;
-}
-
-.summary-actions button {
-  margin: 0;
-  white-space: nowrap;
-  padding: 12px 18px;
 }
 
 .filter-row {
@@ -488,7 +500,7 @@ button.secondary:hover {
   }
 
   .summary-actions {
-    width: 100%;
+    width: auto;
   }
 
   .summary-actions button {
