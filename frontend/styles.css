@@ -163,6 +163,10 @@ button:hover {
   border: 1px solid #e5e7eb;
 }
 
+.result-panel .result-box + .result-box {
+  margin-top: 24px;
+}
+
 .score-card {
   display: flex;
   align-items: center;
@@ -377,6 +381,10 @@ button.secondary:hover {
   display: grid;
   grid-template-columns: 1fr 1fr;
   gap: 24px;
+}
+
+.job-match-card .result-box + .result-box {
+  margin-top: 24px;
 }
 
 .job-match-left,
