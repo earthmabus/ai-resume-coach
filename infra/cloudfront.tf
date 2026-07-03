@@ -44,8 +44,8 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
 
     xss_protection {
       protection = true
-      mode_block  = true
-      override    = true
+      mode_block = true
+      override   = true
     }
   }
 }

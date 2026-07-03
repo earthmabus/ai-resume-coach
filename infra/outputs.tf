@@ -18,9 +18,19 @@ output "frontend_bucket_name" {
   value       = aws_s3_bucket.frontend.bucket
 }
 
-output "frontend_website_endpoint" {
-  description = "S3 static website endpoint."
-  value       = aws_s3_bucket_website_configuration.frontend.website_endpoint
+output "frontend_cloudfront_domain" {
+  description = "CloudFront distribution domain name"
+  value       = aws_cloudfront_distribution.frontend.domain_name
+}
+
+output "frontend_https_url" {
+  description = "HTTPS URL for the frontend"
+  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+}
+
+output "frontend_custom_domain_url" {
+  description = "Custom HTTPS URL for the frontend"
+  value       = "https://resume.michaelpopovich.com"
 }
 
 output "resume_analysis_table_name" {
@@ -59,8 +69,4 @@ output "cloudfront_distribution_id" {
 
 output "cloudfront_domain_name" {
   value = aws_cloudfront_distribution.frontend.domain_name
-}
-
-output "frontend_https_url" {
-  value = "https://${aws_cloudfront_distribution.frontend.domain_name}"
 }
