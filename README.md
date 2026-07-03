@@ -60,6 +60,7 @@ Frontend
 * HTML
 * CSS
 * JavaScript
+* AWS CloudFront
 
 * Note: Frontend stores JWT and attaches it to requests
 
@@ -93,7 +94,7 @@ Infrastructure
 
 AI Providers - supports multiple providers without changing business logic
 
-* OpenAI GPT-5.5
+* OpenAI GPT-5.5 (https://platform.openai.com/home)
 * Rule-Based Fallback Provider
 
 ## Architecture Highlights
