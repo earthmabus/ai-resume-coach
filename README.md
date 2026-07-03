@@ -60,7 +60,9 @@ Frontend
 * HTML
 * CSS
 * JavaScript
-* AWS CloudFront
+* Amazon Route 53 (for resume.michaelpopovich.com hosted zone)
+* AWS CloudFront (using OAC)
+* AWS Certificate Manager (for resume.michaelpopovich.com)
 * Amazon S3
 
 * Note: Frontend stores JWT and attaches it to requests
