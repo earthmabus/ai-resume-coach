@@ -5,69 +5,43 @@ resource "aws_s3_bucket" "frontend" {
 resource "aws_s3_bucket_public_access_block" "frontend" {
   bucket = aws_s3_bucket.frontend.id
 
-  block_public_acls       = false
-  block_public_policy     = false
-  ignore_public_acls      = false
-  restrict_public_buckets = false
+  block_public_acls       = true
+  block_public_policy     = true
+  ignore_public_acls      = true
+  restrict_public_buckets = true
 }
 
-#resource "aws_s3_bucket_public_access_block" "frontend" {
+#resource "aws_s3_bucket_website_configuration" "frontend" {
 #  bucket = aws_s3_bucket.frontend.id
 #
-#  block_public_acls       = true
-#  block_public_policy     = true
-#  ignore_public_acls      = true
-#  restrict_public_buckets = true
+#  index_document {
+#    suffix = "index.html"
+#  }
 #}
 
-resource "aws_s3_bucket_website_configuration" "frontend" {
-  bucket = aws_s3_bucket.frontend.id
-
-  index_document {
-    suffix = "index.html"
-  }
-}
-
-resource "aws_s3_bucket_policy" "frontend_public_read" {
+resource "aws_s3_bucket_policy" "frontend_cloudfront_read" {
   bucket = aws_s3_bucket.frontend.id
 
   policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
       {
-        Sid       = "PublicReadGetObject"
-        Effect    = "Allow"
-        Principal = "*"
-        Action    = "s3:GetObject"
-        Resource  = "${aws_s3_bucket.frontend.arn}/*"
+       Sid    = "AllowCloudFrontRead"
+       Effect = "Allow"
+       Principal = {
+         Service = "cloudfront.amazonaws.com"
+       }
+       Action   = "s3:GetObject"
+       Resource = "${aws_s3_bucket.frontend.arn}/*"
+       Condition = {
+          StringEquals = {
+            "AWS:SourceArn" = aws_cloudfront_distribution.frontend.arn
+          }
+        }
       }
     ]
   })
 }
-
-#resource "aws_s3_bucket_policy" "frontend_cloudfront_read" {
-#  bucket = aws_s3_bucket.frontend.id
-#
-#  policy = jsonencode({
-#    Version = "2012-10-17"
-#    Statement = [
-#      {
-#       Sid    = "AllowCloudFrontRead"
-#       Effect = "Allow"
-#       Principal = {
-#         Service = "cloudfront.amazonaws.com"
-#       }
-#       Action   = "s3:GetObject"
-#       Resource = "${aws_s3_bucket.frontend.arn}/*"
-#       Condition = {
-#          StringEquals = {
-#            "AWS:SourceArn" = aws_cloudfront_distribution.frontend.arn
-#          }
-#        }
-#      }
-#    ]
-#  })
-#}
 
 resource "aws_s3_object" "frontend_files" {
   for_each = fileset("${path.module}/../frontend", "**/*")

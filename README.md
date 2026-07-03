@@ -61,6 +61,7 @@ Frontend
 * CSS
 * JavaScript
 * AWS CloudFront
+* Amazon S3
 
 * Note: Frontend stores JWT and attaches it to requests
 
@@ -78,7 +79,6 @@ Backend
     * user5 --> matchZ
     * matchZ --> tailoringH
     * matchZ --> interviewQ
-* Amazon S3
 * Amazon SQS
   * decouples user interactions from AI processing and prevents API Gateway timeouts
   * user submits resume --> API Lambda --> SQS --> Worker Lambda --> AI --> DynamoDB updates
@@ -109,12 +109,12 @@ AI Providers - supports multiple providers without changing business logic
 * User profiles
 * Cognito authentication
 * Interview preparation workflows
+* CloudFront distribution
 
 ## Future Enhancements
 
 * Notifications
 * Secrets Manager integration
-* CloudFront distribution
 * Active/Active Disaster Recovery
   * Route 53 failover
   * Multi-region

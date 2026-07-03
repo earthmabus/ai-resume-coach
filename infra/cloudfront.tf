@@ -1,3 +1,14 @@
+resource "aws_acm_certificate" "frontend" {
+  provider = aws.us_east_1
+
+  domain_name       = "resume.michaelpopovich.com"
+  validation_method = "DNS"
+
+  lifecycle {
+    create_before_destroy = true
+  }
+}
+
 resource "aws_cloudfront_origin_access_control" "frontend" {
   name                              = "${local.name_prefix}-frontend-oac"
   description                       = "OAC for ${local.name_prefix} frontend bucket"
@@ -33,8 +44,8 @@ resource "aws_cloudfront_response_headers_policy" "security_headers" {
 
     xss_protection {
       protection = true
-      mode_block = true
-      override   = true
+      mode_block  = true
+      override    = true
     }
   }
 }
@@ -43,6 +54,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   enabled             = true
   default_root_object = "index.html"
   comment             = "${local.name_prefix} frontend"
+
+  aliases = ["resume.michaelpopovich.com"]
 
   origin {
     domain_name              = aws_s3_bucket.frontend.bucket_regional_domain_name
@@ -57,8 +70,7 @@ resource "aws_cloudfront_distribution" "frontend" {
     allowed_methods = ["GET", "HEAD", "OPTIONS"]
     cached_methods  = ["GET", "HEAD"]
 
-    compress = true
-
+    compress                   = true
     response_headers_policy_id = aws_cloudfront_response_headers_policy.security_headers.id
 
     forwarded_values {
@@ -89,6 +101,8 @@ resource "aws_cloudfront_distribution" "frontend" {
   }
 
   viewer_certificate {
-    cloudfront_default_certificate = true
+    acm_certificate_arn      = aws_acm_certificate.frontend.arn
+    ssl_support_method       = "sni-only"
+    minimum_protocol_version = "TLSv1.2_2021"
   }
 }
