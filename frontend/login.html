@@ -25,18 +25,12 @@
 
       <div class="auth-actions">
         <button type="button" class="secondary-button" onclick="window.location.href='./signup.html'">Create New Account</button>
+        <button type="button" class="secondary-button" id="resendVerificationButton">Resend Verification Email</button>
       </div>
-
-      <p class="muted">
-        Didn't receive the verification email?
-        <button id="resendVerificationButton" type="button" class="link-button">
-          Resend Verification Email
-        </button>
-      </p>
 
       <div id="resendVerificationPanel" class="hidden">
         <input id="resendEmail" type="email" placeholder="Email" />
-        <button id="resendVerificationSubmit" type="button">Send Verification Email</button>
+        <button type="button" id="resendVerificationSubmit">Send Verification Email</button>
         <p id="resendVerificationResult"></p>
       </div>
 
@@ -45,8 +39,8 @@
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
-  <script src="./config.js?v=2"></script>
-  <script src="./auth.js?v=2"></script>
-  <script src="./login.js?v=2"></script>
+  <script src="./config.js?v=3"></script>
+  <script src="./auth.js?v=3"></script>
+  <script src="./login.js?v=3"></script>
 </body>
 </html>

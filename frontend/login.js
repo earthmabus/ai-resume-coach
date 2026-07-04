@@ -81,7 +81,6 @@ function resendVerificationEmail(email) {
   });
 }
 
-
 loginButton.addEventListener("click", signIn);
 
 document.getElementById("loginPassword").addEventListener("keydown", event => {
