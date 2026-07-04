@@ -1,5 +1,9 @@
 const loginButton = document.getElementById("loginButton");
 const authError = document.getElementById("authError");
+const resendVerificationButton = document.getElementById("resendVerificationButton");
+const resendVerificationPanel = document.getElementById("resendVerificationPanel");
+const resendVerificationSubmit = document.getElementById("resendVerificationSubmit");
+const resendVerificationResult = document.getElementById("resendVerificationResult");
 
 function showAuthError(message) {
   authError.textContent = message;
@@ -59,6 +63,25 @@ async function signIn() {
   }
 }
 
+function resendVerificationEmail(email) {
+  return new Promise((resolve, reject) => {
+    const cognitoUser = new AmazonCognitoIdentity.CognitoUser({
+      Username: email,
+      Pool: userPool,
+    });
+
+    cognitoUser.resendConfirmationCode((error, result) => {
+      if (error) {
+        reject(error);
+        return;
+      }
+
+      resolve(result);
+    });
+  });
+}
+
+
 loginButton.addEventListener("click", signIn);
 
 document.getElementById("loginPassword").addEventListener("keydown", event => {
@@ -66,3 +89,36 @@ document.getElementById("loginPassword").addEventListener("keydown", event => {
     signIn();
   }
 });
+
+if (resendVerificationButton) {
+  resendVerificationButton.addEventListener("click", () => {
+    resendVerificationPanel.classList.toggle("hidden");
+  });
+}
+
+if (resendVerificationSubmit) {
+  resendVerificationSubmit.addEventListener("click", async () => {
+    const email = document.getElementById("resendEmail").value.trim();
+
+    if (!email) {
+      resendVerificationResult.textContent = "Email is required.";
+      return;
+    }
+
+    resendVerificationSubmit.disabled = true;
+    resendVerificationSubmit.textContent = "Sending...";
+    resendVerificationResult.textContent = "";
+
+    try {
+      await resendVerificationEmail(email);
+      resendVerificationResult.textContent =
+        "Verification email sent. Check your inbox and spam folder.";
+    } catch (error) {
+      resendVerificationResult.textContent =
+        `Unable to resend verification email: ${error.message || error}`;
+    } finally {
+      resendVerificationSubmit.disabled = false;
+      resendVerificationSubmit.textContent = "Send Verification Email";
+    }
+  });
+}

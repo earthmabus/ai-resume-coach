@@ -23,9 +23,10 @@ document.getElementById("signupButton").addEventListener("click", () => {
       return;
     }
 
-    signupResult.textContent = "Signup successful. Check your email, then confirm your account.";
+    signupResult.textContent =
+      "Account created. Check your email and click the verification link, then return here to sign in.";
     setTimeout(() => {
-      window.location.href = `./confirm-account.html?email=${encodeURIComponent(email)}`;
-    }, 1000);
+      window.location.href = "./login.html?signup=success";
+    }, 2000);
   });
 });
