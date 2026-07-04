@@ -350,7 +350,7 @@ async function uploadPdfResume() {
     setAccordionOpen("resumeResultCard", true);
     await loadHistory();
 
-    if (analysisResponse.status === 202 && analysisData.analysisId) {
+    if (analysisData.status === "processing" && analysisData.analysisId) {
       result.insertAdjacentHTML(
         "afterbegin",
         `
