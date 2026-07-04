@@ -4,6 +4,10 @@ const resendVerificationButton = document.getElementById("resendVerificationButt
 const resendVerificationPanel = document.getElementById("resendVerificationPanel");
 const resendVerificationSubmit = document.getElementById("resendVerificationSubmit");
 const resendVerificationResult = document.getElementById("resendVerificationResult");
+const resendEmail = document.getElementById("resendEmail");
+const loginEmail = document.getElementById("loginEmail");
+
+const emailRegex = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 function showAuthError(message) {
   authError.textContent = message;
@@ -41,7 +45,7 @@ function signInUser(email, password) {
 async function signIn() {
   clearAuthError();
 
-  const email = document.getElementById("loginEmail").value.trim();
+  const email = loginEmail.value.trim();
   const password = document.getElementById("loginPassword").value;
 
   if (!email || !password) {
@@ -81,6 +85,13 @@ function resendVerificationEmail(email) {
   });
 }
 
+function updateResendButtonState() {
+    const email = resendEmail.value.trim();
+    resendVerificationSubmit.disabled = !emailRegex.test(email);
+}
+
+resendEmail.addEventListener("input", updateResendButtonState);
+
 loginButton.addEventListener("click", signIn);
 
 document.getElementById("loginPassword").addEventListener("keydown", event => {
@@ -91,13 +102,21 @@ document.getElementById("loginPassword").addEventListener("keydown", event => {
 
 if (resendVerificationButton) {
   resendVerificationButton.addEventListener("click", () => {
-    resendVerificationPanel.classList.toggle("hidden");
+    if (resendVerificationPanel.classList.contains("hidden")) {
+        resendVerificationPanel.classList.remove("hidden");
+
+        resendEmail.value = loginEmail.value.trim();
+
+        updateResendButtonState();
+        resendEmail.focus();
+        resendEmail.select();
+    }
   });
 }
 
 if (resendVerificationSubmit) {
   resendVerificationSubmit.addEventListener("click", async () => {
-    const email = document.getElementById("resendEmail").value.trim();
+    const email = resendEmail.value.trim();
 
     if (!email) {
       resendVerificationResult.textContent = "Email is required.";
@@ -110,14 +129,23 @@ if (resendVerificationSubmit) {
 
     try {
       await resendVerificationEmail(email);
-      resendVerificationResult.textContent =
-        "Verification email sent. Check your inbox and spam folder.";
+      resendVerificationSubmit.textContent = "Sent ✓";
+      resendVerificationResult.textContent = "Verification email sent. Check your inbox and spam folder.";
+      setTimeout(() => {
+	  resendVerificationResult.textContent = "";
+          resendVerificationSubmit.textContent = "Send Verification Email";
+	  resendEmail.value = "";
+	  resendVerificationPanel.classList.add("hidden");
+          updateResendButtonState();
+	  loginEmail.focus();
+      }, 5000);
+
     } catch (error) {
-      resendVerificationResult.textContent =
-        `Unable to resend verification email: ${error.message || error}`;
-    } finally {
-      resendVerificationSubmit.disabled = false;
+      resendVerificationResult.textContent = `Unable to resend verification email: ${error.message || error}`;
       resendVerificationSubmit.textContent = "Send Verification Email";
+
+      // Re-enable the button if the email is still valid.
+      updateResendButtonState();
     }
   });
 }
