@@ -332,7 +332,7 @@ async function uploadPdfResume() {
       method: "POST",
       headers: await jsonHeaders(),
       body: JSON.stringify({
-	resumeName: resumeName?.value.trim() || uploadData.fileName || "Untitled Resume",
+        resumeName: resumeName?.value.trim() || uploadData.fileName || "Untitled Resume",
         documentBucket: uploadData.documentBucket,
         documentKey: uploadData.documentKey,
         fileName: uploadData.fileName,
@@ -350,14 +350,20 @@ async function uploadPdfResume() {
     setAccordionOpen("resumeResultCard", true);
     await loadHistory();
 
-    if (analysisResponse.status === 202) {
+    if (analysisResponse.status === 202 && analysisData.analysisId) {
       result.insertAdjacentHTML(
         "afterbegin",
-        `<p><strong>Status:</strong> PDF uploaded and queued for AI analysis. Refresh history in a moment to view the completed result.</p>`
+        `
+          <div class="status-banner status-pending">
+            PDF uploaded and queued for AI analysis. This page will update automatically when complete.
+          </div>
+        `
       );
+
+      await pollAnalysisUntilComplete(analysisData.analysisId);
     }
 
-    setButtonSaved(uploadButton, "Queued ✓");
+    setButtonSaved(uploadButton, "Complete ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
     resetButton(uploadButton);
@@ -410,6 +416,42 @@ async function loadHistory() {
       history.textContent = `Error: ${error.message}`;
     }
   }
+}
+
+async function pollAnalysisUntilComplete(analysisId, maxAttempts = 30, delayMs = 3000) {
+  if (!analysisId) {
+    return;
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`, {
+      headers: await authHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not refresh analysis detail");
+    }
+
+    renderAnalysis(data);
+    await loadHistory();
+
+    if (data.status !== "processing") {
+      return;
+    }
+  }
+
+  result.insertAdjacentHTML(
+    "afterbegin",
+    `
+      <div class="status-banner status-pending">
+        Analysis is still processing. It is taking longer than expected.
+      </div>
+    `
+  );
 }
 
 async function loadAnalysisDetail(analysisId) {

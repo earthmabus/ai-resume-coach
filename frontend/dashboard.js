@@ -68,7 +68,7 @@ function renderStats(analyses, matches) {
   `;
 }
 
-function renderActivityList(container, activities, emptyMessage) {
+function renderActivityList(container, activities, emptyMessage, showJobUrl = false) {
   if (activities.length === 0) {
     container.textContent = emptyMessage;
     return;
@@ -82,6 +82,7 @@ function renderActivityList(container, activities, emptyMessage) {
         </div>
         <p><strong>${escapeHtml(item.title)}</strong></p>
         <p>${escapeHtml(item.subtitle)}</p>
+        ${showJobUrl ? `<p><strong>URL:</strong> ${escapeHtml(item.jobUrl || "N/A")}</p>` : ""}
       </div>
       <div class="activity-date">${escapeHtml(formatEastern(item.createdAt))}</div>
     </a>
@@ -104,6 +105,7 @@ function renderRecentActivity(analyses, matches) {
     .map(item => ({
       title: item.jobName || "Untitled Job",
       subtitle: `${item.resumeName || "Untitled Resume"} | match score ${item.matchScore || 0}`,
+      jobUrl: item.jobUrl || "",
       status: item.status || "unknown",
       createdAt: item.createdAt || "",
       href: `./job-matching.html?matchId=${encodeURIComponent(item.matchId)}`
@@ -120,7 +122,8 @@ function renderRecentActivity(analyses, matches) {
   renderActivityList(
     recentJobActivity,
     matchActivities,
-    "No recent job matching activity yet."
+    "No recent job matching activity yet.",
+    true
   );
 }
 
