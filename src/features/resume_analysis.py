@@ -7,6 +7,8 @@ from io import BytesIO
 
 from pypdf import PdfReader
 
+from boto3.dynamodb.conditions import Key
+
 # imports from project specific files
 from providers.factory import get_analysis_provider
 from core.responses import build_response, parse_body

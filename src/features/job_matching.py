@@ -3,6 +3,8 @@ import os
 import uuid
 from datetime import datetime, timezone
 
+from boto3.dynamodb.conditions import Key
+
 # imports from project specific files
 from core.responses import build_response, parse_body
 from core.auth import current_user_id, assert_item_owner
