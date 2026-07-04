@@ -1,3 +1,4 @@
 analysis_provider = "openai"
 openai_model      = "gpt-5.5"
 openai_api_key    = "replace-me"
+registration_notification_email = "earthmabus@hotmail.com"

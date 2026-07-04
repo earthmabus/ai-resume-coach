@@ -5,6 +5,10 @@ resource "aws_cognito_user_pool" "users" {
 
   auto_verified_attributes = ["email"]
 
+  lambda_config {
+    post_confirmation = aws_lambda_function.registration_notification.arn
+  }
+
   verification_message_template {
     default_email_option  = "CONFIRM_WITH_LINK"
     email_subject_by_link = "Verify your AI Resume Coach account"

@@ -34,3 +34,8 @@ variable "openai_api_key" {
   sensitive   = true
   default     = ""
 }
+
+variable "registration_notification_email" {
+  description = "Email address to notify when a new user registers"
+  type        = string
+}

@@ -84,6 +84,8 @@ Backend
 * Amazon SQS
   * decouples user interactions from AI processing and prevents API Gateway timeouts
   * user submits resume --> API Lambda --> SQS --> Worker Lambda --> AI --> DynamoDB updates
+* Amazon SNS
+  * sends email when a new user registers
 * Amazon Cognito
 
 * Note: API validates JWT through API Gateway authorizers
@@ -115,7 +117,9 @@ AI Providers - supports multiple providers without changing business logic
 
 ## Future Enhancements
 
-* Notifications
+* AWS WAF (basic managed rule set)
+* Update deployment pipeline to invalidate CloudFront after deployment
+* Add Observability (logging, cloudwatch dashboard, alarms)
 * Secrets Manager integration
 * Active/Active Disaster Recovery
   * Route 53 failover
