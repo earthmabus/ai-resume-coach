@@ -3,7 +3,8 @@ requireAuth();
 const API_BASE_URL = window.APP_CONFIG.apiEndpoint;
 
 const dashboardStats = document.getElementById("dashboardStats");
-const recentActivity = document.getElementById("recentActivity");
+const recentResumeActivity = document.getElementById("recentResumeActivity");
+const recentJobActivity = document.getElementById("recentJobActivity");
 const refreshDashboardButton = document.getElementById("refreshDashboardButton");
 
 function escapeHtml(value) {
@@ -67,39 +68,16 @@ function renderStats(analyses, matches) {
   `;
 }
 
-function renderRecentActivity(analyses, matches) {
-  const resumeActivities = analyses.map(item => ({
-    type: "Resume Analysis",
-    title: item.resumeName || "Untitled Resume",
-    subtitle: `${item.sourceType || "resume"} | score ${item.score || 0}`,
-    status: item.status || "unknown",
-    createdAt: item.createdAt || "",
-    href: `./resume-analysis.html?analysisId=${encodeURIComponent(item.analysisId)}`
-  }));
-
-  const matchActivities = matches.map(item => ({
-    type: "Job Match",
-    title: item.jobName || "Untitled Job",
-    subtitle: `${item.resumeName || "Untitled Resume"} | match score ${item.matchScore || 0}`,
-    status: item.status || "unknown",
-    createdAt: item.createdAt || "",
-    href: `./job-matching.html?matchId=${encodeURIComponent(item.matchId)}`
-  }));
-
-  const activities = [...resumeActivities, ...matchActivities]
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-    .slice(0, 8);
-
+function renderActivityList(container, activities, emptyMessage) {
   if (activities.length === 0) {
-    recentActivity.textContent = "No recent activity yet.";
+    container.textContent = emptyMessage;
     return;
   }
 
-  recentActivity.innerHTML = activities.map(item => `
+  container.innerHTML = activities.map(item => `
     <a class="activity-item" href="${escapeHtml(item.href)}">
       <div>
         <div>
-          <span class="badge">${escapeHtml(item.type)}</span>
           ${statusBadge(item.status)}
         </div>
         <p><strong>${escapeHtml(item.title)}</strong></p>
@@ -110,8 +88,45 @@ function renderRecentActivity(analyses, matches) {
   `).join("");
 }
 
+function renderRecentActivity(analyses, matches) {
+  const resumeActivities = analyses
+    .map(item => ({
+      title: item.resumeName || "Untitled Resume",
+      subtitle: `${item.sourceType || "resume"} | score ${item.score || 0}`,
+      status: item.status || "unknown",
+      createdAt: item.createdAt || "",
+      href: `./resume-analysis.html?analysisId=${encodeURIComponent(item.analysisId)}`
+    }))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 5);
+
+  const matchActivities = matches
+    .map(item => ({
+      title: item.jobName || "Untitled Job",
+      subtitle: `${item.resumeName || "Untitled Resume"} | match score ${item.matchScore || 0}`,
+      status: item.status || "unknown",
+      createdAt: item.createdAt || "",
+      href: `./job-matching.html?matchId=${encodeURIComponent(item.matchId)}`
+    }))
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 5);
+
+  renderActivityList(
+    recentResumeActivity,
+    resumeActivities,
+    "No recent resume analysis activity yet."
+  );
+
+  renderActivityList(
+    recentJobActivity,
+    matchActivities,
+    "No recent job matching activity yet."
+  );
+}
+
 async function loadDashboard() {
-  recentActivity.textContent = "Loading recent activity...";
+  recentResumeActivity.textContent = "Loading recent resume activities...";
+  recentJobActivity.textContent = "Loading recent job matching activities...";
 
   try {
     const [analysesResponse, matchesResponse] = await Promise.all([
@@ -141,7 +156,8 @@ async function loadDashboard() {
     renderRecentActivity(analyses, matches);
   } catch (error) {
     console.error("Dashboard load failed:", error);
-    recentActivity.textContent = "There is no recent activity.";
+    recentResumeActivity.textContent = "There is no recent resume activity.";
+    recentJobActivity.textContent = "There is no recent job matching activity.";
   }
 }
 
