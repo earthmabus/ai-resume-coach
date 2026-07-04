@@ -85,9 +85,14 @@ function resendVerificationEmail(email) {
   });
 }
 
+function setResendButtonState(text, disabled) {
+  resendVerificationSubmit.textContent = text;
+  resendVerificationSubmit.disabled = disabled;
+}
+
 function updateResendButtonState() {
-    const email = resendEmail.value.trim();
-    resendVerificationSubmit.disabled = !emailRegex.test(email);
+  const email = resendEmail.value.trim();
+  resendVerificationSubmit.disabled = !emailRegex.test(email);
 }
 
 resendEmail.addEventListener("input", updateResendButtonState);
@@ -103,13 +108,13 @@ document.getElementById("loginPassword").addEventListener("keydown", event => {
 if (resendVerificationButton) {
   resendVerificationButton.addEventListener("click", () => {
     if (resendVerificationPanel.classList.contains("hidden")) {
-        resendVerificationPanel.classList.remove("hidden");
+      resendVerificationPanel.classList.remove("hidden");
 
-        resendEmail.value = loginEmail.value.trim();
+      resendEmail.value = loginEmail.value.trim();
 
-        updateResendButtonState();
-        resendEmail.focus();
-        resendEmail.select();
+      updateResendButtonState();
+      resendEmail.focus();
+      resendEmail.select();
     }
   });
 }
@@ -118,31 +123,46 @@ if (resendVerificationSubmit) {
   resendVerificationSubmit.addEventListener("click", async () => {
     const email = resendEmail.value.trim();
 
-    if (!email) {
-      resendVerificationResult.textContent = "Email is required.";
+    if (!emailRegex.test(email)) {
+      resendVerificationResult.textContent = "Please enter a valid email address.";
       return;
     }
 
-    resendVerificationSubmit.disabled = true;
-    resendVerificationSubmit.textContent = "Sending...";
+    setResendButtonState("Sending...", true);
     resendVerificationResult.textContent = "";
 
     try {
       await resendVerificationEmail(email);
-      resendVerificationSubmit.textContent = "Sent ✓";
-      resendVerificationResult.textContent = "Verification email sent. Check your inbox and spam folder.";
+      setResendButtonState("Sent ✓", true);
+      resendVerificationResult.textContent = `Verification email sent to ${email}. Check your inbox and spam folder.`;
       setTimeout(() => {
-	  resendVerificationResult.textContent = "";
-          resendVerificationSubmit.textContent = "Send Verification Email";
-	  resendEmail.value = "";
-	  resendVerificationPanel.classList.add("hidden");
-          updateResendButtonState();
-	  loginEmail.focus();
+        resendVerificationResult.textContent = "";
+        setResendButtonState("Send Verification Email", false);
+        loginEmail.value = resendEmail.value;
+        resendEmail.value = "";
+        resendVerificationPanel.classList.add("hidden");
+        updateResendButtonState();
+        loginEmail.focus();
       }, 5000);
 
     } catch (error) {
-      resendVerificationResult.textContent = `Unable to resend verification email: ${error.message || error}`;
-      resendVerificationSubmit.textContent = "Send Verification Email";
+      switch (error.code) {
+        case "UserNotFoundException":
+          resendVerificationResult.textContent = "No account exists with that email address.";
+          break;
+
+        case "InvalidParameterException":
+          resendVerificationResult.textContent = "This account has already been verified.";
+          break;
+
+        case "LimitExceededException":
+          resendVerificationResult.textContent = "Too many requests. Please wait a few minutes and try again.";
+          break;
+
+        default:
+          resendVerificationResult.textContent = `Unable to resend verification email: ${error.message || error}`;
+      }
+      setResendButtonState("Send Verification Email", false);
 
       // Re-enable the button if the email is still valid.
       updateResendButtonState();
