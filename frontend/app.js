@@ -454,6 +454,47 @@ async function pollAnalysisUntilComplete(analysisId, maxAttempts = 30, delayMs =
   );
 }
 
+async function pollJobMatchUntilComplete(matchId, maxAttempts = 30, delayMs = 3000) {
+  if (!matchId) {
+    return;
+  }
+
+  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
+    await new Promise(resolve => setTimeout(resolve, delayMs));
+
+    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`, {
+      headers: await authHeaders()
+    });
+
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data.error || "Could not refresh job match detail");
+    }
+
+    renderJobMatch(data);
+    await loadJobMatches();
+
+    if (data.status !== "processing") {
+      const tailoring = await fetchTailoringForMatch(matchId);
+      const interviewPrep = await fetchInterviewPrepForMatch(matchId);
+
+      renderJobMatch(data, tailoring, interviewPrep);
+      await loadJobMatches();
+      return;
+    }
+  }
+
+  result.insertAdjacentHTML(
+    "afterbegin",
+    `
+      <div class="status-banner status-pending">
+        Job match is still processing. It is taking longer than expected.
+      </div>
+    `
+  );
+}
+
 async function loadAnalysisDetail(analysisId) {
   result.textContent = "Loading analysis detail...";
 
@@ -658,7 +699,7 @@ async function matchJobDescription() {
       headers: await jsonHeaders(),
       body: JSON.stringify({
         analysisId: analysisId,
-	jobName: jobName.value.trim() || "Untitled Job",
+        jobName: jobName.value.trim() || "Untitled Job",
         jobUrl: jobUrl?.value.trim() || "",
         jobDescriptionText: jdText,
         analysisProvider: selectedProvider()
@@ -675,14 +716,20 @@ async function matchJobDescription() {
     setAccordionOpen("jobResultCard", true);
     await loadJobMatches();
 
-    if (response.status === 202) {
+    if (data.status === "processing" && data.matchId) {
       result.insertAdjacentHTML(
         "afterbegin",
-        `<p><strong>Status:</strong> Job match queued for AI analysis. Refresh matches in a moment to view the completed result.</p>`
+        `
+          <div class="status-banner status-pending">
+            Job match queued for AI analysis. This page will update automatically when complete.
+          </div>
+        `
       );
+
+      await pollJobMatchUntilComplete(data.matchId);
     }
 
-    setButtonSaved(matchJobButton, "Queued ✓");
+    setButtonSaved(matchJobButton, "Complete ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
     resetButton(matchJobButton);
