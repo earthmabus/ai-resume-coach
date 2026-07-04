@@ -3,51 +3,36 @@ import os
 import uuid
 import time 
 from datetime import datetime, timezone
-from decimal import Decimal
 from io import BytesIO
 
-import boto3
-from boto3.dynamodb.conditions import Key, Attr
+from boto3.dynamodb.conditions import Key
 
 from pypdf import PdfReader
 
+# imports from project specific files
 from providers.factory import get_analysis_provider
-
-sqs = boto3.client("sqs")
-resume_analysis_queue_url = os.getenv("RESUME_ANALYSIS_QUEUE_URL")
-
-dynamodb = boto3.resource("dynamodb")
-table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
-
-s3 = boto3.client("s3")
-document_bucket = os.getenv("DOCUMENT_BUCKET")
-
-
-def json_default(value):
-    if isinstance(value, Decimal):
-        return int(value) if value % 1 == 0 else float(value)
-    raise TypeError(f"Object of type {type(value)} is not JSON serializable")
-
-
-def build_response(status_code, body):
-    return {
-        "statusCode": status_code,
-        "headers": {
-            "Content-Type": "application/json",
-            "Access-Control-Allow-Origin": "*",
-            "Access-Control-Allow-Headers": "Content-Type,Authorization",
-            "Access-Control-Allow-Methods": "GET,POST,PUT,DELETE,OPTIONS",
-        },
-        "body": json.dumps(body, default=json_default),
-    }
-
-
-def parse_body(event):
-    try:
-        return json.loads(event.get("body") or "{}")
-    except json.JSONDecodeError:
-        return None
-
+from core.responses import build_response, parse_body
+from core.routes import route_request
+from core.auth import current_user_id, assert_item_owner
+from core.keys import (
+    base_keys,
+    interview_sk,
+    match_sk,
+    resume_sk,
+    tailoring_pk,
+    tailoring_sk,
+    user_pk,
+)
+from core.storage import (
+    document_bucket,
+    get_entity_by_id,
+    resume_analysis_queue_url,
+    s3,
+    sqs,
+    table,
+)
+from core.profile import get_profile, update_profile
+from core.target_career import get_target_career_for_user, get_target_career, update_target_career
 
 def health():
     return build_response(
@@ -911,90 +896,6 @@ def get_resume_tailoring_by_match(event):
     return build_response(200, item)
 
 
-def current_user_id(event):
-    claims = (
-        event.get("requestContext", {})
-        .get("authorizer", {})
-        .get("jwt", {})
-        .get("claims", {})
-    )
-
-    user_id = claims.get("sub")
-
-    if not user_id:
-        raise ValueError("Unauthorized: missing user identity")
-
-    return user_id
-
-
-def assert_item_owner(item, user_id):
-    if item.get("userId") != user_id:
-        raise PermissionError("Forbidden")
-
-
-def get_profile(event):
-    user_id = current_user_id(event)
-
-    response = table.get_item(
-        Key={
-            "pk": user_pk(user_id),
-            "sk": profile_sk(),
-        }
-    )
-
-    item = response.get("Item")
-
-    if not item:
-        return build_response(
-            200,
-            {
-                "pk": user_pk(user_id),
-                "sk": profile_sk(),
-                "recordType": "userProfile",
-                "userId": user_id,
-                "name": "",
-                "currentTitle": "",
-                "targetTitle": "",
-                "yearsExperience": "",
-                "certifications": "",
-                "preferredProvider": "openai",
-                "resumeStyle": "executive",
-            },
-        )
-
-    return build_response(200, item)
-
-
-def update_profile(event):
-    user_id = current_user_id(event)
-    body = parse_body(event)
-
-    if body is None:
-        return build_response(400, {"error": "Invalid JSON body"})
-
-    profile_id = f"PROFILE#{user_id}"
-    updated_at = datetime.now(timezone.utc).isoformat()
-
-    item = {
-        "pk": user_pk(user_id),
-        "sk": profile_sk(),
-        "recordType": "userProfile",
-        "userId": user_id,
-        "updatedAt": updated_at,
-        "name": body.get("name", "").strip(),
-        "currentTitle": body.get("currentTitle", "").strip(),
-        "targetTitle": body.get("targetTitle", "").strip(),
-        "yearsExperience": body.get("yearsExperience", "").strip(),
-        "certifications": body.get("certifications", "").strip(),
-        "preferredProvider": body.get("preferredProvider", "openai").strip(),
-        "resumeStyle": body.get("resumeStyle", "executive").strip(),
-    }
-
-    table.put_item(Item=item)
-
-    return build_response(200, item)
-
-
 def get_interview_prep_by_match(event):
     user_id = current_user_id(event)
     match_id = event.get("pathParameters", {}).get("matchId")
@@ -1022,216 +923,31 @@ def get_interview_prep_by_match(event):
     return build_response(200, item)
 
 
-def user_pk(user_id):
-    return f"USER#{user_id}"
-
-
-def resume_sk(analysis_id):
-    return f"RESUME#{analysis_id}"
-
-
-def match_sk(match_id):
-    return f"MATCH#{match_id}"
-
-
-def tailoring_pk(match_id):
-    return f"MATCH#{match_id}"
-
-
-def tailoring_sk(tailoring_id):
-    return f"TAILORING#{tailoring_id}"
-
-
-def interview_sk(interview_prep_id):
-    return f"INTERVIEW#{interview_prep_id}"
-
-
-def profile_sk():
-    return "PROFILE"
-
-
-def entity_gsi_pk(entity_id):
-    return f"ENTITY#{entity_id}"
-
-
-def base_keys(pk, sk, entity_id, record_type):
-    return {
-        "pk": pk,
-        "sk": sk,
-        "gsi1pk": entity_gsi_pk(entity_id),
-        "gsi1sk": record_type,
-    }
-
-
-def get_entity_by_id(entity_id, expected_record_type=None):
-    response = table.query(
-        IndexName="gsi1",
-        KeyConditionExpression=Key("gsi1pk").eq(entity_gsi_pk(entity_id)),
-    )
-
-    items = response.get("Items", [])
-
-    if expected_record_type:
-        items = [
-            item for item in items
-            if item.get("recordType") == expected_record_type
-        ]
-
-    return items[0] if items else None
-
-
-def target_career_sk():
-    return "TARGET_CAREER"
-
-
-def get_target_career_for_user(user_id):
-    response = table.get_item(
-        Key={
-            "pk": user_pk(user_id),
-            "sk": target_career_sk(),
-        }
-    )
-    return response.get("Item")
-
-
-def get_target_career(event):
-    user_id = current_user_id(event)
-    item = get_target_career_for_user(user_id)
-
-    if not item:
-        return build_response(200, {
-            "recordType": "targetCareer",
-            "userId": user_id,
-            "roleTitle": "",
-            "industry": "",
-            "seniorityLevel": "",
-            "workEnvironment": "",
-            "keyResponsibilities": "",
-            "requiredSkills": "",
-            "certifications": "",
-            "physicalRequirements": "",
-            "technicalRequirements": "",
-            "leadershipRequirements": "",
-            "careerGoalSummary": "",
-        })
-
-    return build_response(200, item)
-
-
-def update_target_career(event):
-    user_id = current_user_id(event)
-    body = parse_body(event)
-
-    if body is None:
-        return build_response(400, {"error": "Invalid JSON body"})
-
-    role_title = body.get("roleTitle", "").strip()
-    industry = body.get("industry", "").strip()
-
-    if not role_title or not industry:
-        return build_response(400, {"error": "roleTitle and industry are required"})
-
-    target_career_id = f"target-career-{user_id}"
-    updated_at = datetime.now(timezone.utc).isoformat()
-
-    item = {
-        **base_keys(
-            pk=user_pk(user_id),
-            sk=target_career_sk(),
-            entity_id=target_career_id,
-            record_type="targetCareer",
-        ),
-        "recordType": "targetCareer",
-        "targetCareerId": target_career_id,
-        "userId": user_id,
-        "updatedAt": updated_at,
-        "roleTitle": role_title,
-        "industry": industry,
-        "seniorityLevel": body.get("seniorityLevel", "").strip(),
-        "workEnvironment": body.get("workEnvironment", "").strip(),
-        "keyResponsibilities": body.get("keyResponsibilities", "").strip(),
-        "requiredSkills": body.get("requiredSkills", "").strip(),
-        "certifications": body.get("certifications", "").strip(),
-        "physicalRequirements": body.get("physicalRequirements", "").strip(),
-        "technicalRequirements": body.get("technicalRequirements", "").strip(),
-        "leadershipRequirements": body.get("leadershipRequirements", "").strip(),
-        "careerGoalSummary": body.get("careerGoalSummary", "").strip(),
-    }
-
-    table.put_item(Item=item)
-    return build_response(200, item)
-
-
 def lambda_handler(event, context):
-    route = event.get("routeKey")
+    routes = {
+        "GET /health": health,
+        "GET /version": version,
+        "POST /analyze-resume": analyze_resume,
+        "POST /resume-upload-url": create_resume_upload_url,
+        "POST /analyze-uploaded-resume": analyze_uploaded_resume,
+        "GET /analyses": list_analyses,
+        "GET /analysis/{id}": get_analysis,
+        "POST /match-job-description": match_job_description,
+        "GET /job-matches": list_job_matches,
+        "GET /job-match/{id}": get_job_match,
+        "DELETE /analysis/{id}": delete_analysis,
+        "DELETE /analyses": delete_all_analyses,
+        "DELETE /job-match/{id}": delete_job_match,
+        "DELETE /job-matches": delete_all_job_matches,
+        "GET /analysis/{id}/download-url": get_resume_download_url,
+        "POST /tailor-resume": tailor_resume,
+        "GET /resume-tailoring/{id}": get_resume_tailoring,
+        "GET /job-match/{matchId}/tailoring": get_resume_tailoring_by_match,
+        "GET /profile": get_profile,
+        "PUT /profile": update_profile,
+        "GET /job-match/{matchId}/interview-prep": get_interview_prep_by_match,
+        "GET /target-career": get_target_career,
+        "PUT /target-career": update_target_career,
+    }
 
-    if route == "GET /health":
-        return health()
-
-    if route == "GET /version":
-        return version()
-
-    if route == "POST /analyze-resume":
-        return analyze_resume(event)
-
-    if route == "POST /resume-upload-url":
-        return create_resume_upload_url(event)
-
-    if route == "POST /analyze-uploaded-resume":
-        return analyze_uploaded_resume(event)
-
-    if route == "GET /analyses":
-        return list_analyses(event)
-
-    if route == "GET /analysis/{id}":
-        return get_analysis(event)
-
-    if route == "POST /match-job-description":
-        return match_job_description(event)
-
-    if route == "GET /job-matches":
-        return list_job_matches(event)
-
-    if route == "GET /job-match/{id}":
-        return get_job_match(event)
-
-    if route == "DELETE /analysis/{id}":
-        return delete_analysis(event)
-
-    if route == "DELETE /analyses":
-        return delete_all_analyses(event)
-
-    if route == "DELETE /job-match/{id}":
-        return delete_job_match(event)
-
-    if route == "DELETE /job-matches":
-        return delete_all_job_matches(event)
-
-    if route == "GET /analysis/{id}/download-url":
-        return get_resume_download_url(event)
-
-    if route == "POST /tailor-resume":
-        return tailor_resume(event)
-
-    if route == "GET /resume-tailoring/{id}":
-        return get_resume_tailoring(event)
-
-    if route == "GET /job-match/{matchId}/tailoring":
-        return get_resume_tailoring_by_match(event)
-
-    if route == "GET /profile":
-        return get_profile(event)
-
-    if route == "PUT /profile":
-        return update_profile(event)
-
-    if route == "GET /job-match/{matchId}/interview-prep":
-        return get_interview_prep_by_match(event)
-
-    if route == "GET /target-career":
-        return get_target_career(event)
-
-    if route == "PUT /target-career":
-        return update_target_career(event)
-
-    return build_response(404, {"error": "Route not found", "route": route})
+    return route_request(event, routes)
