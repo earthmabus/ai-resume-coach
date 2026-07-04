@@ -13,7 +13,7 @@ from features.resume_analysis import analyze_resume, analyze_uploaded_resume, cr
 from features.resume_tailoring import tailor_resume, get_resume_tailoring, get_resume_tailoring_by_match, get_interview_prep_by_match
 
 
-def health():
+def health(event=None):
     return build_response(
         200,
         {
@@ -24,7 +24,7 @@ def health():
     )
 
 
-def version():
+def version(event=None):
     return build_response(
         200,
         {
