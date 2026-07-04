@@ -5,19 +5,13 @@ import time
 from datetime import datetime, timezone
 from io import BytesIO
 
-from boto3.dynamodb.conditions import Key
-
 from pypdf import PdfReader
 
 # imports from project specific files
 from providers.factory import get_analysis_provider
 from core.responses import build_response, parse_body
 from core.auth import current_user_id, assert_item_owner
-from core.keys import (
-    base_keys,
-    resume_sk,
-    user_pk,
-)
+from core.keys import base_keys, resume_sk, user_pk
 from core.storage import (
     document_bucket,
     get_entity_by_id,
