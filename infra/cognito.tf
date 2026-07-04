@@ -59,3 +59,8 @@ resource "aws_cognito_user_pool_client" "web" {
 
   prevent_user_existence_errors = "ENABLED"
 }
+
+resource "aws_cognito_user_pool_domain" "main" {
+  domain       = "ai-resume-coach-${data.aws_caller_identity.current.account_id}"
+  user_pool_id = aws_cognito_user_pool.users.id
+}
