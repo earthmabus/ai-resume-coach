@@ -29,7 +29,7 @@ resource "aws_apigatewayv2_route" "health_live_route" {
 }
 
 resource "aws_apigatewayv2_route" "health_ready_route" {
-  api_id    = aws_apigatewayv2_api.api.id
+  api_id    = aws_apigatewayv2_api.http_api.id
   route_key = "GET /health/ready"
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
