@@ -34,18 +34,6 @@ resource "aws_apigatewayv2_route" "health_ready_route" {
   target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
 }
 
-resource "aws_apigatewayv2_route" "health_live_route" {
-  api_id    = aws_apigatewayv2_api.api.id
-  route_key = "GET /health/live"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-}
-
-resource "aws_apigatewayv2_route" "health_ready_route" {
-  api_id    = aws_apigatewayv2_api.api.id
-  route_key = "GET /health/ready"
-  target    = "integrations/${aws_apigatewayv2_integration.lambda_integration.id}"
-}
-
 resource "aws_apigatewayv2_route" "version_route" {
   api_id    = aws_apigatewayv2_api.http_api.id
   route_key = "GET /version"
