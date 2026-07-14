@@ -4,6 +4,8 @@ from datetime import datetime, timezone
 # import core utilities
 from core.responses import build_response
 from core.routes import route_request
+from core.config import get_config
+from core.health import live, ready
 
 # import features
 from features.profile import get_profile, update_profile
@@ -14,32 +16,47 @@ from features.resume_tailoring import tailor_resume, get_resume_tailoring, get_r
 
 
 def health(event=None):
+    config = get_config()
+
     return build_response(
         200,
         {
             "status": "ok",
-            "project": os.getenv("PROJECT_NAME", "ai-resume-coach"),
+            "project": config.project_name,
             "timestamp": datetime.now(timezone.utc).isoformat(),
+            "region": config.aws_region,
+            "environment": config.environment,
+            "deploymentId": config.deployment_id,
         },
     )
 
 
 def version(event=None):
+    config = get_config()
+
     return build_response(
         200,
         {
-            "application": os.getenv("PROJECT_NAME", "ai-resume-coach"),
-            "version": os.getenv("APP_VERSION", "0.1.0"),
-            "environment": os.getenv("ENVIRONMENT", "dev"),
-            "analysisProvider": os.getenv("ANALYSIS_PROVIDER", "rule-based"),
-            "openaiModel": os.getenv("OPENAI_MODEL", ""),
+            "application": config.project_name,
+            "version": config.app_version,
+            "environment": config.environment,
+            "analysisProvider": config.analysis_provider,
+            "openaiModel": config.openai_model,
+            "region": config.aws_region,
+            "deploymentId": config.deployment_id,
         },
     )
 
 
 def lambda_handler(event, context):
     routes = {
+        # /health - application status
+        # /health/live - lambda process and router alive
+        # /health/ready - region can safely accept requests
+        # /version - build and runtime metadata
         "GET /health": health,
+        "GET /health/live": live,
+        "GET /health/ready": ready,
         "GET /version": version,
 
         # features/resume_analysis.py

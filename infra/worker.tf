@@ -24,12 +24,18 @@ resource "aws_lambda_function" "resume_analysis_worker" {
     variables = {
       PROJECT_NAME              = var.project_name
       ENVIRONMENT               = var.environment
-      APP_VERSION               = "0.1.0"
+      APP_VERSION               = var.app_version
+      DEPLOYMENT_ID             = var.deployment_id
+      LOG_LEVEL                 = var.log_level
+
+
       RESUME_ANALYSIS_TABLE     = aws_dynamodb_table.resume_analysis.name
       DOCUMENT_BUCKET           = aws_s3_bucket.documents.bucket
+
       ANALYSIS_PROVIDER         = var.analysis_provider
       OPENAI_MODEL              = var.openai_model
       OPENAI_API_KEY            = var.openai_api_key
+
       RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.resume_analysis_jobs.url
     }
   }
