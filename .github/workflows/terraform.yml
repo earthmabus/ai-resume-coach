@@ -2,12 +2,14 @@ name: Terraform
 
 on:
   workflow_dispatch:
+
   push:
     branches:
       - main
     paths:
       - "infra/**"
       - "src/**"
+      - "tests/**"
       - "frontend/**"
       - "lambda_layer/**"
       - ".github/workflows/terraform.yml"
@@ -16,6 +18,8 @@ env:
   AWS_REGION: us-east-1
   AWS_ROLE_ARN: arn:aws:iam::940827434048:role/GitHubActionsTerraformRole-ai-resume-coach
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
+
+  TF_VAR_deployment_id: ${{ github.sha }}
   TF_VAR_analysis_provider: openai
   TF_VAR_openai_model: ${{ secrets.OPENAI_MODEL }}
   TF_VAR_openai_api_key: ${{ secrets.OPENAI_API_KEY }}
@@ -25,13 +29,18 @@ permissions:
   id-token: write
   contents: read
 
+concurrency:
+  group: terraform-${{ github.ref }}
+  cancel-in-progress: false
+
 jobs:
   terraform:
-    name: Terraform Plan and Apply
+    name: Test, Plan, and Apply
     runs-on: ubuntu-latest
 
     defaults:
       run:
+        shell: bash
         working-directory: infra
 
     steps:
@@ -44,43 +53,68 @@ jobs:
           role-to-assume: ${{ env.AWS_ROLE_ARN }}
           aws-region: ${{ env.AWS_REGION }}
 
-      - name: Set up Terraform
-        uses: hashicorp/setup-terraform@v3
+      - name: Set up Python
+        uses: actions/setup-python@v5
+        with:
+          python-version: "3.13"
+          cache: pip
+          cache-dependency-path: |
+            lambda_layer/requirements.txt
+
+      - name: Install test dependencies
+        working-directory: ${{ github.workspace }}
+        run: |
+          python -m pip install --upgrade pip
+          python -m pip install pytest boto3
+
+      - name: Compile Python source
+        working-directory: ${{ github.workspace }}
+        run: python -m compileall src
+
+      - name: Run unit tests
+        working-directory: ${{ github.workspace }}
+        run: pytest -q
 
       - name: Build PDF Lambda layer
         working-directory: ${{ github.workspace }}
         run: |
           rm -rf lambda_layer/build
           mkdir -p lambda_layer/build/python
-          python -m pip install --upgrade pip
+
           python -m pip install \
             --platform manylinux2014_x86_64 \
             --implementation cp \
             --python-version 3.13 \
             --only-binary=:all: \
-            -r lambda_layer/requirements.txt \
-            -t lambda_layer/build/python
+            --requirement lambda_layer/requirements.txt \
+            --target lambda_layer/build/python
 
-      - name: Terraform Init
-        run: terraform init
+      - name: Set up Terraform
+        uses: hashicorp/setup-terraform@v3
 
       - name: Terraform Format Check
-        run: terraform fmt -check
+        run: terraform fmt -check -recursive
+
+      - name: Terraform Init
+        run: terraform init -input=false
 
       - name: Terraform Validate
         run: terraform validate
 
       - name: Terraform Plan
-        run: terraform plan
+        run: |
+          terraform plan \
+            -input=false \
+            -out=tfplan
 
       - name: Terraform Apply
         if: github.ref == 'refs/heads/main'
-        run: terraform apply -auto-approve
+        run: terraform apply -input=false -auto-approve tfplan
 
       - name: Invalidate CloudFront Cache
         if: github.ref == 'refs/heads/main'
         run: |
-          DISTRIBUTION_ID=$(terraform output -raw cloudfront_distribution_id)
+          DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
 
           aws cloudfront create-invalidation \
             --distribution-id "$DISTRIBUTION_ID" \
