@@ -1,4 +1,3 @@
-import json
 import logging
 import os
 import uuid
@@ -21,9 +20,7 @@ from core.outbox import build_resume_analysis_outbox_event
 from core.storage import (
     document_bucket,
     get_entity_by_id,
-    resume_analysis_queue_url,
     s3,
-    sqs,
     table,
     put_item_and_outbox_if_absent,
     put_item_if_absent,
@@ -872,68 +869,12 @@ def analyze_uploaded_resume(event):
 
         current_status = item.get("status")
 
-        if current_status == "QUEUED_PENDING_DISPATCH":
-            sqs.send_message(
-                QueueUrl=resume_analysis_queue_url,
-                MessageBody=json.dumps(
-                    {
-                        "schemaVersion": 1,
-                        "jobType": "resumeAnalysis",
-                        "operation": (
-                            ANALYZE_UPLOADED_RESUME_OPERATION
-                        ),
-                        "jobId": analysis_id,
-                        "analysisId": analysis_id,
-                        "userId": user_id,
-                        "sourceType": "pdf",
-                        "analysisProvider": requested_provider,
-                        "requestId": context.request_id,
-                        "requestHash": request_hash,
-                        "sourceRegion": context.region,
-                        "submittedAt": created_at,
-                    }
-                ),
-            )
-
-            update_response = table.update_item(
-                Key=analysis_key,
-                UpdateExpression=(
-                    "SET #status = :processing, "
-                    "updatedAt = :updatedAt, "
-                    "updatedByRequestId = :requestId, "
-                    "lastUpdatedRegion = :region, "
-                    "#version = #version + :one"
-                ),
-                ConditionExpression=(
-                    "#status = :pendingDispatch "
-                    "AND createdByRequestHash = :requestHash"
-                ),
-                ExpressionAttributeNames={
-                    "#status": "status",
-                    "#version": "version",
-                },
-                ExpressionAttributeValues={
-                    ":pendingDispatch": (
-                        "QUEUED_PENDING_DISPATCH"
-                    ),
-                    ":processing": "processing",
-                    ":requestHash": request_hash,
-                    ":updatedAt": datetime.now(
-                        timezone.utc
-                    ).isoformat(),
-                    ":requestId": context.request_id,
-                    ":region": context.region,
-                    ":one": 1,
-                },
-                ReturnValues="ALL_NEW",
-            )
-
-            item = update_response.get("Attributes", item)
-            current_status = item.get("status", "processing")
-
-        elif current_status not in {
+        if current_status not in {
+            "QUEUED_PENDING_DISPATCH",
             "processing",
+            "WORKER_PROCESSING",
             "completed",
+            "FAILED_RETRYABLE",
         }:
             raise RuntimeError(
                 "Analysis is in an unsupported dispatch state"

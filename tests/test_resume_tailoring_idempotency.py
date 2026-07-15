@@ -115,7 +115,6 @@ def dependencies(monkeypatch):
         }
     }
 
-    sqs = MagicMock()
 
     reserve_request = MagicMock(
         return_value=IdempotencyReservation(
@@ -130,7 +129,6 @@ def dependencies(monkeypatch):
     update_item_and_put_outbox = MagicMock(return_value=True)
 
     monkeypatch.setattr(resume_tailoring, "table", table)
-    monkeypatch.setattr(resume_tailoring, "sqs", sqs)
     monkeypatch.setattr(
         resume_tailoring,
         "reserve_request",
@@ -161,7 +159,6 @@ def dependencies(monkeypatch):
         match_item=match_item,
         tailoring_item=tailoring_item,
         table=table,
-        sqs=sqs,
         reserve_request=reserve_request,
         complete_request=complete_request,
         mark_request_retryable=mark_request_retryable,
@@ -177,7 +174,6 @@ def test_missing_idempotency_key_is_rejected(dependencies):
         )
 
     dependencies.reserve_request.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
 
 
 def test_missing_match_id_returns_400(dependencies):
@@ -207,7 +203,9 @@ def test_match_is_read_by_base_table_key(dependencies):
     )
 
 
-def test_waiting_tailoring_is_dispatched(dependencies):
+def test_waiting_tailoring_creates_outbox_without_direct_dispatch(
+    dependencies,
+):
     response = resume_tailoring.tailor_resume(make_event())
     body = response_body(response)
 
@@ -215,8 +213,8 @@ def test_waiting_tailoring_is_dispatched(dependencies):
     assert body == {
         "tailoringId": TAILORING_ID,
         "matchId": MATCH_ID,
-        "status": "processing",
-        "version": 3,
+        "status": "QUEUED_PENDING_DISPATCH",
+        "version": 2,
         "createdAt": "2026-07-15T00:00:00+00:00",
     }
 
@@ -224,29 +222,17 @@ def test_waiting_tailoring_is_dispatched(dependencies):
     transaction = (
         dependencies.update_item_and_put_outbox.call_args.kwargs
     )
-    assert transaction["outbox_item"]["eventType"] == (
+    outbox_item = transaction["outbox_item"]
+
+    assert outbox_item["eventType"] == (
         "RESUME_TAILORING_REQUESTED"
     )
-    assert transaction["outbox_item"]["aggregateId"] == (
-        TAILORING_ID
-    )
+    assert outbox_item["aggregateId"] == TAILORING_ID
+    assert outbox_item["payload"]["matchId"] == MATCH_ID
+    assert outbox_item["status"] == "PENDING"
 
-    dependencies.sqs.send_message.assert_called_once()
-    dependencies.table.update_item.assert_called_once()
+    dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
-
-    message = json.loads(
-        dependencies.sqs.send_message.call_args.kwargs[
-            "MessageBody"
-        ]
-    )
-
-    assert message["jobType"] == "resumeTailoring"
-    assert message["tailoringId"] == TAILORING_ID
-    assert message["jobId"] == TAILORING_ID
-    assert message["matchId"] == MATCH_ID
-    assert message["requestHash"] == REQUEST_HASH
-    assert message["sourceRegion"] == "us-east-1"
 
 
 def test_existing_processing_tailoring_is_not_redispatched(
@@ -263,7 +249,6 @@ def test_existing_processing_tailoring_is_not_redispatched(
     assert body["version"] == 2
 
     dependencies.update_item_and_put_outbox.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
@@ -282,7 +267,6 @@ def test_existing_completed_tailoring_is_not_redispatched(
     assert body["version"] == 3
 
     dependencies.update_item_and_put_outbox.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
@@ -314,7 +298,6 @@ def test_completed_replay_does_not_read_or_dispatch(
 
     assert dependencies.table.get_item.call_count == 1
     dependencies.update_item_and_put_outbox.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
@@ -341,20 +324,23 @@ def test_in_progress_replay_returns_same_tailoring(
     }
 
     dependencies.update_item_and_put_outbox.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
 
-def test_sqs_failure_marks_request_retryable(dependencies):
-    dependencies.sqs.send_message.side_effect = RuntimeError(
-        "SQS unavailable"
+def test_outbox_transaction_failure_marks_request_retryable(
+    dependencies,
+):
+    dependencies.update_item_and_put_outbox.side_effect = (
+        RuntimeError("DynamoDB transaction unavailable")
     )
 
-    with pytest.raises(RuntimeError, match="SQS unavailable"):
+    with pytest.raises(
+        RuntimeError,
+        match="DynamoDB transaction unavailable",
+    ):
         resume_tailoring.tailor_resume(make_event())
 
-    dependencies.update_item_and_put_outbox.assert_called_once()
     dependencies.mark_request_retryable.assert_called_once()
     dependencies.complete_request.assert_not_called()
     dependencies.table.update_item.assert_not_called()
@@ -382,4 +368,3 @@ def test_missing_stable_tailoring_record_returns_404(
     assert response_body(response)["tailoringId"] == TAILORING_ID
 
     dependencies.complete_request.assert_called_once()
-    dependencies.sqs.send_message.assert_not_called()

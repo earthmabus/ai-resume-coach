@@ -17,9 +17,9 @@ from core.outbox_publisher import (
     ClaimResult,
     DynamoDbOutboxRepository,
     OutboxPublisher,
+    PublishResult,
     SqsEventPublisher,
 )
-
 
 NOW = datetime(2026, 7, 15, 20, 0, tzinfo=timezone.utc)
 NOW_EPOCH = int(NOW.timestamp())
@@ -277,6 +277,7 @@ def test_outbox_publisher_marks_success_delivered():
     result = publisher.publish_pending()
 
     assert result.examined == 1
+    assert result.claimed == 1
     assert result.published == 1
     assert result.failed == 0
     assert result.skipped == 0
@@ -311,8 +312,12 @@ def test_outbox_publisher_marks_transport_failure_retryable():
 
     result = publisher.publish_pending()
 
+    assert result.examined == 1
+    assert result.claimed == 1
     assert result.failed == 1
     assert result.published == 0
+    assert result.skipped == 0
+
     repository.mark_failed_retryable.assert_called_once_with(
         item=claimed_item,
         attempt_id="attempt-123",
@@ -334,6 +339,27 @@ def test_outbox_publisher_counts_claim_race_as_skipped():
 
     result = publisher.publish_pending()
 
+    assert result.examined == 1
+    assert result.claimed == 0
     assert result.skipped == 1
     assert result.published == 0
+    assert result.failed == 0
     event_publisher.publish.assert_not_called()
+
+
+def test_publish_result_counts_remain_consistent():
+    result = PublishResult(
+        examined=7,
+        claimed=5,
+        published=4,
+        failed=1,
+        skipped=2,
+    )
+
+    assert result.claimed == (
+        result.published + result.failed
+    )
+
+    assert result.examined == (
+        result.claimed + result.skipped
+    )

@@ -53,6 +53,16 @@ output "resume_analysis_worker_function_name" {
   value       = aws_lambda_function.resume_analysis_worker.function_name
 }
 
+output "outbox_publisher_function_name" {
+  description = "Lambda function that publishes transactional outbox events to SQS."
+  value       = aws_lambda_function.outbox_publisher.function_name
+}
+
+output "outbox_publisher_schedule_name" {
+  description = "EventBridge schedule rule that invokes the outbox publisher."
+  value       = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
+}
+
 output "cognito_user_pool_id" {
   value       = aws_cognito_user_pool.users.id
   description = "Cognito User Pool ID"

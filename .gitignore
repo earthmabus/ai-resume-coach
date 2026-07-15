@@ -30,3 +30,7 @@ src/registration_notification/__pycache__/*
 src/providers/__pycache__/*
 tests/__pycache__/*
 
+
+# Terraform saved plan files
+infra/tfplan*
+*.tfplan

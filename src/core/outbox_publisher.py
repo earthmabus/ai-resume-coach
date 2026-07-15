@@ -27,6 +27,7 @@ MAX_ERROR_MESSAGE_LENGTH = 2000
 @dataclass(frozen=True)
 class PublishResult:
     examined: int = 0
+    claimed: int = 0
     published: int = 0
     failed: int = 0
     skipped: int = 0
@@ -399,16 +400,19 @@ class OutboxPublisher:
             limit=self._batch_size,
         )
 
+        claimed = 0
         published = 0
         failed = 0
         skipped = 0
 
         for event in events:
             claim = self._repository.claim(event)
-
+    
             if not claim.claimed:
                 skipped += 1
                 continue
+
+            claimed += 1
 
             assert claim.item is not None
             assert claim.attempt_id is not None
@@ -417,14 +421,18 @@ class OutboxPublisher:
                 message_id = self._event_publisher.publish(
                     claim.item
                 )
+
                 self._repository.mark_delivered(
                     item=claim.item,
                     attempt_id=claim.attempt_id,
                     message_id=message_id,
                 )
+
                 published += 1
+
             except Exception as error:
                 failed += 1
+
                 self._repository.mark_failed_retryable(
                     item=claim.item,
                     attempt_id=claim.attempt_id,
@@ -433,6 +441,7 @@ class OutboxPublisher:
 
         return PublishResult(
             examined=len(events),
+            claimed=claimed,
             published=published,
             failed=failed,
             skipped=skipped,

@@ -138,9 +138,12 @@ def reset_publisher() -> None:
     _publisher = None
 
 
-def result_payload(result: PublishResult) -> dict[str, int]:
+def result_payload(
+    result: PublishResult,
+) -> dict[str, int]:
     return {
         "examined": result.examined,
+        "claimed": result.claimed,
         "published": result.published,
         "failed": result.failed,
         "skipped": result.skipped,

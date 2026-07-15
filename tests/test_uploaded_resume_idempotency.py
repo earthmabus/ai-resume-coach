@@ -92,7 +92,6 @@ def dependencies(monkeypatch, target_career):
         }
     }
 
-    sqs = MagicMock()
     reserve_request = MagicMock(
         return_value=IdempotencyReservation(
             disposition=DISPOSITION_RESERVED,
@@ -107,7 +106,6 @@ def dependencies(monkeypatch, target_career):
     get_target_career = MagicMock(return_value=target_career)
 
     monkeypatch.setattr(resume_analysis, "table", table)
-    monkeypatch.setattr(resume_analysis, "sqs", sqs)
     monkeypatch.setattr(
         resume_analysis,
         "reserve_request",
@@ -146,7 +144,6 @@ def dependencies(monkeypatch, target_career):
 
     return SimpleNamespace(
         table=table,
-        sqs=sqs,
         reserve_request=reserve_request,
         extract_text=extract_text,
         put_item_and_outbox_if_absent=(
@@ -192,7 +189,7 @@ def test_invalid_document_bucket_returns_400(dependencies):
     dependencies.table.get_item.assert_not_called()
 
 
-def test_first_submission_creates_one_item_and_sends_one_message(
+def test_first_submission_creates_item_and_outbox_without_direct_dispatch(
     dependencies,
 ):
     response = resume_analysis.analyze_uploaded_resume(make_event())
@@ -200,8 +197,8 @@ def test_first_submission_creates_one_item_and_sends_one_message(
 
     assert response["statusCode"] == 202
     assert body["analysisId"] == ANALYSIS_ID
-    assert body["status"] == "processing"
-    assert body["version"] == 2
+    assert body["status"] == "QUEUED_PENDING_DISPATCH"
+    assert body["version"] == 1
     assert "resumeText" not in body
 
     dependencies.table.get_item.assert_called_once_with(
@@ -216,13 +213,11 @@ def test_first_submission_creates_one_item_and_sends_one_message(
         "users/user-123/resumes/resume.pdf",
     )
     dependencies.put_item_and_outbox_if_absent.assert_called_once()
-    dependencies.sqs.send_message.assert_called_once()
-    dependencies.table.update_item.assert_called_once()
+    dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
     transaction = (
-        dependencies.put_item_and_outbox_if_absent
-        .call_args.kwargs
+        dependencies.put_item_and_outbox_if_absent.call_args.kwargs
     )
     created_item = transaction["item"]
     outbox_item = transaction["outbox_item"]
@@ -231,32 +226,16 @@ def test_first_submission_creates_one_item_and_sends_one_message(
     assert created_item["status"] == "QUEUED_PENDING_DISPATCH"
     assert created_item["version"] == 1
     assert created_item["createdByRequestHash"] == REQUEST_HASH
-    assert created_item["createdByRequestId"] == REQUEST_ID
-    assert created_item["createdRegion"] == "us-east-1"
 
     assert outbox_item["recordType"] == "outboxEvent"
-    assert outbox_item["eventType"] == (
-        "RESUME_ANALYSIS_REQUESTED"
-    )
+    assert outbox_item["eventType"] == "RESUME_ANALYSIS_REQUESTED"
     assert outbox_item["aggregateId"] == ANALYSIS_ID
     assert outbox_item["status"] == "PENDING"
-    assert outbox_item["gsi1pk"] == "OUTBOX_STATUS#PENDING"
-
-    queue_message = json.loads(
-        dependencies.sqs.send_message.call_args.kwargs[
-            "MessageBody"
-        ]
-    )
-
-    assert queue_message["schemaVersion"] == 1
-    assert queue_message["jobId"] == ANALYSIS_ID
-    assert queue_message["analysisId"] == ANALYSIS_ID
-    assert queue_message["userId"] == USER_ID
-    assert queue_message["requestId"] == REQUEST_ID
-    assert queue_message["requestHash"] == REQUEST_HASH
-    assert queue_message["sourceRegion"] == "us-east-1"
 
     completion = dependencies.complete_request.call_args.kwargs
+    assert completion["response_body"]["status"] == (
+        "QUEUED_PENDING_DISPATCH"
+    )
     assert "resumeText" not in completion["response_body"]
 
 
@@ -287,7 +266,6 @@ def test_completed_replay_does_not_repeat_work(dependencies):
     dependencies.table.get_item.assert_not_called()
     dependencies.extract_text.assert_not_called()
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
 
@@ -314,16 +292,20 @@ def test_in_progress_replay_returns_same_analysis_without_work(
     dependencies.table.get_item.assert_not_called()
     dependencies.extract_text.assert_not_called()
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
 
-def test_sqs_failure_marks_request_retryable(dependencies):
-    dependencies.sqs.send_message.side_effect = RuntimeError(
-        "SQS unavailable"
+def test_outbox_transaction_failure_marks_request_retryable(
+    dependencies,
+):
+    dependencies.put_item_and_outbox_if_absent.side_effect = (
+        RuntimeError("DynamoDB transaction unavailable")
     )
 
-    with pytest.raises(RuntimeError, match="SQS unavailable"):
+    with pytest.raises(
+        RuntimeError,
+        match="DynamoDB transaction unavailable",
+    ):
         resume_analysis.analyze_uploaded_resume(make_event())
 
     dependencies.mark_request_retryable.assert_called_once()
@@ -350,7 +332,6 @@ def test_empty_pdf_text_completes_deterministic_400_response(
     assert completion["resource_id"] == ANALYSIS_ID
 
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
 
 
@@ -371,18 +352,32 @@ def test_existing_pending_item_from_same_request_can_continue(
         "status": "QUEUED_PENDING_DISPATCH",
         "version": 1,
     }
+
     dependencies.table.get_item.return_value = {
         "Item": existing_item,
     }
 
-    response = resume_analysis.analyze_uploaded_resume(make_event())
+    response = resume_analysis.analyze_uploaded_resume(
+        make_event()
+    )
+    body = response_body(response)
 
     assert response["statusCode"] == 202
+    assert body == {
+        "analysisId": ANALYSIS_ID,
+        "status": "QUEUED_PENDING_DISPATCH",
+        "version": 1,
+        "resumeName": "Engineering Resume",
+        "createdAt": "2026-07-15T00:00:00+00:00",
+        "sourceType": "pdf",
+    }
 
     dependencies.extract_text.assert_not_called()
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_called_once()
-    dependencies.table.update_item.assert_called_once()
+
+    # The outbox publisher is now the only dispatch path.
+    dependencies.table.update_item.assert_not_called()
+
     dependencies.complete_request.assert_called_once()
 
 
@@ -415,7 +410,6 @@ def test_existing_processing_item_does_not_repeat_dispatch(
 
     dependencies.extract_text.assert_not_called()
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
@@ -449,7 +443,6 @@ def test_existing_completed_item_does_not_repeat_dispatch(
 
     dependencies.extract_text.assert_not_called()
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
@@ -476,6 +469,5 @@ def test_existing_item_from_different_request_is_rejected(
 
     dependencies.extract_text.assert_not_called()
     dependencies.put_item_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
     dependencies.mark_request_retryable.assert_called_once()

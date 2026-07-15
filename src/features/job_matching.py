@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 import uuid
@@ -35,8 +34,6 @@ from core.storage import (
     get_entity_by_id,
     put_items_and_outbox_if_absent,
     put_item_if_absent,
-    resume_analysis_queue_url,
-    sqs,
     table,
 )
 
@@ -532,75 +529,13 @@ def match_job_description(event):
 
         current_status = match_item.get("status")
 
-        if current_status == "QUEUED_PENDING_DISPATCH":
-            sqs.send_message(
-                QueueUrl=resume_analysis_queue_url,
-                MessageBody=json.dumps(
-                    {
-                        # Existing worker contract
-                        "userId": user_id,
-                        "jobType": "jobMatch",
-                        "matchId": match_id,
-                        "analysisId": analysis_id,
-                        "analysisProvider": requested_provider,
-
-                        # New stable metadata
-                        "schemaVersion": 1,
-                        "operation": (
-                            MATCH_JOB_DESCRIPTION_OPERATION
-                        ),
-                        "jobId": match_id,
-                        "requestId": context.request_id,
-                        "requestHash": request_hash,
-                        "sourceRegion": context.region,
-                        "submittedAt": created_at,
-                    }
-                ),
-            )
-
-            update_response = table.update_item(
-                Key=match_key,
-                UpdateExpression=(
-                    "SET #status = :processing, "
-                    "updatedAt = :updatedAt, "
-                    "updatedByRequestId = :requestId, "
-                    "lastUpdatedRegion = :region, "
-                    "#version = #version + :one"
-                ),
-                ConditionExpression=(
-                    "#status = :pendingDispatch "
-                    "AND createdByRequestHash = :requestHash"
-                ),
-                ExpressionAttributeNames={
-                    "#status": "status",
-                    "#version": "version",
-                },
-                ExpressionAttributeValues={
-                    ":pendingDispatch": (
-                        "QUEUED_PENDING_DISPATCH"
-                    ),
-                    ":processing": "processing",
-                    ":requestHash": request_hash,
-                    ":updatedAt": utc_now(),
-                    ":requestId": context.request_id,
-                    ":region": context.region,
-                    ":one": 1,
-                },
-                ReturnValues="ALL_NEW",
-            )
-
-            match_item = update_response.get(
-                "Attributes",
-                match_item,
-            )
-            current_status = match_item.get(
-                "status",
-                "processing",
-            )
-
-        elif current_status not in {
+        if current_status not in {
+            "QUEUED_PENDING_DISPATCH",
             "processing",
+            "WORKER_PROCESSING",
+            "RESULT_READY_PENDING_CHILD_DISPATCH",
             "completed",
+            "FAILED_RETRYABLE",
         }:
             raise RuntimeError(
                 "Job match is in an unsupported dispatch state"

@@ -13,8 +13,10 @@ def test_handler_publishes_pending_events(
     monkeypatch,
 ):
     publisher = MagicMock()
+
     publisher.publish_pending.return_value = PublishResult(
         examined=5,
+        claimed=4,
         published=3,
         failed=1,
         skipped=1,
@@ -37,6 +39,7 @@ def test_handler_publishes_pending_events(
 
     assert response == {
         "examined": 5,
+        "claimed": 4,
         "published": 3,
         "failed": 1,
         "skipped": 1,
@@ -64,6 +67,7 @@ def test_handler_returns_zero_counts_for_empty_batch(
 
     assert response == {
         "examined": 0,
+        "claimed": 0,
         "published": 0,
         "failed": 0,
         "skipped": 0,

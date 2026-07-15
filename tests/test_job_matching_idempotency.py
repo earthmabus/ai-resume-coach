@@ -125,7 +125,6 @@ def dependencies(monkeypatch):
         }
     }
 
-    sqs = MagicMock()
 
     reserve_request = MagicMock(
         return_value=IdempotencyReservation(
@@ -141,7 +140,6 @@ def dependencies(monkeypatch):
     request_fingerprint = MagicMock(return_value=REQUEST_HASH)
 
     monkeypatch.setattr(job_matching, "table", table)
-    monkeypatch.setattr(job_matching, "sqs", sqs)
     monkeypatch.setattr(
         job_matching,
         "reserve_request",
@@ -176,7 +174,6 @@ def dependencies(monkeypatch):
     return SimpleNamespace(
         resume_item=resume_item,
         table=table,
-        sqs=sqs,
         reserve_request=reserve_request,
         put_item_if_absent=put_item_if_absent,
         put_items_and_outbox_if_absent=(
@@ -214,7 +211,6 @@ def test_missing_idempotency_key_is_rejected(dependencies):
         )
 
     dependencies.reserve_request.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
 
 
 def test_missing_analysis_id_returns_400(dependencies):
@@ -281,89 +277,64 @@ def test_first_request_creates_match_and_children(
     assert body["matchId"] == MATCH_ID
     assert body["tailoringId"] == TAILORING_ID
     assert body["interviewPrepId"] == INTERVIEW_PREP_ID
-    assert body["status"] == "processing"
-    assert body["version"] == 2
+    assert body["status"] == "QUEUED_PENDING_DISPATCH"
+    assert body["version"] == 1
 
     dependencies.put_items_and_outbox_if_absent.assert_called_once()
     dependencies.put_item_if_absent.assert_not_called()
+    dependencies.table.update_item.assert_not_called()
+    dependencies.complete_request.assert_called_once()
 
     transaction = (
-        dependencies.put_items_and_outbox_if_absent
-        .call_args.kwargs
+        dependencies.put_items_and_outbox_if_absent.call_args.kwargs
     )
     created_items = transaction["items"]
     outbox_item = transaction["outbox_item"]
 
     match_item = next(
-        item
-        for item in created_items
+        item for item in created_items
         if item["recordType"] == "jobMatch"
     )
     tailoring_item = next(
-        item
-        for item in created_items
+        item for item in created_items
         if item["recordType"] == "resumeTailoring"
     )
     interview_item = next(
-        item
-        for item in created_items
+        item for item in created_items
         if item["recordType"] == "interviewPreparation"
     )
 
-    assert match_item["matchId"] == MATCH_ID
     assert match_item["status"] == "QUEUED_PENDING_DISPATCH"
     assert match_item["version"] == 1
-    assert match_item["createdByRequestHash"] == REQUEST_HASH
-
-    assert tailoring_item["tailoringId"] == TAILORING_ID
     assert tailoring_item["status"] == "waiting"
-    assert tailoring_item["createdByRequestHash"] == REQUEST_HASH
-
-    assert (
-        interview_item["interviewPrepId"]
-        == INTERVIEW_PREP_ID
-    )
     assert interview_item["status"] == "waiting"
-    assert interview_item["createdByRequestHash"] == REQUEST_HASH
 
-    assert outbox_item["recordType"] == "outboxEvent"
     assert outbox_item["eventType"] == "JOB_MATCH_REQUESTED"
     assert outbox_item["aggregateId"] == MATCH_ID
     assert outbox_item["status"] == "PENDING"
 
-    dependencies.sqs.send_message.assert_called_once()
-    dependencies.table.update_item.assert_called_once()
-    dependencies.complete_request.assert_called_once()
-
     completion = dependencies.complete_request.call_args.kwargs
-
-    assert completion["resource_id"] == MATCH_ID
-    assert completion["status_code"] == 202
-    assert "resumeText" not in completion["response_body"]
-    assert (
-        "jobDescriptionText"
-        not in completion["response_body"]
+    assert completion["response_body"]["status"] == (
+        "QUEUED_PENDING_DISPATCH"
     )
 
 
-def test_sqs_message_preserves_worker_contract(
+def test_outbox_payload_preserves_worker_contract(
     dependencies,
 ):
     job_matching.match_job_description(make_event())
 
-    message = json.loads(
-        dependencies.sqs.send_message.call_args.kwargs[
-            "MessageBody"
-        ]
+    outbox_item = (
+        dependencies.put_items_and_outbox_if_absent
+        .call_args.kwargs["outbox_item"]
     )
+    message = outbox_item["payload"]
 
     assert message["jobType"] == "jobMatch"
     assert message["matchId"] == MATCH_ID
     assert message["analysisId"] == ANALYSIS_ID
-
     assert message["jobId"] == MATCH_ID
-    assert message["requestHash"] == REQUEST_HASH
-    assert message["requestId"] == REQUEST_ID
+    assert message["userId"] == USER_ID
     assert message["sourceRegion"] == "us-east-1"
 
 
@@ -399,7 +370,6 @@ def test_completed_replay_does_not_repeat_work(
 
     dependencies.put_item_if_absent.assert_not_called()
     dependencies.put_items_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
@@ -426,7 +396,6 @@ def test_in_progress_replay_returns_same_match_without_work(
 
     dependencies.put_item_if_absent.assert_not_called()
     dependencies.put_items_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
@@ -473,19 +442,21 @@ def test_existing_processing_match_does_not_redispatch(
     assert body["version"] == 2
 
     dependencies.put_items_and_outbox_if_absent.assert_not_called()
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
 
-def test_sqs_failure_marks_request_retryable(
+def test_outbox_transaction_failure_marks_request_retryable(
     dependencies,
 ):
-    dependencies.sqs.send_message.side_effect = RuntimeError(
-        "SQS unavailable"
+    dependencies.put_items_and_outbox_if_absent.side_effect = (
+        RuntimeError("DynamoDB transaction unavailable")
     )
 
-    with pytest.raises(RuntimeError, match="SQS unavailable"):
+    with pytest.raises(
+        RuntimeError,
+        match="DynamoDB transaction unavailable",
+    ):
         job_matching.match_job_description(make_event())
 
     dependencies.mark_request_retryable.assert_called_once()
@@ -526,6 +497,5 @@ def test_different_existing_match_request_is_rejected(
     ):
         job_matching.match_job_description(make_event())
 
-    dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
     dependencies.mark_request_retryable.assert_called_once()

@@ -1,6 +1,5 @@
 from __future__ import annotations
 
-import json
 import logging
 import os
 from datetime import datetime, timezone
@@ -27,8 +26,6 @@ from core.request_context import build_request_context
 from core.responses import build_response, parse_body
 from core.storage import (
     get_entity_by_id,
-    resume_analysis_queue_url,
-    sqs,
     table,
     update_item_and_put_outbox,
 )
@@ -286,79 +283,12 @@ def tailor_resume(event):
                 ) or tailoring_item
                 current_status = tailoring_item.get("status")
 
-        if current_status == "QUEUED_PENDING_DISPATCH":
-            sqs.send_message(
-                QueueUrl=resume_analysis_queue_url,
-                MessageBody=json.dumps(
-                    {
-                        # Existing worker contract
-                        "jobType": "resumeTailoring",
-                        "tailoringId": tailoring_id,
-
-                        # New stable metadata
-                        "schemaVersion": 1,
-                        "operation": TAILOR_RESUME_OPERATION,
-                        "jobId": tailoring_id,
-                        "matchId": match_id,
-                        "userId": user_id,
-                        "analysisProvider": provider,
-                        "requestId": context.request_id,
-                        "requestHash": request_hash,
-                        "sourceRegion": context.region,
-                        "submittedAt": utc_now(),
-                    }
-                ),
-            )
-
-            update_response = table.update_item(
-                Key={
-                    "pk": tailoring_pk(match_id),
-                    "sk": tailoring_sk(tailoring_id),
-                },
-                UpdateExpression=(
-                    "SET #status = :processing, "
-                    "updatedAt = :updatedAt, "
-                    "updatedByRequestId = :requestId, "
-                    "lastUpdatedRegion = :region, "
-                    "#version = if_not_exists(#version, :zero) + :one"
-                ),
-                ConditionExpression=(
-                    "#status = :pendingDispatch "
-                    "AND userId = :userId "
-                    "AND matchId = :matchId"
-                ),
-                ExpressionAttributeNames={
-                    "#status": "status",
-                    "#version": "version",
-                },
-                ExpressionAttributeValues={
-                    ":pendingDispatch": (
-                        "QUEUED_PENDING_DISPATCH"
-                    ),
-                    ":processing": "processing",
-                    ":updatedAt": utc_now(),
-                    ":requestId": context.request_id,
-                    ":region": context.region,
-                    ":userId": user_id,
-                    ":matchId": match_id,
-                    ":zero": 0,
-                    ":one": 1,
-                },
-                ReturnValues="ALL_NEW",
-            )
-
-            tailoring_item = update_response.get(
-                "Attributes",
-                tailoring_item,
-            )
-            current_status = tailoring_item.get(
-                "status",
-                "processing",
-            )
-
-        elif current_status not in {
+        if current_status not in {
+            "QUEUED_PENDING_DISPATCH",
             "processing",
+            "WORKER_PROCESSING",
             "completed",
+            "FAILED_RETRYABLE",
         }:
             raise RuntimeError(
                 "Tailoring record is in an unsupported state"
