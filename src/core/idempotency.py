@@ -86,6 +86,73 @@ def idempotency_keys(
     )
 
 
+def _read_existing(
+    *,
+    pk: str,
+    sk: str,
+    request_hash: str,
+) -> dict[str, Any]:
+    existing = get_item_strong(pk, sk)
+
+    if existing is None:
+        raise RuntimeError(
+            "Idempotency record exists but could not be read"
+        )
+
+    if existing.get("requestHash") != request_hash:
+        raise IdempotencyConflictError()
+
+    return existing
+
+
+def _try_reacquire_retryable(
+    *,
+    pk: str,
+    sk: str,
+    request_hash: str,
+    request_id: str,
+    region: str,
+) -> bool:
+    try:
+        table.update_item(
+            Key={
+                "pk": pk,
+                "sk": sk,
+            },
+            UpdateExpression=(
+                "SET #status = :inProgress, "
+                "updatedAt = :updatedAt, "
+                "updatedByRequestId = :requestId, "
+                "lastUpdatedRegion = :region, "
+                "#version = #version + :one"
+            ),
+            ConditionExpression=(
+                "#status = :failedRetryable "
+                "AND requestHash = :requestHash"
+            ),
+            ExpressionAttributeNames={
+                "#status": "status",
+                "#version": "version",
+            },
+            ExpressionAttributeValues={
+                ":inProgress": STATUS_IN_PROGRESS,
+                ":failedRetryable": STATUS_FAILED_RETRYABLE,
+                ":requestHash": request_hash,
+                ":updatedAt": utc_now(),
+                ":requestId": request_id,
+                ":region": region,
+                ":one": 1,
+            },
+        )
+
+        return True
+    except ClientError as error:
+        if is_conditional_failure(error):
+            return False
+
+        raise
+
+
 def reserve_request(
     *,
     user_id: str,
@@ -105,7 +172,6 @@ def reserve_request(
 
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
-    retention_until = (now + timedelta(days=retention_days)).isoformat()
 
     item = {
         "pk": pk,
@@ -123,7 +189,9 @@ def reserve_request(
         "lastUpdatedRegion": region,
         "createdAt": now_iso,
         "updatedAt": now_iso,
-        "retentionUntil": retention_until,
+        "retentionUntil": (
+            now + timedelta(days=retention_days)
+        ).isoformat(),
         "version": 1,
     }
 
@@ -133,21 +201,13 @@ def reserve_request(
             resource_id=resource_id,
         )
 
-    existing = get_item_strong(pk, sk)
+    existing = _read_existing(
+        pk=pk,
+        sk=sk,
+        request_hash=request_hash,
+    )
 
-    if existing is None:
-        # This should be rare, but protects against an unexpected visibility
-        # or consistency issue after the failed conditional create.
-        raise RuntimeError(
-            "Idempotency record exists but could not be read"
-        )
-
-    if existing.get("requestHash") != request_hash:
-        raise IdempotencyConflictError(
-            "The Idempotency-Key was already used for a different request"
-        )
-
-    existing_resource_id = existing["resourceId"]
+    existing_resource_id = str(existing["resourceId"])
     existing_status = existing.get("status")
 
     if existing_status == STATUS_COMPLETED:
@@ -157,6 +217,35 @@ def reserve_request(
             status_code=int(existing["responseStatusCode"]),
             response_body=existing.get("responseBody") or {},
         )
+
+    if existing_status == STATUS_FAILED_RETRYABLE:
+        acquired = _try_reacquire_retryable(
+            pk=pk,
+            sk=sk,
+            request_hash=request_hash,
+            request_id=request_id,
+            region=region,
+        )
+
+        if acquired:
+            return IdempotencyReservation(
+                disposition=DISPOSITION_RESERVED,
+                resource_id=existing_resource_id,
+            )
+
+        existing = _read_existing(
+            pk=pk,
+            sk=sk,
+            request_hash=request_hash,
+        )
+
+        if existing.get("status") == STATUS_COMPLETED:
+            return IdempotencyReservation(
+                disposition=DISPOSITION_REPLAY_COMPLETED,
+                resource_id=existing_resource_id,
+                status_code=int(existing["responseStatusCode"]),
+                response_body=existing.get("responseBody") or {},
+            )
 
     return IdempotencyReservation(
         disposition=DISPOSITION_REPLAY_IN_PROGRESS,
@@ -183,6 +272,8 @@ def complete_request(
         operation=operation,
         idempotency_key=idempotency_key,
     )
+
+    now = utc_now()
 
     try:
         table.update_item(
@@ -216,19 +307,17 @@ def complete_request(
                 ":resourceId": resource_id,
                 ":responseStatusCode": status_code,
                 ":responseBody": response_body,
-                ":completedAt": utc_now(),
-                ":updatedAt": utc_now(),
+                ":completedAt": now,
+                ":updatedAt": now,
                 ":requestId": request_id,
                 ":region": region,
                 ":one": 1,
             },
         )
-    except ClientError as exc:
-        if is_conditional_failure(exc):
+    except ClientError as error:
+        if is_conditional_failure(error):
             existing = get_item_strong(pk, sk)
 
-            # If another retry already completed the same request with the
-            # same resource, completion is effectively idempotent.
             if (
                 existing
                 and existing.get("status") == STATUS_COMPLETED
@@ -256,35 +345,43 @@ def mark_request_retryable(
         idempotency_key=idempotency_key,
     )
 
-    table.update_item(
-        Key={
-            "pk": pk,
-            "sk": sk,
-        },
-        UpdateExpression=(
-            "SET #status = :failedRetryable, "
-            "updatedAt = :updatedAt, "
-            "updatedByRequestId = :requestId, "
-            "lastUpdatedRegion = :region, "
-            "#version = #version + :one"
-        ),
-        ConditionExpression=(
-            "#status = :inProgress "
-            "AND requestHash = :requestHash "
-            "AND resourceId = :resourceId"
-        ),
-        ExpressionAttributeNames={
-            "#status": "status",
-            "#version": "version",
-        },
-        ExpressionAttributeValues={
-            ":failedRetryable": STATUS_FAILED_RETRYABLE,
-            ":inProgress": STATUS_IN_PROGRESS,
-            ":requestHash": request_hash,
-            ":resourceId": resource_id,
-            ":updatedAt": utc_now(),
-            ":requestId": request_id,
-            ":region": region,
-            ":one": 1,
-        },
-    )
+    now = utc_now()
+
+    try:
+        table.update_item(
+            Key={
+                "pk": pk,
+                "sk": sk,
+            },
+            UpdateExpression=(
+                "SET #status = :failedRetryable, "
+                "updatedAt = :updatedAt, "
+                "updatedByRequestId = :requestId, "
+                "lastUpdatedRegion = :region, "
+                "#version = #version + :one"
+            ),
+            ConditionExpression=(
+                "#status = :inProgress "
+                "AND requestHash = :requestHash "
+                "AND resourceId = :resourceId"
+            ),
+            ExpressionAttributeNames={
+                "#status": "status",
+                "#version": "version",
+            },
+            ExpressionAttributeValues={
+                ":failedRetryable": STATUS_FAILED_RETRYABLE,
+                ":inProgress": STATUS_IN_PROGRESS,
+                ":requestHash": request_hash,
+                ":resourceId": resource_id,
+                ":updatedAt": now,
+                ":requestId": request_id,
+                ":region": region,
+                ":one": 1,
+            },
+        )
+    except ClientError as error:
+        if is_conditional_failure(error):
+            return
+
+        raise

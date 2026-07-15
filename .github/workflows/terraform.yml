@@ -66,6 +66,7 @@ jobs:
         run: |
           python -m pip install --upgrade pip
           python -m pip install pytest boto3
+          python -m pip install -r lambda_layer/requirements.txt
 
       - name: Compile Python source
         working-directory: ${{ github.workspace }}

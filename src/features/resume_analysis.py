@@ -1,4 +1,5 @@
 import json
+import logging
 import os
 import uuid
 import time 
@@ -21,8 +22,23 @@ from core.storage import (
     s3,
     sqs,
     table,
+    put_item_if_absent,
 )
+from core.idempotency import (
+    DISPOSITION_REPLAY_COMPLETED,
+    DISPOSITION_REPLAY_IN_PROGRESS,
+    complete_request,
+    mark_request_retryable,
+    request_fingerprint,
+    reserve_request,
+)
+from core.request_context import build_request_context
 from features.target_career import get_target_career_for_user
+
+
+logger = logging.getLogger(__name__)
+
+ANALYZE_UPLOADED_RESUME_OPERATION = "ANALYZE_UPLOADED_RESUME"
 
 
 def analyze_and_save_resume(
@@ -189,45 +205,120 @@ def extract_text_from_pdf(bucket, key):
 def analyze_uploaded_resume(event):
     body = parse_body(event)
 
-    user_id = current_user_id(event)
-
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
+
+    context = build_request_context(
+        event,
+        require_idempotency=True,
+    )
+    user_id = context.user_id
 
     target_career = get_target_career_for_user(user_id)
 
     if not target_career:
-        return build_response(400, {
-            "error": "Target Career is required before analyzing resumes"
-        })
-
-    file_name = body.get("fileName", "").strip()
-    resume_name = body.get("resumeName", "").strip() or file_name or "Untitled Resume"
-    document_key = body.get("documentKey", "").strip()
-    bucket_name = body.get("documentBucket", document_bucket).strip()
-
-    if not document_key:
-        return build_response(400, {"error": "documentKey is required"})
-
-    try:
-        extracted_text = extract_text_from_pdf(bucket_name, document_key)
-    except Exception as error:
         return build_response(
-            500,
+            400,
             {
-                "error": "Failed to extract text from PDF",
-                "details": str(error),
-                "documentBucket": bucket_name,
-                "documentKey": document_key,
-                "fileName": file_name,
+                "error": (
+                    "Target Career is required before analyzing resumes"
+                )
             },
         )
 
-    try:
-        analysis_id = str(uuid.uuid4())
-        created_at = datetime.now(timezone.utc).isoformat()
+    file_name = body.get("fileName", "").strip()
+    resume_name = (
+        body.get("resumeName", "").strip()
+        or file_name
+        or "Untitled Resume"
+    )
+    document_key = body.get("documentKey", "").strip()
+    bucket_name = (
+        body.get("documentBucket", document_bucket).strip()
+    )
 
-        requested_provider = body.get("analysisProvider", os.getenv("ANALYSIS_PROVIDER", "rule-based"))
+    if not document_key:
+        return build_response(
+            400,
+            {"error": "documentKey is required"},
+        )
+
+    requested_provider = body.get(
+        "analysisProvider",
+        os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+    )
+
+    fingerprint_body = {
+        "documentBucket": bucket_name,
+        "documentKey": document_key,
+        "fileName": file_name,
+        "resumeName": resume_name,
+        "analysisProvider": requested_provider,
+    }
+
+    request_hash = request_fingerprint(
+        user_id=user_id,
+        operation=ANALYZE_UPLOADED_RESUME_OPERATION,
+        body=fingerprint_body,
+    )
+
+    proposed_analysis_id = str(uuid.uuid4())
+
+    reservation = reserve_request(
+        user_id=user_id,
+        operation=ANALYZE_UPLOADED_RESUME_OPERATION,
+        idempotency_key=context.idempotency_key,
+        request_hash=request_hash,
+        resource_id=proposed_analysis_id,
+        request_id=context.request_id,
+        region=context.region,
+    )
+
+    if reservation.disposition == DISPOSITION_REPLAY_COMPLETED:
+        return build_response(
+            reservation.status_code or 202,
+            reservation.response_body or {},
+        )
+
+    if reservation.disposition == DISPOSITION_REPLAY_IN_PROGRESS:
+        return build_response(
+            reservation.status_code or 202,
+            reservation.response_body
+            or {
+                "analysisId": reservation.resource_id,
+                "status": "processing",
+            },
+        )
+
+    analysis_id = reservation.resource_id
+
+    try:
+        extracted_text = extract_text_from_pdf(
+            bucket_name,
+            document_key,
+        )
+
+        if not extracted_text:
+            response_body = {
+                "error": "No resume text could be extracted from PDF",
+                "analysisId": analysis_id,
+            }
+
+            complete_request(
+                user_id=user_id,
+                operation=ANALYZE_UPLOADED_RESUME_OPERATION,
+                idempotency_key=context.idempotency_key,
+                request_hash=request_hash,
+                resource_id=analysis_id,
+                request_id=context.request_id,
+                region=context.region,
+                status_code=400,
+                response_body=response_body,
+            )
+
+            return build_response(400, response_body)
+
+        created_at = datetime.now(timezone.utc).isoformat()
 
         item = {
             **base_keys(
@@ -240,9 +331,15 @@ def analyze_uploaded_resume(event):
             "userId": user_id,
             "analysisId": analysis_id,
             "createdAt": created_at,
+            "updatedAt": created_at,
+            "createdByRequestId": context.request_id,
+            "updatedByRequestId": context.request_id,
+            "createdRegion": context.region,
+            "lastUpdatedRegion": context.region,
+            "version": 1,
             "sourceType": "pdf",
-            "status": "processing",
-            "provider": os.getenv("ANALYSIS_PROVIDER", "rule-based"),
+            "status": "QUEUED_PENDING_DISPATCH",
+            "provider": requested_provider,
             "model": os.getenv("OPENAI_MODEL", ""),
             "analysisVersion": "pdf-extraction-v1",
             "analysisDurationMs": 0,
@@ -251,53 +348,151 @@ def analyze_uploaded_resume(event):
             "resumeName": resume_name,
             "resumeText": extracted_text,
             "strengths": [
-                 "PDF uploaded successfully",
-                 "Resume text extracted successfully",
-                 "Resume is queued for AI analysis"
+                "PDF uploaded successfully",
+                "Resume text extracted successfully",
+                "Resume is queued for AI analysis",
             ],
             "recommendations": [
-                 "AI analysis will be completed asynchronously in a future processing phase."
+                "AI analysis is queued for asynchronous processing."
             ],
-            "executiveSummary": "PDF text was extracted and saved. AI analysis is pending.",
+            "executiveSummary": (
+                "PDF text was extracted and saved. "
+                "AI analysis is pending."
+            ),
             "documentBucket": bucket_name,
             "documentKey": document_key,
             "fileName": file_name,
             "requestedProvider": requested_provider,
             "targetCareer": target_career,
-            "targetRoleTitle": target_career.get("roleTitle", ""),
-            "targetIndustry": target_career.get("industry", ""),
+            "targetRoleTitle": target_career.get(
+                "roleTitle",
+                "",
+            ),
+            "targetIndustry": target_career.get(
+                "industry",
+                "",
+            ),
             "dynamicScores": [],
             "roleFitSummary": "",
             "roleSpecificGaps": [],
         }
 
-        table.put_item(Item=item)
+        created = put_item_if_absent(item)
+
+        if not created:
+            existing = table.get_item(
+                Key={
+                    "pk": user_pk(user_id),
+                    "sk": resume_sk(analysis_id),
+                },
+                ConsistentRead=True,
+            ).get("Item")
+
+            if (
+                not existing
+                or existing.get("createdByRequestId")
+                != context.request_id
+            ):
+                raise RuntimeError(
+                    "Analysis identifier already exists"
+                )
+
+            item = existing
 
         sqs.send_message(
             QueueUrl=resume_analysis_queue_url,
             MessageBody=json.dumps(
                 {
-                    "userId": user_id,
+                    "schemaVersion": 1,
+                    "jobType": "resumeAnalysis",
+                    "operation": (
+                        ANALYZE_UPLOADED_RESUME_OPERATION
+                    ),
+                    "jobId": analysis_id,
                     "analysisId": analysis_id,
+                    "userId": user_id,
                     "sourceType": "pdf",
-                    "analysisProvider": requested_provider
+                    "analysisProvider": requested_provider,
+                    "requestId": context.request_id,
+                    "sourceRegion": context.region,
+                    "submittedAt": created_at,
                 }
             ),
         )
 
-        return build_response(202, item)
-    except Exception as error:
-        return build_response(
-            500,
-            {
-                "error": "PDF analysis save failed",
-                "details": str(error),
-                "documentBucket": bucket_name,
-                "documentKey": document_key,
-                "fileName": file_name,
-                "extractedTextLength": len(extracted_text),
+        table.update_item(
+            Key={
+                "pk": user_pk(user_id),
+                "sk": resume_sk(analysis_id),
+            },
+            UpdateExpression=(
+                "SET #status = :processing, "
+                "updatedAt = :updatedAt, "
+                "updatedByRequestId = :requestId, "
+                "lastUpdatedRegion = :region, "
+                "#version = #version + :one"
+            ),
+            ConditionExpression=(
+                "#status = :pendingDispatch "
+                "AND createdByRequestId = :requestId"
+            ),
+            ExpressionAttributeNames={
+                "#status": "status",
+                "#version": "version",
+            },
+            ExpressionAttributeValues={
+                ":pendingDispatch": "QUEUED_PENDING_DISPATCH",
+                ":processing": "processing",
+                ":updatedAt": datetime.now(
+                    timezone.utc
+                ).isoformat(),
+                ":requestId": context.request_id,
+                ":region": context.region,
+                ":one": 1,
             },
         )
+
+        response_body = {
+            **item,
+            "status": "processing",
+            "version": 2,
+        }
+
+        complete_request(
+            user_id=user_id,
+            operation=ANALYZE_UPLOADED_RESUME_OPERATION,
+            idempotency_key=context.idempotency_key,
+            request_hash=request_hash,
+            resource_id=analysis_id,
+            request_id=context.request_id,
+            region=context.region,
+            status_code=202,
+            response_body=response_body,
+        )
+
+        return build_response(202, response_body)
+
+    except Exception:
+        logger.exception(
+            "Uploaded resume analysis submission failed",
+            extra={
+                "analysisId": analysis_id,
+                "requestId": context.request_id,
+                "region": context.region,
+            },
+        )
+
+        mark_request_retryable(
+            user_id=user_id,
+            operation=ANALYZE_UPLOADED_RESUME_OPERATION,
+            idempotency_key=context.idempotency_key,
+            request_hash=request_hash,
+            resource_id=analysis_id,
+            request_id=context.request_id,
+            region=context.region,
+        )
+
+        raise
 
 
 def list_analyses(event):

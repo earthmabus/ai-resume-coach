@@ -328,9 +328,15 @@ async function uploadPdfResume() {
 
     result.textContent = "Saving PDF analysis metadata...";
 
+    const idempotencyKey = crypto.randomUUID();
+
     const analysisResponse = await fetch(`${API_BASE_URL}/analyze-uploaded-resume`, {
       method: "POST",
-      headers: await jsonHeaders(),
+      headers: {
+        Authorization: `Bearer ${token}`,
+        "Content-Type": "application/json",
+        "Idempotency-Key": idempotencyKey
+      },
       body: JSON.stringify({
         resumeName: resumeName?.value.trim() || uploadData.fileName || "Untitled Resume",
         documentBucket: uploadData.documentBucket,
