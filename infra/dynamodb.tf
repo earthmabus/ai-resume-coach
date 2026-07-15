@@ -27,9 +27,17 @@ resource "aws_dynamodb_table" "resume_analysis" {
 
   global_secondary_index {
     name            = "gsi1"
-    hash_key        = "gsi1pk"
-    range_key       = "gsi1sk"
     projection_type = "ALL"
+
+    key_schema {
+      attribute_name = "gsi1pk"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "gsi1sk"
+      key_type       = "RANGE"
+    }
   }
 
   tags = {

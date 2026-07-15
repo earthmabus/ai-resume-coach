@@ -135,6 +135,7 @@ def dependencies(monkeypatch):
     )
 
     put_item_if_absent = MagicMock(return_value=True)
+    put_items_and_outbox_if_absent = MagicMock(return_value=True)
     complete_request = MagicMock()
     mark_request_retryable = MagicMock()
     request_fingerprint = MagicMock(return_value=REQUEST_HASH)
@@ -150,6 +151,11 @@ def dependencies(monkeypatch):
         job_matching,
         "put_item_if_absent",
         put_item_if_absent,
+    )
+    monkeypatch.setattr(
+        job_matching,
+        "put_items_and_outbox_if_absent",
+        put_items_and_outbox_if_absent,
     )
     monkeypatch.setattr(
         job_matching,
@@ -173,6 +179,9 @@ def dependencies(monkeypatch):
         sqs=sqs,
         reserve_request=reserve_request,
         put_item_if_absent=put_item_if_absent,
+        put_items_and_outbox_if_absent=(
+            put_items_and_outbox_if_absent
+        ),
         complete_request=complete_request,
         mark_request_retryable=mark_request_retryable,
         request_fingerprint=request_fingerprint,
@@ -275,12 +284,15 @@ def test_first_request_creates_match_and_children(
     assert body["status"] == "processing"
     assert body["version"] == 2
 
-    assert dependencies.put_item_if_absent.call_count == 3
+    dependencies.put_items_and_outbox_if_absent.assert_called_once()
+    dependencies.put_item_if_absent.assert_not_called()
 
-    created_items = [
-        call.args[0]
-        for call in dependencies.put_item_if_absent.call_args_list
-    ]
+    transaction = (
+        dependencies.put_items_and_outbox_if_absent
+        .call_args.kwargs
+    )
+    created_items = transaction["items"]
+    outbox_item = transaction["outbox_item"]
 
     match_item = next(
         item
@@ -313,6 +325,11 @@ def test_first_request_creates_match_and_children(
     )
     assert interview_item["status"] == "waiting"
     assert interview_item["createdByRequestHash"] == REQUEST_HASH
+
+    assert outbox_item["recordType"] == "outboxEvent"
+    assert outbox_item["eventType"] == "JOB_MATCH_REQUESTED"
+    assert outbox_item["aggregateId"] == MATCH_ID
+    assert outbox_item["status"] == "PENDING"
 
     dependencies.sqs.send_message.assert_called_once()
     dependencies.table.update_item.assert_called_once()
@@ -381,6 +398,7 @@ def test_completed_replay_does_not_repeat_work(
     assert response_body(response) == stored_body
 
     dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_items_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
@@ -407,6 +425,7 @@ def test_in_progress_replay_returns_same_match_without_work(
     }
 
     dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_items_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
@@ -453,6 +472,7 @@ def test_existing_processing_match_does_not_redispatch(
     assert body["status"] == "processing"
     assert body["version"] == 2
 
+    dependencies.put_items_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()

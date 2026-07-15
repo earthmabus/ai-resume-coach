@@ -17,6 +17,7 @@ from core.responses import build_response, parse_body
 from core.auth import current_user_id, assert_item_owner
 from core.errors import ResourceConflictError
 from core.keys import base_keys, resume_sk, user_pk
+from core.outbox import build_resume_analysis_outbox_event
 from core.storage import (
     document_bucket,
     get_entity_by_id,
@@ -24,6 +25,7 @@ from core.storage import (
     s3,
     sqs,
     table,
+    put_item_and_outbox_if_absent,
     put_item_if_absent,
 )
 from core.idempotency import (
@@ -833,7 +835,19 @@ def analyze_uploaded_resume(event):
                 "roleSpecificGaps": [],
             }
 
-            created = put_item_if_absent(item)
+            outbox_event = build_resume_analysis_outbox_event(
+                analysis_id=analysis_id,
+                user_id=user_id,
+                analysis_provider=requested_provider,
+                created_region=context.region,
+                request_id=context.request_id,
+                created_at=created_at,
+            )
+
+            created = put_item_and_outbox_if_absent(
+                item=item,
+                outbox_item=outbox_event.item,
+            )
 
             if not created:
                 existing = table.get_item(

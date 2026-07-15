@@ -22,6 +22,7 @@ from core.keys import (
     tailoring_sk,
     user_pk,
 )
+from core.outbox import build_resume_tailoring_outbox_event
 from core.request_context import build_request_context
 from core.responses import build_response, parse_body
 from core.storage import (
@@ -29,6 +30,7 @@ from core.storage import (
     resume_analysis_queue_url,
     sqs,
     table,
+    update_item_and_put_outbox,
 )
 
 
@@ -211,6 +213,80 @@ def tailor_resume(event):
         current_status = tailoring_item.get("status")
 
         if current_status == "waiting":
+            queued_at = utc_now()
+            outbox_event = build_resume_tailoring_outbox_event(
+                tailoring_id=tailoring_id,
+                match_id=match_id,
+                user_id=user_id,
+                analysis_provider=provider,
+                created_region=context.region,
+                request_id=context.request_id,
+                created_at=queued_at,
+            )
+
+            queued = update_item_and_put_outbox(
+                key={
+                    "pk": tailoring_pk(match_id),
+                    "sk": tailoring_sk(tailoring_id),
+                },
+                update_expression=(
+                    "SET #status = :pendingDispatch, "
+                    "provider = :provider, "
+                    "analysisVersion = :analysisVersion, "
+                    "updatedAt = :updatedAt, "
+                    "updatedByRequestId = :requestId, "
+                    "lastUpdatedRegion = :region, "
+                    "#version = if_not_exists(#version, :zero) + :one"
+                ),
+                condition_expression=(
+                    "#status = :waiting "
+                    "AND userId = :userId "
+                    "AND matchId = :matchId"
+                ),
+                expression_attribute_names={
+                    "#status": "status",
+                    "#version": "version",
+                },
+                expression_attribute_values={
+                    ":waiting": "waiting",
+                    ":pendingDispatch": "QUEUED_PENDING_DISPATCH",
+                    ":provider": provider,
+                    ":analysisVersion": (
+                        "resume-tailoring-queued-v2"
+                    ),
+                    ":updatedAt": queued_at,
+                    ":requestId": context.request_id,
+                    ":region": context.region,
+                    ":userId": user_id,
+                    ":matchId": match_id,
+                    ":zero": 0,
+                    ":one": 1,
+                },
+                outbox_item=outbox_event.item,
+            )
+
+            if queued:
+                tailoring_item = {
+                    **tailoring_item,
+                    "status": "QUEUED_PENDING_DISPATCH",
+                    "provider": provider,
+                    "analysisVersion": (
+                        "resume-tailoring-queued-v2"
+                    ),
+                    "updatedAt": queued_at,
+                    "version": int(
+                        tailoring_item.get("version", 0)
+                    ) + 1,
+                }
+                current_status = "QUEUED_PENDING_DISPATCH"
+            else:
+                tailoring_item = get_tailoring_for_match(
+                    match_id=match_id,
+                    tailoring_id=tailoring_id,
+                ) or tailoring_item
+                current_status = tailoring_item.get("status")
+
+        if current_status == "QUEUED_PENDING_DISPATCH":
             sqs.send_message(
                 QueueUrl=resume_analysis_queue_url,
                 MessageBody=json.dumps(
@@ -241,15 +317,13 @@ def tailor_resume(event):
                 },
                 UpdateExpression=(
                     "SET #status = :processing, "
-                    "provider = :provider, "
-                    "analysisVersion = :analysisVersion, "
                     "updatedAt = :updatedAt, "
                     "updatedByRequestId = :requestId, "
                     "lastUpdatedRegion = :region, "
                     "#version = if_not_exists(#version, :zero) + :one"
                 ),
                 ConditionExpression=(
-                    "#status = :waiting "
+                    "#status = :pendingDispatch "
                     "AND userId = :userId "
                     "AND matchId = :matchId"
                 ),
@@ -258,12 +332,10 @@ def tailor_resume(event):
                     "#version": "version",
                 },
                 ExpressionAttributeValues={
-                    ":waiting": "waiting",
-                    ":processing": "processing",
-                    ":provider": provider,
-                    ":analysisVersion": (
-                        "resume-tailoring-queued-v2"
+                    ":pendingDispatch": (
+                        "QUEUED_PENDING_DISPATCH"
                     ),
+                    ":processing": "processing",
                     ":updatedAt": utc_now(),
                     ":requestId": context.request_id,
                     ":region": context.region,

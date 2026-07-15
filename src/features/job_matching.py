@@ -28,10 +28,12 @@ from core.keys import (
     tailoring_sk,
     user_pk,
 )
+from core.outbox import build_job_match_outbox_event
 from core.request_context import build_request_context
 from core.responses import build_response, parse_body
 from core.storage import (
     get_entity_by_id,
+    put_items_and_outbox_if_absent,
     put_item_if_absent,
     resume_analysis_queue_url,
     sqs,
@@ -360,28 +362,9 @@ def match_job_description(event):
                 "resumeText": resume_text,
             }
 
-            if not put_item_if_absent(match_item):
-                existing_match = get_match_for_user(
-                    user_id=user_id,
-                    match_id=match_id,
-                )
-
-                if (
-                    not existing_match
-                    or existing_match.get(
-                        "createdByRequestHash"
-                    )
-                    != request_hash
-                ):
-                    raise RuntimeError(
-                        "Job match identifier already exists"
-                    )
-
-                match_item = existing_match
-                created_at = existing_match.get(
-                    "createdAt",
-                    created_at,
-                )
+            # The match and both child records are created below in the
+            # same transaction as the deterministic outbox event.
+            pass
 
         tailoring_item = {
             **base_keys(
@@ -437,11 +420,6 @@ def match_job_description(event):
             "rewriteWarnings": [],
         }
 
-        ensure_child_item(
-            item=tailoring_item,
-            request_hash=request_hash,
-            child_description="Resume tailoring",
-        )
 
         interview_prep_item = {
             **base_keys(
@@ -487,11 +465,70 @@ def match_job_description(event):
             "interviewReadinessSummary": "",
         }
 
-        ensure_child_item(
-            item=interview_prep_item,
-            request_hash=request_hash,
-            child_description="Interview preparation",
-        )
+        if existing_match:
+            ensure_child_item(
+                item=tailoring_item,
+                request_hash=request_hash,
+                child_description="Resume tailoring",
+            )
+            ensure_child_item(
+                item=interview_prep_item,
+                request_hash=request_hash,
+                child_description="Interview preparation",
+            )
+        else:
+            outbox_event = build_job_match_outbox_event(
+                match_id=match_id,
+                resume_analysis_id=analysis_id,
+                user_id=user_id,
+                analysis_provider=requested_provider,
+                created_region=context.region,
+                request_id=context.request_id,
+                created_at=created_at,
+            )
+
+            created = put_items_and_outbox_if_absent(
+                items=[
+                    match_item,
+                    tailoring_item,
+                    interview_prep_item,
+                ],
+                outbox_item=outbox_event.item,
+            )
+
+            if not created:
+                existing_match = get_match_for_user(
+                    user_id=user_id,
+                    match_id=match_id,
+                )
+
+                if (
+                    not existing_match
+                    or existing_match.get(
+                        "createdByRequestHash"
+                    )
+                    != request_hash
+                ):
+                    raise RuntimeError(
+                        "Job match identifier already exists"
+                    )
+
+                match_item = existing_match
+                created_at = existing_match.get(
+                    "createdAt",
+                    created_at,
+                )
+
+                ensure_child_item(
+                    item=tailoring_item,
+                    request_hash=request_hash,
+                    child_description="Resume tailoring",
+                )
+                ensure_child_item(
+                    item=interview_prep_item,
+                    request_hash=request_hash,
+                    child_description="Interview preparation",
+                )
 
         current_status = match_item.get("status")
 

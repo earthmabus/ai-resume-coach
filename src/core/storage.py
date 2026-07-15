@@ -4,6 +4,7 @@ from typing import Any
 
 import boto3
 from boto3.dynamodb.conditions import Key
+from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from core.config import get_config
@@ -14,6 +15,8 @@ config = get_config()
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(config.table_name)
+dynamodb_client = boto3.client("dynamodb")
+serializer = TypeSerializer()
 
 s3 = boto3.client("s3")
 document_bucket = config.document_bucket
@@ -27,6 +30,40 @@ def is_conditional_failure(error: ClientError) -> bool:
         error.response.get("Error", {}).get("Code")
         == "ConditionalCheckFailedException"
     )
+
+
+def is_transaction_condition_failure(error: ClientError) -> bool:
+    if (
+        error.response.get("Error", {}).get("Code")
+        != "TransactionCanceledException"
+    ):
+        return False
+
+    reasons = error.response.get("CancellationReasons") or []
+
+    if not reasons:
+        return False
+
+    return any(
+        reason.get("Code") == "ConditionalCheckFailed"
+        for reason in reasons
+    )
+
+
+def serialize_item(item: dict[str, Any]) -> dict[str, Any]:
+    return {
+        name: serializer.serialize(value)
+        for name, value in item.items()
+    }
+
+
+def serialize_values(
+    values: dict[str, Any],
+) -> dict[str, Any]:
+    return {
+        name: serializer.serialize(value)
+        for name, value in values.items()
+    }
 
 
 def put_item_if_absent(item: dict[str, Any]) -> bool:
@@ -46,6 +83,109 @@ def put_item_if_absent(item: dict[str, Any]) -> bool:
         return True
     except ClientError as error:
         if is_conditional_failure(error):
+            return False
+
+        raise
+
+
+def put_items_and_outbox_if_absent(
+    *,
+    items: list[dict[str, Any]],
+    outbox_item: dict[str, Any],
+) -> bool:
+    """
+    Atomically create business records and their outbox record.
+
+    Returns False when any target key already exists. Other transaction
+    failures propagate so callers can mark the idempotency request retryable.
+    """
+    if not items:
+        raise ValueError("at least one business item is required")
+
+    transact_items = [
+        {
+            "Put": {
+                "TableName": config.table_name,
+                "Item": serialize_item(item),
+                "ConditionExpression": (
+                    "attribute_not_exists(pk) "
+                    "AND attribute_not_exists(sk)"
+                ),
+            }
+        }
+        for item in [*items, outbox_item]
+    ]
+
+    try:
+        dynamodb_client.transact_write_items(
+            TransactItems=transact_items,
+        )
+        return True
+    except ClientError as error:
+        if is_transaction_condition_failure(error):
+            return False
+
+        raise
+
+
+def put_item_and_outbox_if_absent(
+    *,
+    item: dict[str, Any],
+    outbox_item: dict[str, Any],
+) -> bool:
+    return put_items_and_outbox_if_absent(
+        items=[item],
+        outbox_item=outbox_item,
+    )
+
+
+def update_item_and_put_outbox(
+    *,
+    key: dict[str, Any],
+    update_expression: str,
+    condition_expression: str,
+    expression_attribute_names: dict[str, str],
+    expression_attribute_values: dict[str, Any],
+    outbox_item: dict[str, Any],
+) -> bool:
+    """
+    Atomically update an existing business record and create an outbox event.
+
+    Returns False when the business condition fails or the deterministic
+    outbox event already exists. Other transaction failures propagate.
+    """
+    try:
+        dynamodb_client.transact_write_items(
+            TransactItems=[
+                {
+                    "Update": {
+                        "TableName": config.table_name,
+                        "Key": serialize_item(key),
+                        "UpdateExpression": update_expression,
+                        "ConditionExpression": condition_expression,
+                        "ExpressionAttributeNames": (
+                            expression_attribute_names
+                        ),
+                        "ExpressionAttributeValues": serialize_values(
+                            expression_attribute_values
+                        ),
+                    }
+                },
+                {
+                    "Put": {
+                        "TableName": config.table_name,
+                        "Item": serialize_item(outbox_item),
+                        "ConditionExpression": (
+                            "attribute_not_exists(pk) "
+                            "AND attribute_not_exists(sk)"
+                        ),
+                    }
+                },
+            ],
+        )
+        return True
+    except ClientError as error:
+        if is_transaction_condition_failure(error):
             return False
 
         raise

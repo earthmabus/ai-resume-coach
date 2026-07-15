@@ -111,7 +111,7 @@ def dependencies(monkeypatch):
         "Attributes": {
             **tailoring_item,
             "status": "processing",
-            "version": 2,
+            "version": 3,
         }
     }
 
@@ -127,6 +127,7 @@ def dependencies(monkeypatch):
     complete_request = MagicMock()
     mark_request_retryable = MagicMock()
     request_fingerprint = MagicMock(return_value=REQUEST_HASH)
+    update_item_and_put_outbox = MagicMock(return_value=True)
 
     monkeypatch.setattr(resume_tailoring, "table", table)
     monkeypatch.setattr(resume_tailoring, "sqs", sqs)
@@ -150,6 +151,11 @@ def dependencies(monkeypatch):
         "request_fingerprint",
         request_fingerprint,
     )
+    monkeypatch.setattr(
+        resume_tailoring,
+        "update_item_and_put_outbox",
+        update_item_and_put_outbox,
+    )
 
     return SimpleNamespace(
         match_item=match_item,
@@ -160,6 +166,7 @@ def dependencies(monkeypatch):
         complete_request=complete_request,
         mark_request_retryable=mark_request_retryable,
         request_fingerprint=request_fingerprint,
+        update_item_and_put_outbox=update_item_and_put_outbox,
     )
 
 
@@ -209,9 +216,20 @@ def test_waiting_tailoring_is_dispatched(dependencies):
         "tailoringId": TAILORING_ID,
         "matchId": MATCH_ID,
         "status": "processing",
-        "version": 2,
+        "version": 3,
         "createdAt": "2026-07-15T00:00:00+00:00",
     }
+
+    dependencies.update_item_and_put_outbox.assert_called_once()
+    transaction = (
+        dependencies.update_item_and_put_outbox.call_args.kwargs
+    )
+    assert transaction["outbox_item"]["eventType"] == (
+        "RESUME_TAILORING_REQUESTED"
+    )
+    assert transaction["outbox_item"]["aggregateId"] == (
+        TAILORING_ID
+    )
 
     dependencies.sqs.send_message.assert_called_once()
     dependencies.table.update_item.assert_called_once()
@@ -244,6 +262,7 @@ def test_existing_processing_tailoring_is_not_redispatched(
     assert body["status"] == "processing"
     assert body["version"] == 2
 
+    dependencies.update_item_and_put_outbox.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
@@ -262,6 +281,7 @@ def test_existing_completed_tailoring_is_not_redispatched(
     assert body["status"] == "completed"
     assert body["version"] == 3
 
+    dependencies.update_item_and_put_outbox.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
@@ -293,6 +313,7 @@ def test_completed_replay_does_not_read_or_dispatch(
     assert response_body(response) == stored_body
 
     assert dependencies.table.get_item.call_count == 1
+    dependencies.update_item_and_put_outbox.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
@@ -319,6 +340,7 @@ def test_in_progress_replay_returns_same_tailoring(
         "status": "processing",
     }
 
+    dependencies.update_item_and_put_outbox.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_not_called()
@@ -332,6 +354,7 @@ def test_sqs_failure_marks_request_retryable(dependencies):
     with pytest.raises(RuntimeError, match="SQS unavailable"):
         resume_tailoring.tailor_resume(make_event())
 
+    dependencies.update_item_and_put_outbox.assert_called_once()
     dependencies.mark_request_retryable.assert_called_once()
     dependencies.complete_request.assert_not_called()
     dependencies.table.update_item.assert_not_called()

@@ -100,7 +100,7 @@ def dependencies(monkeypatch, target_career):
         )
     )
     extract_text = MagicMock(return_value="Resume text")
-    put_item_if_absent = MagicMock(return_value=True)
+    put_item_and_outbox_if_absent = MagicMock(return_value=True)
     complete_request = MagicMock()
     mark_request_retryable = MagicMock()
     request_fingerprint = MagicMock(return_value=REQUEST_HASH)
@@ -120,8 +120,8 @@ def dependencies(monkeypatch, target_career):
     )
     monkeypatch.setattr(
         resume_analysis,
-        "put_item_if_absent",
-        put_item_if_absent,
+        "put_item_and_outbox_if_absent",
+        put_item_and_outbox_if_absent,
     )
     monkeypatch.setattr(
         resume_analysis,
@@ -149,7 +149,9 @@ def dependencies(monkeypatch, target_career):
         sqs=sqs,
         reserve_request=reserve_request,
         extract_text=extract_text,
-        put_item_if_absent=put_item_if_absent,
+        put_item_and_outbox_if_absent=(
+            put_item_and_outbox_if_absent
+        ),
         complete_request=complete_request,
         mark_request_retryable=mark_request_retryable,
         request_fingerprint=request_fingerprint,
@@ -213,12 +215,17 @@ def test_first_submission_creates_one_item_and_sends_one_message(
         "test-bucket",
         "users/user-123/resumes/resume.pdf",
     )
-    dependencies.put_item_if_absent.assert_called_once()
+    dependencies.put_item_and_outbox_if_absent.assert_called_once()
     dependencies.sqs.send_message.assert_called_once()
     dependencies.table.update_item.assert_called_once()
     dependencies.complete_request.assert_called_once()
 
-    created_item = dependencies.put_item_if_absent.call_args.args[0]
+    transaction = (
+        dependencies.put_item_and_outbox_if_absent
+        .call_args.kwargs
+    )
+    created_item = transaction["item"]
+    outbox_item = transaction["outbox_item"]
 
     assert created_item["analysisId"] == ANALYSIS_ID
     assert created_item["status"] == "QUEUED_PENDING_DISPATCH"
@@ -226,6 +233,14 @@ def test_first_submission_creates_one_item_and_sends_one_message(
     assert created_item["createdByRequestHash"] == REQUEST_HASH
     assert created_item["createdByRequestId"] == REQUEST_ID
     assert created_item["createdRegion"] == "us-east-1"
+
+    assert outbox_item["recordType"] == "outboxEvent"
+    assert outbox_item["eventType"] == (
+        "RESUME_ANALYSIS_REQUESTED"
+    )
+    assert outbox_item["aggregateId"] == ANALYSIS_ID
+    assert outbox_item["status"] == "PENDING"
+    assert outbox_item["gsi1pk"] == "OUTBOX_STATUS#PENDING"
 
     queue_message = json.loads(
         dependencies.sqs.send_message.call_args.kwargs[
@@ -271,7 +286,7 @@ def test_completed_replay_does_not_repeat_work(dependencies):
 
     dependencies.table.get_item.assert_not_called()
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
@@ -298,7 +313,7 @@ def test_in_progress_replay_returns_same_analysis_without_work(
 
     dependencies.table.get_item.assert_not_called()
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
@@ -334,7 +349,7 @@ def test_empty_pdf_text_completes_deterministic_400_response(
     assert completion["status_code"] == 400
     assert completion["resource_id"] == ANALYSIS_ID
 
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
 
@@ -365,7 +380,7 @@ def test_existing_pending_item_from_same_request_can_continue(
     assert response["statusCode"] == 202
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_called_once()
     dependencies.table.update_item.assert_called_once()
     dependencies.complete_request.assert_called_once()
@@ -399,7 +414,7 @@ def test_existing_processing_item_does_not_repeat_dispatch(
     assert body["version"] == 2
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
@@ -433,7 +448,7 @@ def test_existing_completed_item_does_not_repeat_dispatch(
     assert body["version"] == 3
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
@@ -460,7 +475,7 @@ def test_existing_item_from_different_request_is_rejected(
         resume_analysis.analyze_uploaded_resume(make_event())
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_if_absent.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
     dependencies.sqs.send_message.assert_not_called()
     dependencies.complete_request.assert_not_called()
     dependencies.mark_request_retryable.assert_called_once()
