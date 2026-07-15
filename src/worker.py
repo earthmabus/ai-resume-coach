@@ -826,7 +826,7 @@ def process_job_match(
     item: dict,
     attempt_id: str,
     prior_status: str,
-):
+) -> str:
     match_id = identity["recordId"]
 
     if prior_status != STATUS_RESULT_READY:
@@ -968,7 +968,7 @@ def process_job_match(
         claim = claim_job(identity)
 
         if claim["disposition"] != "CLAIMED":
-            return
+            return attempt_id
 
         item = claim["item"]
         attempt_id = claim["attemptId"]
@@ -985,6 +985,8 @@ def process_job_match(
             "completedAt": utc_now(),
         },
     )
+
+    return attempt_id
 
 
 def process_resume_tailoring(
@@ -1181,12 +1183,11 @@ def process_record(record: dict):
 
     if claim["disposition"] == "SKIP":
         logger.info(
-            "Skipping duplicate or already-processed job",
-            extra={
-                "jobType": identity["jobType"],
-                "recordId": identity["recordId"],
-                "status": claim["item"].get("status"),
-            },
+            "Skipping duplicate or already-processed job: "
+            "jobType=%s recordId=%s status=%s",
+            identity["jobType"],
+            identity["recordId"],
+            claim["item"].get("status"),
         )
         return
 
@@ -1194,9 +1195,18 @@ def process_record(record: dict):
     attempt_id = claim["attemptId"]
     prior_status = claim["priorStatus"]
 
+    logger.info(
+        "Claimed worker job: "
+        "jobType=%s recordId=%s attemptId=%s priorStatus=%s",
+        identity["jobType"],
+        identity["recordId"],
+        attempt_id,
+        prior_status,
+    )
+
     try:
         if identity["jobType"] == "jobMatch":
-            process_job_match(
+            attempt_id = process_job_match(
                 identity=identity,
                 item=item,
                 attempt_id=attempt_id,
@@ -1227,6 +1237,14 @@ def process_record(record: dict):
                 attempt_id=attempt_id,
             )
 
+        logger.info(
+            "Completed worker job: "
+            "jobType=%s recordId=%s attemptId=%s",
+            identity["jobType"],
+            identity["recordId"],
+            attempt_id,
+        )
+
     except Exception as error:
         mark_claim_failed(
             key=identity["key"],
@@ -1253,10 +1271,8 @@ def lambda_handler(event, context):
 
         except Exception:
             logger.exception(
-                "Worker record processing failed",
-                extra={
-                    "messageId": message_id,
-                },
+                "Worker record processing failed: messageId=%s",
+                message_id,
             )
 
             if message_id:
