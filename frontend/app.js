@@ -254,15 +254,18 @@ async function analyzeTextResume() {
   const idempotencyKey = crypto.randomUUID();
 
   setButtonLoading(
-    analyzeTextButton,
+    analyzeButton,
     "Analyzing...",
   );
+
   result.textContent = "Analyzing resume text...";
   focusAccordionCard("resumeResultCard");
 
   try {
     const headers = await jsonHeaders();
-    headers["Idempotency-Key"] = idempotencyKey;
+
+    headers["Idempotency-Key"] =
+      idempotencyKey;
 
     const response = await fetch(
       `${API_BASE_URL}/analyze-resume`,
@@ -290,6 +293,7 @@ async function analyzeTextResume() {
     }
 
     renderAnalysis(data);
+
     setAccordionOpen(
       "resumeResultCard",
       true,
@@ -298,14 +302,14 @@ async function analyzeTextResume() {
     await loadHistory();
 
     setButtonSaved(
-      analyzeTextButton,
+      analyzeButton,
       "Complete ✓",
     );
   } catch (error) {
     result.textContent =
       `Error: ${error.message}`;
 
-    resetButton(analyzeTextButton);
+    resetButton(analyzeButton);
   }
 }
 
