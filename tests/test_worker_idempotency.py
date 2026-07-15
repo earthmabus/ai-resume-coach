@@ -337,3 +337,58 @@ def test_provider_failure_marks_claim_retryable(
         ][":status"]
         == worker.STATUS_FAILED_RETRYABLE
     )
+
+
+def test_failed_record_emits_worker_failure_metric(
+    monkeypatch,
+):
+    record = {
+        "messageId": "failed-message",
+        "body": json.dumps(
+            {
+                "jobType": "resumeAnalysis",
+                "analysisId": "analysis-123",
+                "userId": "user-123",
+            }
+        ),
+    }
+
+    logger = MagicMock()
+
+    monkeypatch.setattr(worker, "logger", logger)
+    monkeypatch.setattr(
+        worker,
+        "process_record",
+        MagicMock(
+            side_effect=RuntimeError(
+                "Provider failed"
+            )
+        ),
+    )
+
+    response = worker.lambda_handler(
+        {"Records": [record]},
+        None,
+    )
+
+    assert response == {
+        "batchItemFailures": [
+            {
+                "itemIdentifier": "failed-message",
+            }
+        ]
+    }
+
+    metric_messages = [
+        call.args[0]
+        for call in logger.error.call_args_list
+    ]
+
+    assert len(metric_messages) == 1
+
+    metric = json.loads(metric_messages[0])
+
+    assert metric["WorkerRecordFailures"] == 1
+    assert metric["MessageId"] == "failed-message"
+    assert metric["JobType"] == "resumeAnalysis"
+    assert metric["RecordId"] == "analysis-123"

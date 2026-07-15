@@ -66,3 +66,9 @@ variable "log_level" {
     error_message = "log_level must be a supported Python logging level."
   }
 }
+
+variable "operational_alert_email" {
+  description = "Email address for operational CloudWatch alarm notifications. Falls back to the registration notification email when empty."
+  type        = string
+  default     = ""
+}

@@ -1254,6 +1254,69 @@ def process_record(record: dict):
         raise
 
 
+def emit_worker_failure_metric(
+    *,
+    record: dict,
+    message_id: str | None,
+):
+    """
+    Emit a CloudWatch Embedded Metric Format record.
+
+    Partial SQS batch failures do not necessarily increment the
+    Lambda Errors metric because the handler returns successfully.
+    This metric counts failed records rather than failed invocations.
+    """
+    job_type = "unknown"
+    record_id = "unknown"
+
+    try:
+        body = json.loads(record.get("body") or "{}")
+        job_type = body.get("jobType", "resumeAnalysis")
+        record_id = str(
+            body.get("jobId")
+            or body.get("analysisId")
+            or body.get("matchId")
+            or body.get("tailoringId")
+            or body.get("interviewPrepId")
+            or "unknown"
+        )
+    except (TypeError, ValueError, json.JSONDecodeError):
+        pass
+
+    metric_payload = {
+        "_aws": {
+            "Timestamp": int(time.time() * 1000),
+            "CloudWatchMetrics": [
+                {
+                    "Namespace": (
+                        f"{os.getenv('PROJECT_NAME', 'ai-resume-coach')}/"
+                        f"{os.getenv('ENVIRONMENT', 'unknown')}"
+                    ),
+                    "Dimensions": [
+                        ["FunctionName"],
+                    ],
+                    "Metrics": [
+                        {
+                            "Name": "WorkerRecordFailures",
+                            "Unit": "Count",
+                        },
+                    ],
+                },
+            ],
+        },
+        "FunctionName": os.getenv(
+            "AWS_LAMBDA_FUNCTION_NAME",
+            "unknown",
+        ),
+        "WorkerRecordFailures": 1,
+        "MessageId": message_id or "unknown",
+        "JobType": job_type,
+        "RecordId": record_id,
+    }
+
+    logger.error(json.dumps(metric_payload))
+
+
 def lambda_handler(event, context):
     """
     Return an SQS partial-batch response.
@@ -1273,6 +1336,11 @@ def lambda_handler(event, context):
             logger.exception(
                 "Worker record processing failed: messageId=%s",
                 message_id,
+            )
+
+            emit_worker_failure_metric(
+                record=record,
+                message_id=message_id,
             )
 
             if message_id:
