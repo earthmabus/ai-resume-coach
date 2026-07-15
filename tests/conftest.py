@@ -27,6 +27,7 @@ TEST_ENVIRONMENT = {
         "https://sqs.us-east-1.amazonaws.com/"
         "123456789012/test-queue"
     ),
+    "WORKER_PROCESSING_LEASE_SECONDS": "300",
     "ANALYSIS_PROVIDER": "rule-based",
     "OPENAI_MODEL": "",
     "LOG_LEVEL": "INFO",
@@ -47,7 +48,10 @@ def application_environment(monkeypatch):
     """
 
     for variable_name, variable_value in TEST_ENVIRONMENT.items():
-        monkeypatch.setenv(variable_name, variable_value)
+        monkeypatch.setenv(
+            variable_name,
+            variable_value,
+        )
 
     from core.config import reset_config_cache
 

@@ -2,18 +2,38 @@ requireAuth();
 
 const API_BASE_URL = window.APP_CONFIG.apiEndpoint;
 
-const saveProfileButton = document.getElementById("saveProfileButton");
-const profileError = document.getElementById("profileError");
+const saveProfileButton =
+  document.getElementById("saveProfileButton");
+const profileError =
+  document.getElementById("profileError");
+
+let profileVersion = 0;
+
+
+function getErrorMessage(data, fallback) {
+  if (typeof data?.error === "string") {
+    return data.error;
+  }
+
+  if (typeof data?.error?.message === "string") {
+    return data.error.message;
+  }
+
+  return fallback;
+}
+
 
 function showProfileError(message) {
   profileError.textContent = message;
   profileError.classList.remove("hidden");
 }
 
+
 function clearProfileError() {
   profileError.textContent = "";
   profileError.classList.add("hidden");
 }
+
 
 function showProfileSavedState() {
   saveProfileButton.disabled = true;
@@ -25,29 +45,58 @@ function showProfileSavedState() {
   }, 2000);
 }
 
+
 async function loadProfile() {
+  clearProfileError();
+
   try {
-    const response = await fetch(`${API_BASE_URL}/profile`, {
-      headers: await authHeaders()
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/profile`,
+      {
+        headers: await authHeaders(),
+      },
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Could not load profile");
+      throw new Error(
+        getErrorMessage(
+          data,
+          "Could not load profile",
+        ),
+      );
     }
 
-    document.getElementById("profileName").value = data.name || "";
-    document.getElementById("currentTitle").value = data.currentTitle || "";
-    document.getElementById("targetTitle").value = data.targetTitle || "";
-    document.getElementById("yearsExperience").value = data.yearsExperience || "";
-    document.getElementById("certifications").value = data.certifications || "";
-    document.getElementById("preferredProvider").value = data.preferredProvider || "openai";
-    document.getElementById("resumeStyle").value = data.resumeStyle || "executive";
+    profileVersion = Number(data.version ?? 0);
+
+    document.getElementById("profileName").value =
+      data.name || "";
+
+    document.getElementById("currentTitle").value =
+      data.currentTitle || "";
+
+    document.getElementById("targetTitle").value =
+      data.targetTitle || "";
+
+    document.getElementById("yearsExperience").value =
+      data.yearsExperience || "";
+
+    document.getElementById("certifications").value =
+      data.certifications || "";
+
+    document.getElementById("preferredProvider").value =
+      data.preferredProvider || "openai";
+
+    document.getElementById("resumeStyle").value =
+      data.resumeStyle || "executive";
   } catch (error) {
-    showProfileError(error.message || "Unable to load profile.");
+    showProfileError(
+      error.message || "Unable to load profile.",
+    );
   }
 }
+
 
 async function saveProfile() {
   clearProfileError();
@@ -56,35 +105,88 @@ async function saveProfile() {
   saveProfileButton.textContent = "Saving...";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/profile`, {
-      method: "PUT",
-      headers: await jsonHeaders(),
-      body: JSON.stringify({
-        name: document.getElementById("profileName").value,
-        currentTitle: document.getElementById("currentTitle").value,
-        targetTitle: document.getElementById("targetTitle").value,
-        yearsExperience: document.getElementById("yearsExperience").value,
-        certifications: document.getElementById("certifications").value,
-        preferredProvider: document.getElementById("preferredProvider").value,
-        resumeStyle: document.getElementById("resumeStyle").value
-      })
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/profile`,
+      {
+        method: "PUT",
+        headers: await jsonHeaders(),
+        body: JSON.stringify({
+          version: profileVersion,
+          name:
+            document.getElementById(
+              "profileName",
+            ).value,
+          currentTitle:
+            document.getElementById(
+              "currentTitle",
+            ).value,
+          targetTitle:
+            document.getElementById(
+              "targetTitle",
+            ).value,
+          yearsExperience:
+            document.getElementById(
+              "yearsExperience",
+            ).value,
+          certifications:
+            document.getElementById(
+              "certifications",
+            ).value,
+          preferredProvider:
+            document.getElementById(
+              "preferredProvider",
+            ).value,
+          resumeStyle:
+            document.getElementById(
+              "resumeStyle",
+            ).value,
+        }),
+      },
+    );
 
     const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || "Could not save profile");
+    if (response.status === 409) {
+      await loadProfile();
+
+      throw new Error(
+        getErrorMessage(
+          data,
+          (
+            "Your profile was changed elsewhere. "
+            + "The latest version has been loaded. "
+            + "Review it and try again."
+          ),
+        ),
+      );
     }
+
+    if (!response.ok) {
+      throw new Error(
+        getErrorMessage(
+          data,
+          "Could not save profile",
+        ),
+      );
+    }
+
+    profileVersion = Number(data.version);
 
     showProfileSavedState();
   } catch (error) {
     saveProfileButton.disabled = false;
     saveProfileButton.textContent = "Save Profile";
 
-    showProfileError(error.message || "Unable to save profile.");
+    showProfileError(
+      error.message || "Unable to save profile.",
+    );
   }
 }
 
-document.getElementById("saveProfileButton").addEventListener("click", saveProfile);
+
+saveProfileButton.addEventListener(
+  "click",
+  saveProfile,
+);
 
 loadProfile();

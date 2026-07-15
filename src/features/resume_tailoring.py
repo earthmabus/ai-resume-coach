@@ -1,103 +1,350 @@
-import os
+from __future__ import annotations
+
 import json
-import uuid
+import logging
+import os
 from datetime import datetime, timezone
 
 from boto3.dynamodb.conditions import Key
 
-# import core utilities
+from core.auth import assert_item_owner, current_user_id
+from core.idempotency import (
+    DISPOSITION_REPLAY_COMPLETED,
+    DISPOSITION_REPLAY_IN_PROGRESS,
+    complete_request,
+    mark_request_retryable,
+    request_fingerprint,
+    reserve_request,
+)
+from core.keys import (
+    match_sk,
+    tailoring_pk,
+    tailoring_sk,
+    user_pk,
+)
+from core.request_context import build_request_context
 from core.responses import build_response, parse_body
-from core.auth import current_user_id, assert_item_owner
-from core.keys import base_keys, tailoring_pk, tailoring_sk
-from core.storage import get_entity_by_id, resume_analysis_queue_url, sqs, table
+from core.storage import (
+    get_entity_by_id,
+    resume_analysis_queue_url,
+    sqs,
+    table,
+)
+
+
+logger = logging.getLogger(__name__)
+
+TAILOR_RESUME_OPERATION = "TAILOR_RESUME"
+
+
+def utc_now() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def get_match_for_user(
+    *,
+    user_id: str,
+    match_id: str,
+) -> dict | None:
+    """
+    Read the job match through its authoritative base-table key.
+    """
+    return table.get_item(
+        Key={
+            "pk": user_pk(user_id),
+            "sk": match_sk(match_id),
+        },
+        ConsistentRead=True,
+    ).get("Item")
+
+
+def get_tailoring_for_match(
+    *,
+    match_id: str,
+    tailoring_id: str,
+) -> dict | None:
+    """
+    Read the stable tailoring item through its base-table key.
+    """
+    return table.get_item(
+        Key={
+            "pk": tailoring_pk(match_id),
+            "sk": tailoring_sk(tailoring_id),
+        },
+        ConsistentRead=True,
+    ).get("Item")
+
 
 def tailor_resume(event):
     body = parse_body(event)
 
-    user_id = current_user_id(event)
-
     if body is None:
         return build_response(400, {"error": "Invalid JSON body"})
 
-    match_id = body.get("matchId", "").strip()
-    requested_provider = body.get("analysisProvider")
+    context = build_request_context(
+        event,
+        require_idempotency=True,
+    )
+    user_id = context.user_id
+
+    match_id = str(body.get("matchId") or "").strip()
 
     if not match_id:
         return build_response(400, {"error": "matchId is required"})
 
-    match_item = get_entity_by_id(match_id, "jobMatch")
+    match_item = get_match_for_user(
+        user_id=user_id,
+        match_id=match_id,
+    )
 
     if not match_item:
         return build_response(404, {"error": "job match not found"})
 
     if match_item.get("recordType") != "jobMatch":
-        return build_response(400, {"error": "record is not a job match"})
+        return build_response(
+            400,
+            {"error": "record is not a job match"},
+        )
 
     if match_item.get("status") != "completed":
-        return build_response(400, {"error": "job match must be completed before tailoring"})
-
-    resume_text = match_item.get("resumeText", "").strip()
-    job_description_text = match_item.get("jobDescriptionText", "").strip()
-
-    if not resume_text:
-        return build_response(400, {"error": "job match does not contain resumeText"})
-
-    if not job_description_text:
-        return build_response(400, {"error": "job match does not contain jobDescriptionText"})
-
-    tailoring_id = str(uuid.uuid4())
-    created_at = datetime.now(timezone.utc).isoformat()
-
-    item = {
-        **base_keys(
-            pk=tailoring_pk(match_id),
-            sk=tailoring_sk(tailoring_id),
-            entity_id=tailoring_id,
-            record_type="resumeTailoring",
-        ),
-        "userId": user_id,
-        "analysisId": tailoring_id,
-        "tailoringId": tailoring_id,
-        "matchId": match_id,
-        "resumeAnalysisId": match_item.get("resumeAnalysisId", ""),
-        "recordType": "resumeTailoring",
-        "createdAt": created_at,
-        "status": "processing",
-        "provider": requested_provider or match_item.get("provider") or os.getenv("ANALYSIS_PROVIDER", "rule-based"),
-        "model": os.getenv("OPENAI_MODEL", ""),
-        "analysisVersion": "resume-tailoring-queued-v1",
-        "analysisDurationMs": 0,
-        "jobName": match_item.get("jobName", "Untitled Job"),
-        "jobUrl": match_item.get("jobUrl", ""),
-        "resumeName": match_item.get("resumeName", "Untitled Resume"),
-        "resumeText": resume_text,
-        "jobDescriptionText": job_description_text,
-        "resumeDocumentBucket": match_item.get("resumeDocumentBucket", ""),
-        "resumeDocumentKey": match_item.get("resumeDocumentKey", ""),
-        "resumeFileName": match_item.get("resumeFileName", ""),
-        "tailoredExecutiveSummary": "",
-        "tailoredResumeBullets": [],
-        "keywordsToAdd": [],
-        "rolePositioningAdvice": [],
-        "atsOptimizationAdvice": [],
-        "rewriteWarnings": [],
-    }
-
-    table.put_item(Item=item)
-
-    sqs.send_message(
-        QueueUrl=resume_analysis_queue_url,
-        MessageBody=json.dumps(
+        return build_response(
+            400,
             {
-                "userId": user_id,
-                "jobType": "resumeTailoring",
-                "tailoringId": tailoring_id,
-                "analysisProvider": requested_provider,
-            }
-        ),
+                "error": (
+                    "job match must be completed before tailoring"
+                )
+            },
+        )
+
+    tailoring_id = str(
+        match_item.get("tailoringId") or ""
+    ).strip()
+
+    if not tailoring_id:
+        return build_response(
+            404,
+            {
+                "error": (
+                    "job match does not have a tailoring record"
+                )
+            },
+        )
+
+    provider = (
+        body.get("analysisProvider")
+        or match_item.get("provider")
+        or os.getenv("ANALYSIS_PROVIDER", "rule-based")
     )
 
-    return build_response(202, item)
+    request_hash = request_fingerprint(
+        user_id=user_id,
+        operation=TAILOR_RESUME_OPERATION,
+        body={
+            "matchId": match_id,
+            "tailoringId": tailoring_id,
+            "analysisProvider": provider,
+        },
+    )
+
+    reservation = reserve_request(
+        user_id=user_id,
+        operation=TAILOR_RESUME_OPERATION,
+        idempotency_key=context.idempotency_key,
+        request_hash=request_hash,
+        resource_id=tailoring_id,
+        request_id=context.request_id,
+        region=context.region,
+    )
+
+    if reservation.disposition == DISPOSITION_REPLAY_COMPLETED:
+        return build_response(
+            reservation.status_code or 202,
+            reservation.response_body or {},
+        )
+
+    if reservation.disposition == DISPOSITION_REPLAY_IN_PROGRESS:
+        return build_response(
+            reservation.status_code or 202,
+            reservation.response_body
+            or {
+                "tailoringId": reservation.resource_id,
+                "matchId": match_id,
+                "status": "processing",
+            },
+        )
+
+    try:
+        tailoring_item = get_tailoring_for_match(
+            match_id=match_id,
+            tailoring_id=tailoring_id,
+        )
+
+        if not tailoring_item:
+            response_body = {
+                "error": "tailoring record not found",
+                "tailoringId": tailoring_id,
+                "matchId": match_id,
+            }
+
+            complete_request(
+                user_id=user_id,
+                operation=TAILOR_RESUME_OPERATION,
+                idempotency_key=context.idempotency_key,
+                request_hash=request_hash,
+                resource_id=tailoring_id,
+                request_id=context.request_id,
+                region=context.region,
+                status_code=404,
+                response_body=response_body,
+            )
+
+            return build_response(404, response_body)
+
+        if tailoring_item.get("userId") != user_id:
+            return build_response(403, {"error": "forbidden"})
+
+        if tailoring_item.get("matchId") != match_id:
+            raise RuntimeError(
+                "Tailoring record does not belong to the job match"
+            )
+
+        current_status = tailoring_item.get("status")
+
+        if current_status == "waiting":
+            sqs.send_message(
+                QueueUrl=resume_analysis_queue_url,
+                MessageBody=json.dumps(
+                    {
+                        # Existing worker contract
+                        "jobType": "resumeTailoring",
+                        "tailoringId": tailoring_id,
+
+                        # New stable metadata
+                        "schemaVersion": 1,
+                        "operation": TAILOR_RESUME_OPERATION,
+                        "jobId": tailoring_id,
+                        "matchId": match_id,
+                        "userId": user_id,
+                        "analysisProvider": provider,
+                        "requestId": context.request_id,
+                        "requestHash": request_hash,
+                        "sourceRegion": context.region,
+                        "submittedAt": utc_now(),
+                    }
+                ),
+            )
+
+            update_response = table.update_item(
+                Key={
+                    "pk": tailoring_pk(match_id),
+                    "sk": tailoring_sk(tailoring_id),
+                },
+                UpdateExpression=(
+                    "SET #status = :processing, "
+                    "provider = :provider, "
+                    "analysisVersion = :analysisVersion, "
+                    "updatedAt = :updatedAt, "
+                    "updatedByRequestId = :requestId, "
+                    "lastUpdatedRegion = :region, "
+                    "#version = if_not_exists(#version, :zero) + :one"
+                ),
+                ConditionExpression=(
+                    "#status = :waiting "
+                    "AND userId = :userId "
+                    "AND matchId = :matchId"
+                ),
+                ExpressionAttributeNames={
+                    "#status": "status",
+                    "#version": "version",
+                },
+                ExpressionAttributeValues={
+                    ":waiting": "waiting",
+                    ":processing": "processing",
+                    ":provider": provider,
+                    ":analysisVersion": (
+                        "resume-tailoring-queued-v2"
+                    ),
+                    ":updatedAt": utc_now(),
+                    ":requestId": context.request_id,
+                    ":region": context.region,
+                    ":userId": user_id,
+                    ":matchId": match_id,
+                    ":zero": 0,
+                    ":one": 1,
+                },
+                ReturnValues="ALL_NEW",
+            )
+
+            tailoring_item = update_response.get(
+                "Attributes",
+                tailoring_item,
+            )
+            current_status = tailoring_item.get(
+                "status",
+                "processing",
+            )
+
+        elif current_status not in {
+            "processing",
+            "completed",
+        }:
+            raise RuntimeError(
+                "Tailoring record is in an unsupported state"
+            )
+
+        response_body = {
+            "tailoringId": tailoring_id,
+            "matchId": match_id,
+            "status": current_status,
+            "version": int(tailoring_item.get("version", 1)),
+            "createdAt": tailoring_item.get("createdAt", ""),
+        }
+
+        complete_request(
+            user_id=user_id,
+            operation=TAILOR_RESUME_OPERATION,
+            idempotency_key=context.idempotency_key,
+            request_hash=request_hash,
+            resource_id=tailoring_id,
+            request_id=context.request_id,
+            region=context.region,
+            status_code=202,
+            response_body=response_body,
+        )
+
+        return build_response(202, response_body)
+
+    except Exception:
+        logger.exception(
+            "Resume-tailoring activation failed",
+            extra={
+                "tailoringId": tailoring_id,
+                "matchId": match_id,
+                "requestId": context.request_id,
+                "region": context.region,
+            },
+        )
+
+        try:
+            mark_request_retryable(
+                user_id=user_id,
+                operation=TAILOR_RESUME_OPERATION,
+                idempotency_key=context.idempotency_key,
+                request_hash=request_hash,
+                resource_id=tailoring_id,
+                request_id=context.request_id,
+                region=context.region,
+            )
+        except Exception:
+            logger.exception(
+                "Could not mark tailoring request retryable",
+                extra={
+                    "tailoringId": tailoring_id,
+                    "requestId": context.request_id,
+                },
+            )
+
+        raise
 
 
 def get_resume_tailoring(event):
@@ -106,12 +353,21 @@ def get_resume_tailoring(event):
     tailoring_id = event.get("pathParameters", {}).get("id")
 
     if not tailoring_id:
-        return build_response(400, {"error": "tailoring id is required"})
+        return build_response(
+            400,
+            {"error": "tailoring id is required"},
+        )
 
-    item = get_entity_by_id(tailoring_id, "resumeTailoring")
+    item = get_entity_by_id(
+        tailoring_id,
+        "resumeTailoring",
+    )
 
     if not item:
-        return build_response(404, {"error": "tailoring not found"})
+        return build_response(
+            404,
+            {"error": "tailoring not found"},
+        )
 
     try:
         assert_item_owner(item, user_id)
@@ -126,26 +382,38 @@ def get_resume_tailoring_by_match(event):
     match_id = event.get("pathParameters", {}).get("matchId")
 
     if not match_id:
-        return build_response(400, {"error": "match id is required"})
+        return build_response(
+            400,
+            {"error": "match id is required"},
+        )
 
     response = table.query(
-        KeyConditionExpression=Key("pk").eq(f"MATCH#{match_id}") & Key("sk").begins_with("TAILORING#")
+        KeyConditionExpression=(
+            Key("pk").eq(tailoring_pk(match_id))
+            & Key("sk").begins_with("TAILORING#")
+        ),
+        ConsistentRead=True,
     )
 
-    items = response.get("Items", [])
+    items = [
+        item
+        for item in response.get("Items", [])
+        if item.get("userId") == user_id
+    ]
 
     if not items:
-        return build_response(404, {"error": "tailoring not found for match"})
+        return build_response(
+            404,
+            {"error": "tailoring not found for match"},
+        )
 
-    items = sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
-    item = items[0]
+    items = sorted(
+        items,
+        key=lambda item: item.get("createdAt", ""),
+        reverse=True,
+    )
 
-    try:
-        assert_item_owner(item, user_id)
-    except PermissionError:
-        return build_response(403, {"error": "forbidden"})
-
-    return build_response(200, item)
+    return build_response(200, items[0])
 
 
 def get_interview_prep_by_match(event):
@@ -153,23 +421,39 @@ def get_interview_prep_by_match(event):
     match_id = event.get("pathParameters", {}).get("matchId")
 
     if not match_id:
-        return build_response(400, {"error": "match id is required"})
+        return build_response(
+            400,
+            {"error": "match id is required"},
+        )
 
     response = table.query(
-        KeyConditionExpression=Key("pk").eq(f"MATCH#{match_id}") & Key("sk").begins_with("INTERVIEW#")
+        KeyConditionExpression=(
+            Key("pk").eq(tailoring_pk(match_id))
+            & Key("sk").begins_with("INTERVIEW#")
+        ),
+        ConsistentRead=True,
     )
 
-    items = response.get("Items", [])
+    items = [
+        item
+        for item in response.get("Items", [])
+        if item.get("userId") == user_id
+    ]
 
     if not items:
-        return build_response(404, {"error": "interview preparation not found for match"})
+        return build_response(
+            404,
+            {
+                "error": (
+                    "interview preparation not found for match"
+                )
+            },
+        )
 
-    items = sorted(items, key=lambda item: item.get("createdAt", ""), reverse=True)
-    item = items[0]
+    items = sorted(
+        items,
+        key=lambda item: item.get("createdAt", ""),
+        reverse=True,
+    )
 
-    try:
-        assert_item_owner(item, user_id)
-    except PermissionError:
-        return build_response(403, {"error": "forbidden"})
-
-    return build_response(200, item)
+    return build_response(200, items[0])

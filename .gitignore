@@ -21,6 +21,7 @@ lambda_layer/build
 infra/lambda.zip
 infra/pdf_layer.zip
 infra/worker.zip
+infra/tfplan
 
 src/__pycache__/*
 src/core/__pycache__/*

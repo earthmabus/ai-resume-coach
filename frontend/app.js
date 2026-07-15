@@ -247,34 +247,64 @@ async function analyzeTextResume() {
     return;
   }
 
-  setButtonLoading(analyzeTextButton, "Analyzing...");
+  /*
+   * Generate once for this user action.
+   * Any retry added inside this function must reuse this value.
+   */
+  const idempotencyKey = crypto.randomUUID();
+
+  setButtonLoading(
+    analyzeTextButton,
+    "Analyzing...",
+  );
   result.textContent = "Analyzing resume text...";
   focusAccordionCard("resumeResultCard");
 
   try {
-    const response = await fetch(`${API_BASE_URL}/analyze-resume`, {
-      method: "POST",
-      headers: await jsonHeaders(),
-      body: JSON.stringify({
-        resumeName: resumeName?.value.trim() || "Untitled Resume",
-        resumeText: resumeTextValue,
-        analysisProvider: selectedProvider()
-      })
-    });
+    const headers = await jsonHeaders();
+    headers["Idempotency-Key"] = idempotencyKey;
+
+    const response = await fetch(
+      `${API_BASE_URL}/analyze-resume`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          resumeName:
+            resumeName?.value.trim()
+            || "Untitled Resume",
+          resumeText: resumeTextValue,
+          analysisProvider: selectedProvider(),
+        }),
+      },
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Text analysis failed");
+      throw new Error(
+        data?.error?.message
+        || data?.error
+        || "Text analysis failed",
+      );
     }
 
     renderAnalysis(data);
-    setAccordionOpen("resumeResultCard", true);
+    setAccordionOpen(
+      "resumeResultCard",
+      true,
+    );
+
     await loadHistory();
 
-    setButtonSaved(analyzeTextButton, "Complete ✓");
+    setButtonSaved(
+      analyzeTextButton,
+      "Complete ✓",
+    );
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    result.textContent =
+      `Error: ${error.message}`;
+
     resetButton(analyzeTextButton);
   }
 }
@@ -283,95 +313,161 @@ async function uploadPdfResume() {
   const file = fileInput.files[0];
 
   if (!file) {
-    result.textContent = "Choose a PDF file first.";
+    result.textContent =
+      "Choose a PDF file first.";
     return;
   }
 
   if (file.type !== "application/pdf") {
-    result.textContent = "Only PDF files are supported.";
+    result.textContent =
+      "Only PDF files are supported.";
     return;
   }
 
-  setButtonLoading(uploadButton, "Uploading...");
+  /*
+   * These are two separate logical operations and must use
+   * different idempotency keys.
+   */
+  const uploadUrlIdempotencyKey =
+    crypto.randomUUID();
+
+  const analysisIdempotencyKey =
+    crypto.randomUUID();
+
+  setButtonLoading(
+    uploadButton,
+    "Uploading...",
+  );
+
   focusAccordionCard("resumeResultCard");
-  result.textContent = "Uploading and analyzing PDF...";
+
+  result.textContent =
+    "Uploading and analyzing PDF...";
 
   try {
-    const uploadUrlResponse = await fetch(`${API_BASE_URL}/resume-upload-url`, {
-      method: "POST",
-      headers: await jsonHeaders(),
-      body: JSON.stringify({
-        fileName: file.name,
-        contentType: file.type
-      })
-    });
+    const uploadHeaders = await jsonHeaders();
 
-    const uploadData = await uploadUrlResponse.json();
+    uploadHeaders["Idempotency-Key"] =
+      uploadUrlIdempotencyKey;
+
+    const uploadUrlResponse = await fetch(
+      `${API_BASE_URL}/resume-upload-url`,
+      {
+        method: "POST",
+        headers: uploadHeaders,
+        body: JSON.stringify({
+          fileName: file.name,
+          contentType: file.type,
+        }),
+      },
+    );
+
+    const uploadData =
+      await uploadUrlResponse.json();
 
     if (!uploadUrlResponse.ok) {
-      throw new Error(uploadData.error || "Could not create upload URL");
+      throw new Error(
+        uploadData?.error?.message
+        || uploadData?.error
+        || "Could not create upload URL",
+      );
     }
 
     result.textContent = "Uploading PDF...";
 
-    const uploadResponse = await fetch(uploadData.uploadUrl, {
-      method: "PUT",
-      headers: {
-        "Content-Type": file.type
+    const uploadResponse = await fetch(
+      uploadData.uploadUrl,
+      {
+        method: "PUT",
+        headers: {
+          "Content-Type": file.type,
+        },
+        body: file,
       },
-      body: file
-    });
+    );
 
     if (!uploadResponse.ok) {
       throw new Error("PDF upload failed");
     }
 
-    result.textContent = "Saving PDF analysis metadata...";
+    result.textContent =
+      "Saving PDF analysis metadata...";
 
-    const idempotencyKey = crypto.randomUUID();
+    const analysisHeaders =
+      await jsonHeaders();
 
-    const analysisResponse = await fetch(`${API_BASE_URL}/analyze-uploaded-resume`, {
-      method: "POST",
-      headers: {
-        Authorization: `Bearer ${token}`,
-        "Content-Type": "application/json",
-        "Idempotency-Key": idempotencyKey
+    analysisHeaders["Idempotency-Key"] =
+      analysisIdempotencyKey;
+
+    const analysisResponse = await fetch(
+      `${API_BASE_URL}/analyze-uploaded-resume`,
+      {
+        method: "POST",
+        headers: analysisHeaders,
+        body: JSON.stringify({
+          resumeName:
+            resumeName?.value.trim()
+            || uploadData.fileName
+            || "Untitled Resume",
+          documentBucket:
+            uploadData.documentBucket,
+          documentKey:
+            uploadData.documentKey,
+          fileName:
+            uploadData.fileName,
+          analysisProvider:
+            selectedProvider(),
+        }),
       },
-      body: JSON.stringify({
-        resumeName: resumeName?.value.trim() || uploadData.fileName || "Untitled Resume",
-        documentBucket: uploadData.documentBucket,
-        documentKey: uploadData.documentKey,
-        fileName: uploadData.fileName,
-        analysisProvider: selectedProvider()
-      })
-    });
+    );
 
-    const analysisData = await analysisResponse.json();
+    const analysisData =
+      await analysisResponse.json();
 
     if (!analysisResponse.ok) {
-      throw new Error(analysisData.error || "PDF analysis save failed");
+      throw new Error(
+        analysisData?.error?.message
+        || analysisData?.error
+        || "PDF analysis save failed",
+      );
     }
 
     renderAnalysis(analysisData);
-    setAccordionOpen("resumeResultCard", true);
+
+    setAccordionOpen(
+      "resumeResultCard",
+      true,
+    );
+
     await loadHistory();
 
-    if (analysisData.status === "processing" && analysisData.analysisId) {
+    if (
+      analysisData.status === "processing"
+      && analysisData.analysisId
+    ) {
       result.insertAdjacentHTML(
         "afterbegin",
         `
           <div class="status-banner status-pending">
-            PDF uploaded and queued for AI analysis. This page will update automatically when complete.
+            PDF uploaded and queued for AI analysis.
+            This page will update automatically when complete.
           </div>
-        `
+        `,
       );
 
-      await pollAnalysisUntilComplete(analysisData.analysisId);
+      await pollAnalysisUntilComplete(
+        analysisData.analysisId,
+      );
     }
 
-    setButtonSaved(uploadButton, "Complete ✓");
+    setButtonSaved(
+      uploadButton,
+      "Complete ✓",
+    );
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    result.textContent =
+      `Error: ${error.message}`;
+
     resetButton(uploadButton);
   }
 }
@@ -695,47 +791,66 @@ async function matchJobDescription() {
     return;
   }
 
+  /*
+   * Generate once for this user action. Any retry added inside this
+   * function must reuse this same value.
+   */
+  const idempotencyKey = crypto.randomUUID();
+
   setButtonLoading(matchJobButton, "Matching...");
   focusAccordionCard("jobResultCard");
   result.textContent = "Matching resume to job description...";
 
   try {
-    const response = await fetch(`${API_BASE_URL}/match-job-description`, {
-      method: "POST",
-      headers: await jsonHeaders(),
-      body: JSON.stringify({
-        analysisId: analysisId,
-        jobName: jobName.value.trim() || "Untitled Job",
-        jobUrl: jobUrl?.value.trim() || "",
-        jobDescriptionText: jdText,
-        analysisProvider: selectedProvider()
-      })
-    });
+    const headers = await jsonHeaders();
+    headers["Idempotency-Key"] = idempotencyKey;
+
+    const response = await fetch(
+      `${API_BASE_URL}/match-job-description`,
+      {
+        method: "POST",
+        headers,
+        body: JSON.stringify({
+          analysisId,
+          jobName:
+            jobName.value.trim() || "Untitled Job",
+          jobUrl:
+            jobUrl?.value.trim() || "",
+          jobDescriptionText: jdText,
+          analysisProvider: selectedProvider(),
+        }),
+      },
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Job match failed");
+      const message =
+        data?.error?.message
+        || data?.error
+        || "Job match failed";
+
+      throw new Error(message);
     }
 
     renderJobMatch(data, null);
     setAccordionOpen("jobResultCard", true);
+
     await loadJobMatches();
 
-    if (data.status === "processing" && data.matchId) {
+    if (response.status === 202) {
       result.insertAdjacentHTML(
         "afterbegin",
         `
-          <div class="status-banner status-pending">
-            Job match queued for AI analysis. This page will update automatically when complete.
-          </div>
-        `
+          <p class="status-pending">
+            Status: Job match queued for AI analysis.
+            Refresh matches in a moment to view the completed result.
+          </p>
+        `,
       );
-
-      await pollJobMatchUntilComplete(data.matchId);
     }
 
-    setButtonSaved(matchJobButton, "Complete ✓");
+    setButtonSaved(matchJobButton, "Queued ✓");
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
     resetButton(matchJobButton);
@@ -797,100 +912,198 @@ async function loadJobMatchDetail(matchId) {
   }
 }
 
-async function deleteAnalysis(analysisId) {
-  if (!confirm("Delete this resume analysis? This cannot be undone.")) {
+async function deleteAnalysis(
+  analysisId,
+  version = 0,
+) {
+  const confirmed = confirm(
+    "Delete this resume analysis? This cannot be undone.",
+  );
+
+  if (!confirmed) {
     return;
   }
 
+  const expectedVersion = Number(version ?? 0);
+
   try {
-    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`, {
-      method: "DELETE",
-      headers: await authHeaders()
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/analysis/${encodeURIComponent(
+        analysisId,
+      )}?version=${encodeURIComponent(
+        expectedVersion,
+      )}`,
+      {
+        method: "DELETE",
+        headers: await authHeaders(),
+      },
+    );
 
     const data = await response.json();
 
-    if (!response.ok) {
-      throw new Error(data.error || "Delete failed");
+    if (response.status === 409) {
+      throw new Error(
+        data?.error?.message
+        || (
+          "This resume analysis changed before it "
+          + "could be deleted. Refresh the list and "
+          + "try again."
+        ),
+      );
     }
 
-    result.textContent = "Resume analysis deleted.";
+    if (!response.ok) {
+      throw new Error(
+        data?.error?.message
+        || data?.error
+        || "Delete failed",
+      );
+    }
+
+    result.textContent =
+      "Resume analysis deleted.";
+
     await loadHistory();
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    result.textContent =
+      `Error: ${error.message}`;
   }
 }
 
 async function deleteAllAnalyses() {
-  if (!confirm("Delete all resume analyses? This cannot be undone.")) {
+  const confirmed = confirm(
+    "Delete all resume analyses? This cannot be undone.",
+  );
+
+  if (!confirmed) {
     return;
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/analyses`, {
-      method: "DELETE",
-      headers: await authHeaders()
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/analyses`,
+      {
+        method: "DELETE",
+        headers: await authHeaders(),
+      },
+    );
 
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(data.error || "Delete all failed");
+      throw new Error(
+        data?.error?.message
+        || data?.error
+        || "Delete all failed",
+      );
     }
 
-    result.textContent = `Deleted ${data.deleted} resume analyses.`;
+    result.textContent =
+      `Resume analyses: ${Number(data.deleted ?? 0)} deleted, `
+      + `${Number(data.conflicted ?? 0)} conflicted, `
+      + `${Number(data.failed ?? 0)} failed.`;
+
     await loadHistory();
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    result.textContent =
+      `Error: ${error.message}`;
   }
 }
 
-async function deleteJobMatch(matchId) {
-  if (!confirm("Delete this job match? This cannot be undone.")) {
+async function deleteJobMatch(
+  matchId,
+  version = 0,
+) {
+  const confirmed = confirm(
+    "Delete this job match? This cannot be undone.",
+  );
+
+  if (!confirmed) {
     return;
   }
 
+  const expectedVersion = Number(version ?? 0);
+
   try {
-    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`, {
-      method: "DELETE",
-      headers: await authHeaders()
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/job-match/${encodeURIComponent(
+        matchId,
+      )}?version=${encodeURIComponent(
+        expectedVersion,
+      )}`,
+      {
+        method: "DELETE",
+        headers: await authHeaders(),
+      },
+    );
 
     const data = await response.json();
 
+    if (response.status === 409) {
+      throw new Error(
+        data?.error?.message
+        || (
+          "This job match changed before it could "
+          + "be deleted. Refresh the list and try "
+          + "again."
+        ),
+      );
+    }
+
     if (!response.ok) {
-      throw new Error(data.error || "Delete failed");
+      throw new Error(
+        data?.error?.message
+        || data?.error
+        || "Delete failed",
+      );
     }
 
     result.textContent = "Job match deleted.";
+
     await loadJobMatches();
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    result.textContent =
+      `Error: ${error.message}`;
   }
 }
 
 async function deleteAllJobMatches() {
-  if (!confirm("Delete all job matches? This cannot be undone.")) {
+  const confirmed = confirm(
+    "Delete all job matches? This cannot be undone.",
+  );
+
+  if (!confirmed) {
     return;
   }
 
   try {
-    const response = await fetch(`${API_BASE_URL}/job-matches`, {
-      method: "DELETE",
-      headers: await authHeaders()
-    });
+    const response = await fetch(
+      `${API_BASE_URL}/job-matches`,
+      {
+        method: "DELETE",
+        headers: await authHeaders(),
+      },
+    );
 
     const data = await response.json();
-    console.log("Delete all job matches response:", data);
 
     if (!response.ok) {
-      throw new Error(data.error || "Delete all failed");
+      throw new Error(
+        data?.error?.message
+        || data?.error
+        || "Delete all failed",
+      );
     }
 
-    result.textContent = `Deleted ${data.deleted} job matches.`;
+    result.textContent =
+      `Job matches: ${Number(data.deleted ?? 0)} deleted, `
+      + `${Number(data.conflicted ?? 0)} conflicted, `
+      + `${Number(data.failed ?? 0)} failed.`;
+
     await loadJobMatches();
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    result.textContent =
+      `Error: ${error.message}`;
   }
 }
 
@@ -1063,7 +1276,7 @@ function renderResumeHistory() {
                 ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
                 : ""
             }
-            <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}')">Delete</button>
+	    <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}', ${Number(item.version ?? 0)})">Delete</button>
           </div>
 
           <div id="${detailsId}" class="card-details hidden">
@@ -1129,7 +1342,7 @@ function renderJobMatchHistory() {
           <div class="button-row">
             <button class="secondary" onclick="toggleCardDetails('${detailsId}')">Expand</button>
             <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
-            <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}')">Delete</button>
+	    <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}', ${Number(item.version ?? 0)})">Delete</button>
           </div>
 
           <div id="${detailsId}" class="card-details hidden">

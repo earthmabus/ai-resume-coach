@@ -28,7 +28,6 @@ resource "aws_lambda_function" "resume_analysis_worker" {
       DEPLOYMENT_ID = var.deployment_id
       LOG_LEVEL     = var.log_level
 
-
       RESUME_ANALYSIS_TABLE = aws_dynamodb_table.resume_analysis.name
       DOCUMENT_BUCKET       = aws_s3_bucket.documents.bucket
 
@@ -36,7 +35,8 @@ resource "aws_lambda_function" "resume_analysis_worker" {
       OPENAI_MODEL      = var.openai_model
       OPENAI_API_KEY    = var.openai_api_key
 
-      RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.resume_analysis_jobs.url
+      RESUME_ANALYSIS_QUEUE_URL       = aws_sqs_queue.resume_analysis_jobs.url
+      WORKER_PROCESSING_LEASE_SECONDS = "300"
     }
   }
 }
@@ -45,4 +45,8 @@ resource "aws_lambda_event_source_mapping" "resume_analysis_worker_sqs" {
   event_source_arn = aws_sqs_queue.resume_analysis_jobs.arn
   function_name    = aws_lambda_function.resume_analysis_worker.arn
   batch_size       = 1
+
+  function_response_types = [
+    "ReportBatchItemFailures"
+  ]
 }
