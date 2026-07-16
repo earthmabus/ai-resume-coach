@@ -91,9 +91,12 @@ resource "aws_lambda_function" "outbox_publisher" {
       DEPLOYMENT_ID = var.deployment_id
       LOG_LEVEL     = var.log_level
 
-      RESUME_ANALYSIS_TABLE     = aws_dynamodb_table.resume_analysis.name
-      RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.resume_analysis_jobs.url
-      OUTBOX_BATCH_SIZE         = "25"
+      RESUME_ANALYSIS_TABLE              = aws_dynamodb_table.resume_analysis.name
+      RESUME_ANALYSIS_QUEUE_URL          = aws_sqs_queue.resume_analysis_jobs.url
+      OUTBOX_BATCH_SIZE                  = "25"
+      OUTBOX_MAX_WORKERS                 = "4"
+      OUTBOX_MAX_DELIVERY_ATTEMPTS       = "20"
+      OUTBOX_DELIVERED_RETENTION_SECONDS = "2592000"
     }
   }
 
@@ -105,8 +108,6 @@ resource "aws_lambda_function" "outbox_publisher" {
   ]
 }
 
-# EventBridge is used only as a timer. Application events continue to flow
-# directly from the outbox publisher to the existing SQS worker queue.
 resource "aws_cloudwatch_event_rule" "outbox_publisher_schedule" {
   name                = "${local.name_prefix}-outbox-publisher-schedule"
   description         = "Invokes the transactional outbox publisher once per minute."

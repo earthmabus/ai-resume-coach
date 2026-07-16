@@ -213,6 +213,38 @@ resource "aws_cloudwatch_metric_alarm" "outbox_publish_failures" {
   ]
 }
 
+resource "aws_cloudwatch_metric_alarm" "outbox_permanent_failures" {
+  alarm_name = "${local.name_prefix}-outbox-permanent-failures"
+
+  alarm_description = (
+    "One or more transactional outbox events reached the permanent-failure state."
+  )
+
+  namespace   = local.application_metric_namespace
+  metric_name = "OutboxPermanentFailures"
+
+  dimensions = {
+    FunctionName = local.outbox_publisher_function_name
+  }
+
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+
+  ok_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+}
+
 resource "aws_cloudwatch_metric_alarm" "outbox_publisher_lambda_errors" {
   alarm_name = "${local.name_prefix}-outbox-publisher-lambda-errors"
 
@@ -373,6 +405,15 @@ resource "aws_cloudwatch_dashboard" "operations" {
               ".",
               {
                 label = "Publish failures"
+              }
+            ],
+            [
+              ".",
+              "OutboxPermanentFailures",
+              ".",
+              ".",
+              {
+                label = "Permanent failures"
               }
             ],
             [

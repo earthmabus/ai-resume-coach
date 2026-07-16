@@ -25,6 +25,11 @@ resource "aws_dynamodb_table" "resume_analysis" {
     type = "S"
   }
 
+  ttl {
+    attribute_name = "expiresAt"
+    enabled        = true
+  }
+
   global_secondary_index {
     name            = "gsi1"
     projection_type = "ALL"

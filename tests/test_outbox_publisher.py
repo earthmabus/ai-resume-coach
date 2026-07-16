@@ -11,6 +11,7 @@ from botocore.exceptions import ClientError
 
 from core.outbox import (
     OUTBOX_STATUS_DISPATCHING,
+    OUTBOX_STATUS_FAILED_PERMANENT,
     OUTBOX_STATUS_FAILED_RETRYABLE,
     OUTBOX_STATUS_PENDING,
 )
@@ -18,6 +19,7 @@ from core.outbox_publisher import (
     ClaimResult,
     DynamoDbOutboxRepository,
     OutboxPublisher,
+    DEFAULT_DELIVERED_RETENTION_SECONDS,
     PublishResult,
     SqsEventPublisher,
     retry_delay_seconds,
@@ -661,3 +663,444 @@ def test_mark_delivered_removes_retry_schedule():
     ]
 
     assert "nextDeliveryAttemptAt" in update_expression
+
+def test_outbox_publisher_rejects_non_positive_max_workers():
+    repository = MagicMock()
+    event_publisher = MagicMock()
+
+    with pytest.raises(
+        ValueError,
+        match="max_workers must be greater than zero",
+    ):
+        OutboxPublisher(
+            repository=repository,
+            event_publisher=event_publisher,
+            max_workers=0,
+        )
+
+
+def test_outbox_publisher_publishes_multiple_claimed_events():
+    repository = MagicMock()
+
+    events = [
+        {
+            **event_item(),
+            "eventId": f"event-{index}",
+            "pk": f"OUTBOX#event-{index}",
+            "sk": f"OUTBOX#event-{index}",
+        }
+        for index in range(4)
+    ]
+
+    claimed_items = [
+        {
+            **event,
+            "status": OUTBOX_STATUS_DISPATCHING,
+            "dispatchAttemptId": f"attempt-{index}",
+        }
+        for index, event in enumerate(events)
+    ]
+
+    repository.list_dispatchable.return_value = events
+    repository.claim.side_effect = [
+        ClaimResult(
+            claimed=True,
+            item=claimed_item,
+            attempt_id=f"attempt-{index}",
+        )
+        for index, claimed_item in enumerate(
+            claimed_items
+        )
+    ]
+
+    event_publisher = MagicMock()
+    event_publisher.publish.side_effect = [
+        f"message-{index}"
+        for index in range(4)
+    ]
+
+    publisher = OutboxPublisher(
+        repository=repository,
+        event_publisher=event_publisher,
+        batch_size=25,
+        max_workers=4,
+    )
+
+    result = publisher.publish_pending()
+
+    assert result == PublishResult(
+        examined=4,
+        claimed=4,
+        published=4,
+        failed=0,
+        skipped=0,
+    )
+
+    assert repository.claim.call_count == 4
+    assert event_publisher.publish.call_count == 4
+    assert repository.mark_delivered.call_count == 4
+    repository.mark_failed_retryable.assert_not_called()
+
+
+def test_outbox_publisher_counts_mixed_parallel_outcomes():
+    repository = MagicMock()
+
+    events = [
+        {
+            **event_item(),
+            "eventId": f"event-{index}",
+            "pk": f"OUTBOX#event-{index}",
+            "sk": f"OUTBOX#event-{index}",
+        }
+        for index in range(3)
+    ]
+
+    claimed_items = [
+        {
+            **event,
+            "status": OUTBOX_STATUS_DISPATCHING,
+            "dispatchAttemptId": f"attempt-{index}",
+        }
+        for index, event in enumerate(events)
+    ]
+
+    repository.list_dispatchable.return_value = events
+    repository.claim.side_effect = [
+        ClaimResult(
+            claimed=True,
+            item=claimed_items[0],
+            attempt_id="attempt-0",
+        ),
+        ClaimResult(
+            claimed=True,
+            item=claimed_items[1],
+            attempt_id="attempt-1",
+        ),
+        ClaimResult(
+            claimed=True,
+            item=claimed_items[2],
+            attempt_id="attempt-2",
+        ),
+    ]
+
+    def publish_side_effect(item):
+        if item["eventId"] == "event-1":
+            raise RuntimeError("SQS unavailable")
+
+        return f"message-{item['eventId']}"
+
+    event_publisher = MagicMock()
+    event_publisher.publish.side_effect = (
+        publish_side_effect
+    )
+
+    publisher = OutboxPublisher(
+        repository=repository,
+        event_publisher=event_publisher,
+        max_workers=3,
+    )
+
+    result = publisher.publish_pending()
+
+    assert result == PublishResult(
+        examined=3,
+        claimed=3,
+        published=2,
+        failed=1,
+        skipped=0,
+    )
+
+    assert repository.mark_delivered.call_count == 2
+    repository.mark_failed_retryable.assert_called_once()
+
+    failure_arguments = (
+        repository.mark_failed_retryable
+        .call_args.kwargs
+    )
+
+    assert (
+        failure_arguments["item"]["eventId"]
+        == "event-1"
+    )
+    assert (
+        failure_arguments["attempt_id"]
+        == "attempt-1"
+    )
+    assert (
+        failure_arguments["error_message"]
+        == "SQS unavailable"
+    )
+
+
+def test_outbox_publisher_preserves_skips_with_parallel_work():
+    repository = MagicMock()
+
+    first_event = {
+        **event_item(),
+        "eventId": "event-first",
+        "pk": "OUTBOX#event-first",
+        "sk": "OUTBOX#event-first",
+    }
+    skipped_event = {
+        **event_item(),
+        "eventId": "event-skipped",
+        "pk": "OUTBOX#event-skipped",
+        "sk": "OUTBOX#event-skipped",
+    }
+    second_event = {
+        **event_item(),
+        "eventId": "event-second",
+        "pk": "OUTBOX#event-second",
+        "sk": "OUTBOX#event-second",
+    }
+
+    repository.list_dispatchable.return_value = [
+        first_event,
+        skipped_event,
+        second_event,
+    ]
+
+    repository.claim.side_effect = [
+        ClaimResult(
+            claimed=True,
+            item={
+                **first_event,
+                "status": OUTBOX_STATUS_DISPATCHING,
+            },
+            attempt_id="attempt-first",
+        ),
+        ClaimResult(claimed=False),
+        ClaimResult(
+            claimed=True,
+            item={
+                **second_event,
+                "status": OUTBOX_STATUS_DISPATCHING,
+            },
+            attempt_id="attempt-second",
+        ),
+    ]
+
+    event_publisher = MagicMock()
+    event_publisher.publish.side_effect = [
+        "message-first",
+        "message-second",
+    ]
+
+    publisher = OutboxPublisher(
+        repository=repository,
+        event_publisher=event_publisher,
+        max_workers=2,
+    )
+
+    result = publisher.publish_pending()
+
+    assert result == PublishResult(
+        examined=3,
+        claimed=2,
+        published=2,
+        failed=0,
+        skipped=1,
+    )
+
+    assert event_publisher.publish.call_count == 2
+    assert repository.mark_delivered.call_count == 2
+
+
+def test_publish_claimed_event_marks_success_delivered():
+    repository = MagicMock()
+    event_publisher = MagicMock()
+    event_publisher.publish.return_value = (
+        "message-123"
+    )
+
+    publisher = OutboxPublisher(
+        repository=repository,
+        event_publisher=event_publisher,
+        max_workers=2,
+    )
+
+    from core.outbox_publisher import ClaimedEvent
+
+    claimed_event = ClaimedEvent(
+        item=event_item(
+            OUTBOX_STATUS_DISPATCHING
+        ),
+        attempt_id="attempt-123",
+    )
+
+    result = publisher._publish_claimed_event(
+        claimed_event
+    )
+
+    assert result.published is True
+    repository.mark_delivered.assert_called_once_with(
+        item=claimed_event.item,
+        attempt_id="attempt-123",
+        message_id="message-123",
+    )
+    repository.mark_failed_retryable.assert_not_called()
+
+
+def test_publish_claimed_event_marks_failure_retryable():
+    repository = MagicMock()
+    event_publisher = MagicMock()
+    event_publisher.publish.side_effect = RuntimeError(
+        "transport failed"
+    )
+
+    publisher = OutboxPublisher(
+        repository=repository,
+        event_publisher=event_publisher,
+        max_workers=2,
+    )
+
+    from core.outbox_publisher import ClaimedEvent
+
+    claimed_event = ClaimedEvent(
+        item=event_item(
+            OUTBOX_STATUS_DISPATCHING
+        ),
+        attempt_id="attempt-123",
+    )
+
+    result = publisher._publish_claimed_event(
+        claimed_event
+    )
+
+    assert result.published is False
+    repository.mark_failed_retryable.assert_called_once_with(
+        item=claimed_event.item,
+        attempt_id="attempt-123",
+        error_message="transport failed",
+    )
+    repository.mark_delivered.assert_not_called()
+
+
+def test_repository_rejects_non_positive_delivered_retention():
+    with pytest.raises(
+        ValueError,
+        match="delivered_retention_seconds must be greater than zero",
+    ):
+        DynamoDbOutboxRepository(
+            table=MagicMock(),
+            region="us-east-1",
+            delivered_retention_seconds=0,
+        )
+
+
+def test_mark_delivered_sets_ttl():
+    table = MagicMock()
+    table.update_item.return_value = {
+        "Attributes": {
+            **event_item(),
+            "status": "DELIVERED",
+        }
+    }
+    repository = make_repository(table)
+
+    repository.mark_delivered(
+        item=event_item(OUTBOX_STATUS_DISPATCHING),
+        attempt_id="attempt-123",
+        message_id="message-123",
+    )
+
+    values = table.update_item.call_args.kwargs[
+        "ExpressionAttributeValues"
+    ]
+    assert values[":expiresAt"] == (
+        NOW_EPOCH + DEFAULT_DELIVERED_RETENTION_SECONDS
+    )
+
+
+def test_mark_failed_permanent_removes_dispatch_index():
+    table = MagicMock()
+    table.update_item.return_value = {
+        "Attributes": {
+            **event_item(),
+            "status": OUTBOX_STATUS_FAILED_PERMANENT,
+        }
+    }
+    repository = make_repository(table)
+
+    result = repository.mark_failed_permanent(
+        item=event_item(OUTBOX_STATUS_DISPATCHING),
+        attempt_id="attempt-123",
+        error_message="terminal failure",
+    )
+
+    assert result["status"] == OUTBOX_STATUS_FAILED_PERMANENT
+    arguments = table.update_item.call_args.kwargs
+    assert "REMOVE gsi1pk, gsi1sk" in arguments["UpdateExpression"]
+    assert arguments["ExpressionAttributeValues"][
+        ":failedPermanent"
+    ] == OUTBOX_STATUS_FAILED_PERMANENT
+
+
+def test_publisher_marks_failure_retryable_below_attempt_limit():
+    claimed_item = {
+        **event_item(OUTBOX_STATUS_DISPATCHING),
+        "deliveryAttempts": 19,
+    }
+    repository = MagicMock()
+    repository.list_dispatchable.return_value = [event_item()]
+    repository.claim.return_value = ClaimResult(
+        claimed=True,
+        item=claimed_item,
+        attempt_id="attempt-123",
+    )
+    transport = MagicMock()
+    transport.publish.side_effect = RuntimeError("SQS unavailable")
+
+    result = OutboxPublisher(
+        repository=repository,
+        event_publisher=transport,
+        max_delivery_attempts=20,
+    ).publish_pending()
+
+    assert result.failed == 1
+    assert result.permanently_failed == 0
+    repository.mark_failed_retryable.assert_called_once()
+    repository.mark_failed_permanent.assert_not_called()
+
+
+def test_publisher_marks_failure_permanent_at_attempt_limit():
+    claimed_item = {
+        **event_item(OUTBOX_STATUS_DISPATCHING),
+        "deliveryAttempts": 20,
+    }
+    repository = MagicMock()
+    repository.list_dispatchable.return_value = [event_item()]
+    repository.claim.return_value = ClaimResult(
+        claimed=True,
+        item=claimed_item,
+        attempt_id="attempt-123",
+    )
+    transport = MagicMock()
+    transport.publish.side_effect = RuntimeError("SQS unavailable")
+
+    result = OutboxPublisher(
+        repository=repository,
+        event_publisher=transport,
+        max_delivery_attempts=20,
+    ).publish_pending()
+
+    assert result.failed == 1
+    assert result.permanently_failed == 1
+    repository.mark_failed_permanent.assert_called_once_with(
+        item=claimed_item,
+        attempt_id="attempt-123",
+        error_message="SQS unavailable",
+    )
+    repository.mark_failed_retryable.assert_not_called()
+
+
+def test_publisher_rejects_non_positive_attempt_limit():
+    with pytest.raises(
+        ValueError,
+        match="max_delivery_attempts must be greater than zero",
+    ):
+        OutboxPublisher(
+            repository=MagicMock(),
+            event_publisher=MagicMock(),
+            max_delivery_attempts=0,
+        )

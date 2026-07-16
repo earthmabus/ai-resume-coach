@@ -44,6 +44,7 @@ def test_handler_publishes_pending_events(
         "published": 3,
         "failed": 1,
         "skipped": 1,
+        "permanentlyFailed": 0,
     }
 
     publisher.publish_pending.assert_called_once_with()
@@ -72,6 +73,7 @@ def test_handler_returns_zero_counts_for_empty_batch(
         "published": 0,
         "failed": 0,
         "skipped": 0,
+        "permanentlyFailed": 0,
     }
 
 
@@ -98,6 +100,7 @@ def test_handler_accepts_none_event(
         "published": 0,
         "failed": 0,
         "skipped": 0,
+        "permanentlyFailed": 0,
     }
 
 
@@ -334,6 +337,7 @@ def test_embedded_metric_payload_contains_expected_metrics(
         "OutboxEventsPublished",
         "OutboxPublishFailures",
         "OutboxClaimSkips",
+        "OutboxPermanentFailures",
     }
 
     assert payload["FunctionName"] == (
@@ -450,6 +454,7 @@ def test_handler_emits_metrics_after_successful_cycle(
         "published": 2,
         "failed": 0,
         "skipped": 1,
+        "permanentlyFailed": 0,
     }
 
     emit_metrics.assert_called_once_with(result)
@@ -566,3 +571,210 @@ def test_get_publisher_caches_warm_invocation_instance(
     builder.assert_called_once_with()
 
     outbox_publisher_handler.reset_publisher()
+
+def test_configured_max_workers_uses_default(
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        "OUTBOX_MAX_WORKERS",
+        raising=False,
+    )
+
+    assert (
+        outbox_publisher_handler.configured_max_workers()
+        == 4
+    )
+
+
+def test_configured_max_workers_uses_configured_value(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "OUTBOX_MAX_WORKERS",
+        "8",
+    )
+
+    assert (
+        outbox_publisher_handler.configured_max_workers()
+        == 8
+    )
+
+
+@pytest.mark.parametrize(
+    "configured_value",
+    [
+        "0",
+        "-1",
+        "not-a-number",
+    ],
+)
+def test_configured_max_workers_rejects_invalid_values(
+    monkeypatch,
+    configured_value,
+):
+    monkeypatch.setenv(
+        "OUTBOX_MAX_WORKERS",
+        configured_value,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="OUTBOX_MAX_WORKERS",
+    ):
+        (
+            outbox_publisher_handler
+            .configured_max_workers()
+        )
+
+
+def test_build_publisher_passes_configured_max_workers(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "RESUME_ANALYSIS_TABLE",
+        "test-outbox-table",
+    )
+    monkeypatch.setenv(
+        "RESUME_ANALYSIS_QUEUE_URL",
+        "https://sqs.example/test-queue",
+    )
+    monkeypatch.setenv(
+        "AWS_REGION",
+        "us-east-1",
+    )
+    monkeypatch.setenv(
+        "OUTBOX_BATCH_SIZE",
+        "10",
+    )
+    monkeypatch.setenv(
+        "OUTBOX_MAX_WORKERS",
+        "6",
+    )
+
+    table = MagicMock()
+    dynamodb = MagicMock()
+    dynamodb.Table.return_value = table
+    sqs = MagicMock()
+
+    monkeypatch.setattr(
+        outbox_publisher_handler.boto3,
+        "resource",
+        MagicMock(return_value=dynamodb),
+    )
+    monkeypatch.setattr(
+        outbox_publisher_handler.boto3,
+        "client",
+        MagicMock(return_value=sqs),
+    )
+
+    publisher_constructor = MagicMock(
+        return_value=MagicMock()
+    )
+
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "OutboxPublisher",
+        publisher_constructor,
+    )
+
+    outbox_publisher_handler.build_publisher()
+
+    publisher_constructor.assert_called_once()
+
+    arguments = publisher_constructor.call_args.kwargs
+
+    assert arguments["batch_size"] == 10
+    assert arguments["max_workers"] == 6
+
+
+def test_handler_start_log_includes_max_workers(
+    monkeypatch,
+):
+    publisher = MagicMock()
+    publisher.publish_pending.return_value = (
+        PublishResult()
+    )
+
+    log_info = MagicMock()
+
+    monkeypatch.setenv(
+        "OUTBOX_BATCH_SIZE",
+        "25",
+    )
+    monkeypatch.setenv(
+        "OUTBOX_MAX_WORKERS",
+        "4",
+    )
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "get_publisher",
+        MagicMock(return_value=publisher),
+    )
+    monkeypatch.setattr(
+        outbox_publisher_handler.logger,
+        "info",
+        log_info,
+    )
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "emit_embedded_metrics",
+        MagicMock(),
+    )
+
+    outbox_publisher_handler.handler(
+        {
+            "source": "scheduled-test",
+        },
+        SimpleNamespace(
+            aws_request_id="request-123",
+        ),
+    )
+
+    starting_log = json.loads(
+        log_info.call_args_list[0].args[0]
+    )
+
+    assert starting_log["batchSize"] == 25
+    assert starting_log["maxWorkers"] == 4
+
+
+def test_configured_max_delivery_attempts_uses_default(monkeypatch):
+    monkeypatch.delenv(
+        "OUTBOX_MAX_DELIVERY_ATTEMPTS",
+        raising=False,
+    )
+    assert (
+        outbox_publisher_handler.configured_max_delivery_attempts()
+        == 20
+    )
+
+
+def test_configured_delivered_retention_seconds_uses_default(monkeypatch):
+    monkeypatch.delenv(
+        "OUTBOX_DELIVERED_RETENTION_SECONDS",
+        raising=False,
+    )
+    assert (
+        outbox_publisher_handler.configured_delivered_retention_seconds()
+        == 2592000
+    )
+
+
+def test_embedded_metrics_include_permanent_failures(monkeypatch):
+    monkeypatch.setenv("PROJECT_NAME", "ai-resume-coach")
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    result = PublishResult(
+        examined=1,
+        claimed=1,
+        failed=1,
+        permanently_failed=1,
+    )
+
+    payload = outbox_publisher_handler.embedded_metric_payload(result)
+
+    assert payload["OutboxPermanentFailures"] == 1
+    names = {
+        metric["Name"]
+        for metric in payload["_aws"]["CloudWatchMetrics"][0]["Metrics"]
+    }
+    assert "OutboxPermanentFailures" in names

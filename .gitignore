@@ -28,6 +28,7 @@ src/core/__pycache__/*
 src/features/__pycache__/*
 src/registration_notification/__pycache__/*
 src/providers/__pycache__/*
+tools/__pycache__/*
 tests/__pycache__/*
 
 

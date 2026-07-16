@@ -9,6 +9,9 @@ from typing import Any
 import boto3
 
 from core.outbox_publisher import (
+    DEFAULT_MAX_DELIVERY_ATTEMPTS,
+    DEFAULT_MAX_WORKERS,
+    DEFAULT_DELIVERED_RETENTION_SECONDS,
     DynamoDbOutboxRepository,
     OutboxPublisher,
     PublishResult,
@@ -18,7 +21,10 @@ from core.outbox_publisher import (
 
 logger = logging.getLogger(__name__)
 logger.setLevel(
-    os.getenv("LOG_LEVEL", "INFO").upper()
+    os.getenv(
+        "LOG_LEVEL",
+        "INFO",
+    ).upper()
 )
 
 
@@ -29,13 +35,17 @@ DEFAULT_ENVIRONMENT = "unknown"
 _publisher: OutboxPublisher | None = None
 
 
-def required_environment_variable(name: str) -> str:
-    value = str(os.getenv(name) or "").strip()
+def required_environment_variable(
+    name: str,
+) -> str:
+    value = str(
+        os.getenv(name) or ""
+    ).strip()
 
     if not value:
         raise RuntimeError(
-            f"Required environment variable {name} "
-            "is not configured"
+            f"Required environment variable "
+            f"{name} is not configured"
         )
 
     return value
@@ -46,48 +56,101 @@ def configured_table_name() -> str:
     Resolve the DynamoDB table name.
 
     RESUME_ANALYSIS_TABLE matches the existing application and worker
-    configuration. DYNAMODB_TABLE_NAME remains supported as a fallback
-    for compatibility with earlier infrastructure drafts.
+    configuration. DYNAMODB_TABLE_NAME remains supported as a fallback.
     """
     return (
-        str(os.getenv("RESUME_ANALYSIS_TABLE") or "").strip()
-        or str(os.getenv("DYNAMODB_TABLE_NAME") or "").strip()
+        str(
+            os.getenv(
+                "RESUME_ANALYSIS_TABLE"
+            )
+            or ""
+        ).strip()
+        or str(
+            os.getenv(
+                "DYNAMODB_TABLE_NAME"
+            )
+            or ""
+        ).strip()
         or required_environment_variable(
             "RESUME_ANALYSIS_TABLE"
         )
     )
 
 
-def configured_batch_size() -> int:
+def configured_positive_integer(
+    *,
+    environment_variable: str,
+    default_value: int,
+) -> int:
     raw_value = str(
         os.getenv(
-            "OUTBOX_BATCH_SIZE",
-            str(DEFAULT_OUTBOX_BATCH_SIZE),
+            environment_variable,
+            str(default_value),
         )
     ).strip()
 
     try:
-        batch_size = int(raw_value)
+        value = int(raw_value)
     except ValueError as error:
         raise RuntimeError(
-            "OUTBOX_BATCH_SIZE must be an integer"
+            f"{environment_variable} "
+            "must be an integer"
         ) from error
 
-    if batch_size <= 0:
+    if value <= 0:
         raise RuntimeError(
-            "OUTBOX_BATCH_SIZE must be greater than zero"
+            f"{environment_variable} "
+            "must be greater than zero"
         )
 
-    return batch_size
+    return value
+
+
+def configured_batch_size() -> int:
+    return configured_positive_integer(
+        environment_variable=(
+            "OUTBOX_BATCH_SIZE"
+        ),
+        default_value=(
+            DEFAULT_OUTBOX_BATCH_SIZE
+        ),
+    )
+
+
+def configured_max_workers() -> int:
+    return configured_positive_integer(
+        environment_variable=(
+            "OUTBOX_MAX_WORKERS"
+        ),
+        default_value=(
+            DEFAULT_MAX_WORKERS
+        ),
+    )
+
+
+def configured_max_delivery_attempts() -> int:
+    return configured_positive_integer(
+        environment_variable=(
+            "OUTBOX_MAX_DELIVERY_ATTEMPTS"
+        ),
+        default_value=(
+            DEFAULT_MAX_DELIVERY_ATTEMPTS
+        ),
+    )
+
+
+def configured_delivered_retention_seconds() -> int:
+    return configured_positive_integer(
+        environment_variable=(
+            "OUTBOX_DELIVERED_RETENTION_SECONDS"
+        ),
+        default_value=(
+            DEFAULT_DELIVERED_RETENTION_SECONDS
+        ),
+    )
 
 
 def configured_metric_namespace() -> str:
-    """
-    Build the CloudWatch custom-metric namespace.
-
-    Example:
-        ai-resume-coach/dev
-    """
     project_name = (
         str(
             os.getenv(
@@ -108,13 +171,12 @@ def configured_metric_namespace() -> str:
         or DEFAULT_ENVIRONMENT
     )
 
-    return f"{project_name}/{environment}"
+    return (
+        f"{project_name}/{environment}"
+    )
 
 
 def configured_function_name() -> str:
-    """
-    Return the Lambda function name used as the EMF dimension.
-    """
     return (
         str(
             os.getenv(
@@ -129,27 +191,48 @@ def configured_function_name() -> str:
 def build_publisher() -> OutboxPublisher:
     """
     Build the publisher from Lambda environment configuration.
-
-    AWS clients are deliberately created here instead of at module import
-    time. This keeps local imports and unit tests independent of AWS.
     """
     table_name = configured_table_name()
-    queue_url = required_environment_variable(
-        "RESUME_ANALYSIS_QUEUE_URL"
+    queue_url = (
+        required_environment_variable(
+            "RESUME_ANALYSIS_QUEUE_URL"
+        )
     )
     region = (
-        str(os.getenv("AWS_REGION") or "").strip()
-        or str(os.getenv("AWS_DEFAULT_REGION") or "").strip()
+        str(
+            os.getenv("AWS_REGION")
+            or ""
+        ).strip()
+        or str(
+            os.getenv(
+                "AWS_DEFAULT_REGION"
+            )
+            or ""
+        ).strip()
         or "unknown"
     )
     batch_size = configured_batch_size()
+    max_workers = configured_max_workers()
+    max_delivery_attempts = configured_max_delivery_attempts()
+    delivered_retention_seconds = (
+        configured_delivered_retention_seconds()
+    )
 
-    dynamodb = boto3.resource("dynamodb")
+    dynamodb = boto3.resource(
+        "dynamodb"
+    )
     sqs = boto3.client("sqs")
 
-    repository = DynamoDbOutboxRepository(
-        table=dynamodb.Table(table_name),
-        region=region,
+    repository = (
+        DynamoDbOutboxRepository(
+            table=dynamodb.Table(
+                table_name
+            ),
+            region=region,
+            delivered_retention_seconds=(
+                delivered_retention_seconds
+            ),
+        )
     )
 
     event_publisher = SqsEventPublisher(
@@ -161,13 +244,14 @@ def build_publisher() -> OutboxPublisher:
         repository=repository,
         event_publisher=event_publisher,
         batch_size=batch_size,
+        max_workers=max_workers,
+        max_delivery_attempts=(
+            max_delivery_attempts
+        ),
     )
 
 
 def get_publisher() -> OutboxPublisher:
-    """
-    Reuse the publisher across warm Lambda invocations.
-    """
     global _publisher
 
     if _publisher is None:
@@ -177,11 +261,6 @@ def get_publisher() -> OutboxPublisher:
 
 
 def reset_publisher() -> None:
-    """
-    Clear the cached publisher.
-
-    Intended for unit tests and controlled configuration reloads.
-    """
     global _publisher
     _publisher = None
 
@@ -195,24 +274,25 @@ def result_payload(
         "published": result.published,
         "failed": result.failed,
         "skipped": result.skipped,
+        "permanentlyFailed": (
+            result.permanently_failed
+        ),
     }
 
 
 def embedded_metric_payload(
     result: PublishResult,
 ) -> dict[str, Any]:
-    """
-    Build a CloudWatch Embedded Metric Format payload.
-
-    CloudWatch extracts these metrics directly from the Lambda log event,
-    so the Lambda does not require cloudwatch:PutMetricData permission.
-    """
     return {
         "_aws": {
-            "Timestamp": int(time.time() * 1000),
+            "Timestamp": int(
+                time.time() * 1000
+            ),
             "CloudWatchMetrics": [
                 {
-                    "Namespace": configured_metric_namespace(),
+                    "Namespace": (
+                        configured_metric_namespace()
+                    ),
                     "Dimensions": [
                         [
                             "FunctionName",
@@ -220,52 +300,84 @@ def embedded_metric_payload(
                     ],
                     "Metrics": [
                         {
-                            "Name": "OutboxPublisherCycles",
+                            "Name": (
+                                "OutboxPublisherCycles"
+                            ),
                             "Unit": "Count",
                         },
                         {
-                            "Name": "OutboxEventsExamined",
+                            "Name": (
+                                "OutboxEventsExamined"
+                            ),
                             "Unit": "Count",
                         },
                         {
-                            "Name": "OutboxEventsClaimed",
+                            "Name": (
+                                "OutboxEventsClaimed"
+                            ),
                             "Unit": "Count",
                         },
                         {
-                            "Name": "OutboxEventsPublished",
+                            "Name": (
+                                "OutboxEventsPublished"
+                            ),
                             "Unit": "Count",
                         },
                         {
-                            "Name": "OutboxPublishFailures",
+                            "Name": (
+                                "OutboxPublishFailures"
+                            ),
                             "Unit": "Count",
                         },
                         {
-                            "Name": "OutboxClaimSkips",
+                            "Name": (
+                                "OutboxClaimSkips"
+                            ),
+                            "Unit": "Count",
+                        },
+                        {
+                            "Name": (
+                                "OutboxPermanentFailures"
+                            ),
                             "Unit": "Count",
                         },
                     ],
                 }
             ],
         },
-        "FunctionName": configured_function_name(),
+        "FunctionName": (
+            configured_function_name()
+        ),
         "OutboxPublisherCycles": 1,
-        "OutboxEventsExamined": result.examined,
-        "OutboxEventsClaimed": result.claimed,
-        "OutboxEventsPublished": result.published,
-        "OutboxPublishFailures": result.failed,
-        "OutboxClaimSkips": result.skipped,
+        "OutboxEventsExamined": (
+            result.examined
+        ),
+        "OutboxEventsClaimed": (
+            result.claimed
+        ),
+        "OutboxEventsPublished": (
+            result.published
+        ),
+        "OutboxPublishFailures": (
+            result.failed
+        ),
+        "OutboxClaimSkips": (
+            result.skipped
+        ),
+        "OutboxPermanentFailures": (
+            result.permanently_failed
+        ),
     }
 
 
 def emit_embedded_metrics(
     result: PublishResult,
 ) -> None:
-    """
-    Emit one EMF log event for the completed publisher cycle.
-    """
     logger.info(
         json.dumps(
-            embedded_metric_payload(result),
+            embedded_metric_payload(
+                result
+            ),
             separators=(",", ":"),
         )
     )
@@ -275,13 +387,6 @@ def handler(
     event: dict[str, Any] | None,
     context: Any,
 ) -> dict[str, int]:
-    """
-    Run one bounded outbox-publishing cycle.
-
-    Unexpected service-level exceptions propagate so Lambda records the
-    invocation as failed. Individual transport failures are handled by
-    OutboxPublisher and returned through the failed count.
-    """
     request_id = getattr(
         context,
         "aws_request_id",
@@ -293,36 +398,57 @@ def handler(
             "source",
             "manual",
         )
-        if isinstance(event, dict)
+        if isinstance(
+            event,
+            dict,
+        )
         else "manual"
     )
 
     batch_size = configured_batch_size()
+    max_workers = configured_max_workers()
+    max_delivery_attempts = (
+        configured_max_delivery_attempts()
+    )
 
     logger.info(
         json.dumps(
             {
                 "message": (
-                    "Starting outbox publisher invocation"
+                    "Starting outbox "
+                    "publisher invocation"
                 ),
-                "awsRequestId": request_id,
-                "triggerSource": trigger_source,
+                "awsRequestId": (
+                    request_id
+                ),
+                "triggerSource": (
+                    trigger_source
+                ),
                 "batchSize": batch_size,
+                "maxWorkers": max_workers,
+                "maxDeliveryAttempts": (
+                    max_delivery_attempts
+                ),
             },
             separators=(",", ":"),
         )
     )
 
-    result = get_publisher().publish_pending()
+    result = (
+        get_publisher().publish_pending()
+    )
     response = result_payload(result)
 
     logger.info(
         json.dumps(
             {
                 "message": (
-                    "Completed outbox publisher invocation"
+                    "Completed outbox "
+                    "publisher invocation"
                 ),
-                "awsRequestId": request_id,
+                "awsRequestId": (
+                    request_id
+                ),
                 **response,
             },
             separators=(",", ":"),

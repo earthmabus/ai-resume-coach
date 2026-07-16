@@ -3,6 +3,7 @@ from __future__ import annotations
 import pytest
 
 from core.outbox import (
+    OUTBOX_STATUS_FAILED_PERMANENT,
     OUTBOX_STATUS_PENDING,
     build_interview_preparation_outbox_event,
     build_job_match_outbox_event,
@@ -246,3 +247,9 @@ def test_deterministic_event_id_requires_identity_fields(
         match=f"{field_name} is required",
     ):
         deterministic_event_id(**kwargs)
+
+
+def test_failed_permanent_is_supported_status():
+    from core.outbox import SUPPORTED_OUTBOX_STATUSES
+
+    assert OUTBOX_STATUS_FAILED_PERMANENT in SUPPORTED_OUTBOX_STATUSES
