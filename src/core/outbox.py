@@ -6,6 +6,7 @@ from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Mapping
 
+from core.config import get_config
 from core.keys import (
     outbox_pk,
     outbox_sk,
@@ -111,6 +112,7 @@ def build_outbox_event(
     payload: Mapping[str, Any],
     created_region: str,
     request_id: str,
+    created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
     """
@@ -127,6 +129,11 @@ def build_outbox_event(
     normalized_job_type = str(job_type or "").strip()
     normalized_region = str(created_region or "").strip()
     normalized_request_id = str(request_id or "").strip()
+    normalized_deployment_id = str(
+        created_deployment_id
+        or get_config().deployment_id
+        or "unknown"
+    ).strip()
 
     if not normalized_job_type:
         raise ValueError("job_type is required")
@@ -165,7 +172,9 @@ def build_outbox_event(
         "createdAt": timestamp,
         "updatedAt": timestamp,
         "createdRegion": normalized_region,
+        "createdByDeploymentId": normalized_deployment_id,
         "lastUpdatedRegion": normalized_region,
+        "lastUpdatedByDeploymentId": normalized_deployment_id,
         "createdByRequestId": normalized_request_id,
         "updatedByRequestId": normalized_request_id,
         "deliveryAttempts": 0,
@@ -199,6 +208,7 @@ def build_resume_analysis_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
     return build_outbox_event(
@@ -217,6 +227,7 @@ def build_resume_analysis_outbox_event(
         },
         created_region=created_region,
         request_id=request_id,
+        created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
 
@@ -229,6 +240,7 @@ def build_job_match_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
     return build_outbox_event(
@@ -248,6 +260,7 @@ def build_job_match_outbox_event(
         },
         created_region=created_region,
         request_id=request_id,
+        created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
 
@@ -260,6 +273,7 @@ def build_resume_tailoring_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
     return build_outbox_event(
@@ -279,6 +293,7 @@ def build_resume_tailoring_outbox_event(
         },
         created_region=created_region,
         request_id=request_id,
+        created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
 
@@ -291,6 +306,7 @@ def build_interview_preparation_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
     return build_outbox_event(
@@ -310,5 +326,6 @@ def build_interview_preparation_outbox_event(
         },
         created_region=created_region,
         request_id=request_id,
+        created_deployment_id=created_deployment_id,
         created_at=created_at,
     )

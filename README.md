@@ -1,32 +1,18 @@
-# MR-005A — Isolate Lambda Deployment Packages
+# MR-006A Internal Provenance Correction
 
-This bundle introduces per-Lambda source directories, deterministic staging,
-and one Terraform archive per Lambda.
+This correction narrows MR-006 to internal regional and deployment
+provenance.
 
-## Copy replacements
+It restores:
 
-Copy all paths from this directory into the repository root, preserving paths.
+- Existing API response bodies
+- Existing outbox worker payloads
+- Existing frontend files
 
-## Build and test
+It keeps:
 
-```bash
-python tools/build_lambda_packages.py
-python -m compileall src tests tools
-pytest -q tests/test_lambda_packages.py
-pytest -q tests
-```
-
-## Terraform
-
-```bash
-cd infra
-terraform fmt -recursive
-terraform validate
-terraform plan -input=false -out=tfplan-mr005a
-```
-
-The compatibility modules at `src/handler.py`, `src/worker.py`,
-`src/outbox_publisher_handler.py`, and
-`src/registration_notification/handler.py` deliberately alias the new source
-modules. This preserves existing tests and local imports while the generated
-Lambda packages deploy only the new `src/lambdas/...` handlers.
+- RequestContext deployment identity
+- DynamoDB deployment provenance
+- Worker processing provenance
+- Outbox-record provenance
+- Structured regional logs

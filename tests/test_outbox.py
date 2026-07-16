@@ -253,3 +253,20 @@ def test_failed_permanent_is_supported_status():
     from core.outbox import SUPPORTED_OUTBOX_STATUSES
 
     assert OUTBOX_STATUS_FAILED_PERMANENT in SUPPORTED_OUTBOX_STATUSES
+
+
+def test_outbox_event_records_deployment_provenance():
+    event = build_outbox_event(
+        event_type="TEST_REQUESTED",
+        aggregate_type="testAggregate",
+        aggregate_id="aggregate-456",
+        job_type="testJob",
+        payload={"jobType": "testJob"},
+        created_region=REGION,
+        created_deployment_id="deployment-123",
+        request_id=REQUEST_ID,
+        created_at=CREATED_AT,
+    )
+
+    assert event.item["createdByDeploymentId"] == "deployment-123"
+    assert event.item["lastUpdatedByDeploymentId"] == "deployment-123"

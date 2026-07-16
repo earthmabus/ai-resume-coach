@@ -120,6 +120,7 @@ class DynamoDbOutboxRepository:
         *,
         table: Any,
         region: str,
+        deployment_id: str = "unknown",
         lease_seconds: int = DEFAULT_DISPATCH_LEASE_SECONDS,
         delivered_retention_seconds: int = DEFAULT_DELIVERED_RETENTION_SECONDS,
         now: Callable[[], datetime] | None = None,
@@ -138,6 +139,10 @@ class DynamoDbOutboxRepository:
         self._table = table
         self._region = (
             str(region or "").strip()
+            or "unknown"
+        )
+        self._deployment_id = (
+            str(deployment_id or "").strip()
             or "unknown"
         )
         self._lease_seconds = lease_seconds
@@ -338,6 +343,7 @@ class DynamoDbOutboxRepository:
                 lease_expires_at
             ),
             ":region": self._region,
+            ":deploymentId": self._deployment_id,
             ":expectedStatus": (
                 current_status
             ),
@@ -389,6 +395,7 @@ class DynamoDbOutboxRepository:
                     "updatedAt = :now, "
                     "updatedByRequestId = :attemptId, "
                     "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                     "deliveryAttempts = "
                     "if_not_exists("
                     "deliveryAttempts, :zero"
@@ -450,6 +457,7 @@ class DynamoDbOutboxRepository:
                 "updatedAt = :now, "
                 "updatedByRequestId = :attemptId, "
                 "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                 "transportMessageId = :messageId, "
                 "expiresAt = :expiresAt, "
                 "#version = if_not_exists("
@@ -484,6 +492,7 @@ class DynamoDbOutboxRepository:
                 ":expiresAt": expires_at,
                 ":now": now,
                 ":region": self._region,
+            ":deploymentId": self._deployment_id,
                 ":zero": 0,
                 ":one": 1,
             },
@@ -540,6 +549,7 @@ class DynamoDbOutboxRepository:
                     "updatedByRequestId = "
                     ":attemptId, "
                     "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                     "#version = if_not_exists("
                     "#version, :zero"
                     ") + :one "
@@ -577,6 +587,7 @@ class DynamoDbOutboxRepository:
                     ),
                     ":now": now,
                     ":region": self._region,
+            ":deploymentId": self._deployment_id,
                     ":zero": 0,
                     ":one": 1,
                 },
@@ -618,6 +629,7 @@ class DynamoDbOutboxRepository:
                     "updatedAt = :now, "
                     "updatedByRequestId = :attemptId, "
                     "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                     "#version = if_not_exists("
                     "#version, :zero"
                     ") + :one "
@@ -646,6 +658,7 @@ class DynamoDbOutboxRepository:
                     ":errorMessage": truncated_error,
                     ":now": now,
                     ":region": self._region,
+            ":deploymentId": self._deployment_id,
                     ":zero": 0,
                     ":one": 1,
                 },
@@ -730,6 +743,14 @@ class SqsEventPublisher:
                 "submittedAt": item.get(
                     "createdAt",
                     "",
+                ),
+                "sourceRegion": item.get(
+                    "createdRegion",
+                    payload.get("sourceRegion", ""),
+                ),
+                "sourceDeploymentId": item.get(
+                    "createdByDeploymentId",
+                    payload.get("sourceDeploymentId", ""),
                 ),
             }
         )

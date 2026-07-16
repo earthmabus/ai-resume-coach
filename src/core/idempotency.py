@@ -8,6 +8,7 @@ from typing import Any
 
 from botocore.exceptions import ClientError
 
+from core.config import get_config
 from core.errors import IdempotencyConflictError
 from core.storage import (
     get_item_strong,
@@ -124,6 +125,7 @@ def _try_reacquire_retryable(
                 "updatedAt = :updatedAt, "
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                 "#version = #version + :one"
             ),
             ConditionExpression=(
@@ -141,6 +143,7 @@ def _try_reacquire_retryable(
                 ":updatedAt": utc_now(),
                 ":requestId": request_id,
                 ":region": region,
+                ":deploymentId": get_config().deployment_id,
                 ":one": 1,
             },
         )
@@ -173,6 +176,8 @@ def reserve_request(
     now = datetime.now(timezone.utc)
     now_iso = now.isoformat()
 
+    deployment_id = get_config().deployment_id
+
     item = {
         "pk": pk,
         "sk": sk,
@@ -186,7 +191,9 @@ def reserve_request(
         "createdByRequestId": request_id,
         "updatedByRequestId": request_id,
         "createdRegion": region,
+        "createdByDeploymentId": deployment_id,
         "lastUpdatedRegion": region,
+        "lastUpdatedByDeploymentId": deployment_id,
         "createdAt": now_iso,
         "updatedAt": now_iso,
         "retentionUntil": (
@@ -289,6 +296,7 @@ def complete_request(
                 "updatedAt = :updatedAt, "
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                 "#version = #version + :one"
             ),
             ConditionExpression=(
@@ -311,6 +319,7 @@ def complete_request(
                 ":updatedAt": now,
                 ":requestId": request_id,
                 ":region": region,
+                ":deploymentId": get_config().deployment_id,
                 ":one": 1,
             },
         )
@@ -358,6 +367,7 @@ def mark_request_retryable(
                 "updatedAt = :updatedAt, "
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                 "#version = #version + :one"
             ),
             ConditionExpression=(
@@ -377,6 +387,7 @@ def mark_request_retryable(
                 ":updatedAt": now,
                 ":requestId": request_id,
                 ":region": region,
+                ":deploymentId": get_config().deployment_id,
                 ":one": 1,
             },
         )

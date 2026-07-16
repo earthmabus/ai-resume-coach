@@ -13,6 +13,7 @@ from boto3.dynamodb.conditions import Key
 # imports from project specific files
 from providers.factory import get_analysis_provider
 from core.responses import build_response, parse_body
+from core.config import get_config
 from core.auth import current_user_id, assert_item_owner
 from core.errors import ResourceConflictError
 from core.keys import base_keys, resume_sk, user_pk
@@ -114,7 +115,9 @@ def analyze_and_save_resume(
             "updatedByRequestId": request_id,
             "createdByRequestHash": request_hash,
             "createdRegion": region,
+            "createdByDeploymentId": get_config().deployment_id,
             "lastUpdatedRegion": region,
+            "lastUpdatedByDeploymentId": get_config().deployment_id,
             "version": 1,
             "sourceType": source_type,
             "status": "ANALYSIS_IN_PROGRESS",
@@ -194,6 +197,7 @@ def analyze_and_save_resume(
             "updatedAt = :updatedAt, "
             "updatedByRequestId = :requestId, "
             "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
             "provider = :provider, "
             "model = :model, "
             "analysisVersion = :analysisVersion, "
@@ -222,6 +226,7 @@ def analyze_and_save_resume(
             ":updatedAt": completed_at,
             ":requestId": request_id,
             ":region": region,
+            ":deploymentId": get_config().deployment_id,
             ":provider": analysis_result["provider"],
             ":model": analysis_result.get("model", ""),
             ":analysisVersion": analysis_result[
@@ -790,7 +795,9 @@ def analyze_uploaded_resume(event):
                 "updatedByRequestId": context.request_id,
                 "createdByRequestHash": request_hash,
                 "createdRegion": context.region,
+                "createdByDeploymentId": context.deployment_id,
                 "lastUpdatedRegion": context.region,
+                "lastUpdatedByDeploymentId": context.deployment_id,
                 "version": 1,
                 "sourceType": "pdf",
                 "status": "QUEUED_PENDING_DISPATCH",
@@ -837,6 +844,7 @@ def analyze_uploaded_resume(event):
                 user_id=user_id,
                 analysis_provider=requested_provider,
                 created_region=context.region,
+                created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
                 created_at=created_at,
             )

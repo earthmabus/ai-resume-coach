@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 
 from boto3.dynamodb.conditions import Key
 
+from core.config import get_config
 from core.auth import assert_item_owner, current_user_id
 from core.idempotency import (
     DISPOSITION_REPLAY_COMPLETED,
@@ -217,6 +218,7 @@ def tailor_resume(event):
                 user_id=user_id,
                 analysis_provider=provider,
                 created_region=context.region,
+                created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
                 created_at=queued_at,
             )
@@ -233,6 +235,7 @@ def tailor_resume(event):
                     "updatedAt = :updatedAt, "
                     "updatedByRequestId = :requestId, "
                     "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                     "#version = if_not_exists(#version, :zero) + :one"
                 ),
                 condition_expression=(
@@ -254,6 +257,7 @@ def tailor_resume(event):
                     ":updatedAt": queued_at,
                     ":requestId": context.request_id,
                     ":region": context.region,
+                ":deploymentId": context.deployment_id,
                     ":userId": user_id,
                     ":matchId": match_id,
                     ":zero": 0,

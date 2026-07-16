@@ -8,6 +8,7 @@ from datetime import datetime, timezone
 from botocore.exceptions import ClientError
 from boto3.dynamodb.conditions import Key
 
+from core.config import get_config
 from core.auth import assert_item_owner, current_user_id
 from core.errors import ResourceConflictError
 from core.idempotency import (
@@ -305,7 +306,9 @@ def match_job_description(event):
                 "updatedByRequestId": context.request_id,
                 "createdByRequestHash": request_hash,
                 "createdRegion": context.region,
+                "createdByDeploymentId": context.deployment_id,
                 "lastUpdatedRegion": context.region,
+                "lastUpdatedByDeploymentId": context.deployment_id,
                 "version": 1,
                 "status": "QUEUED_PENDING_DISPATCH",
                 "jobName": job_name,
@@ -382,7 +385,9 @@ def match_job_description(event):
             "updatedByRequestId": context.request_id,
             "createdByRequestHash": request_hash,
             "createdRegion": context.region,
+                "createdByDeploymentId": context.deployment_id,
             "lastUpdatedRegion": context.region,
+                "lastUpdatedByDeploymentId": context.deployment_id,
             "version": 1,
             "status": "waiting",
             "provider": requested_provider,
@@ -437,7 +442,9 @@ def match_job_description(event):
             "updatedByRequestId": context.request_id,
             "createdByRequestHash": request_hash,
             "createdRegion": context.region,
+                "createdByDeploymentId": context.deployment_id,
             "lastUpdatedRegion": context.region,
+                "lastUpdatedByDeploymentId": context.deployment_id,
             "version": 1,
             "status": "waiting",
             "provider": requested_provider,
@@ -480,6 +487,7 @@ def match_job_description(event):
                 user_id=user_id,
                 analysis_provider=requested_provider,
                 created_region=context.region,
+                created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
                 created_at=created_at,
             )

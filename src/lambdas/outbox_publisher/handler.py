@@ -229,6 +229,7 @@ def build_publisher() -> OutboxPublisher:
                 table_name
             ),
             region=region,
+        deployment_id=str(os.getenv("DEPLOYMENT_ID") or "unknown"),
             delivered_retention_seconds=(
                 delivered_retention_seconds
             ),
@@ -424,6 +425,13 @@ def handler(
                 "triggerSource": (
                     trigger_source
                 ),
+                "region": str(os.getenv("AWS_REGION") or "unknown"),
+                "deploymentId": str(
+                    os.getenv("DEPLOYMENT_ID") or "unknown"
+                ),
+                "environment": str(
+                    os.getenv("ENVIRONMENT") or "unknown"
+                ),
                 "batchSize": batch_size,
                 "maxWorkers": max_workers,
                 "maxDeliveryAttempts": (
@@ -458,4 +466,3 @@ def handler(
     emit_embedded_metrics(result)
 
     return response
-

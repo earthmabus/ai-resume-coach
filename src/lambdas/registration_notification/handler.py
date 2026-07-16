@@ -28,6 +28,9 @@ def lambda_handler(event, context):
         "userSub": sub,
         "createdAt": created_at,
         "triggerSource": trigger_source,
+        "region": os.getenv("AWS_REGION", "unknown"),
+        "deploymentId": os.getenv("DEPLOYMENT_ID", "unknown"),
+        "environment": os.getenv("ENVIRONMENT", "unknown"),
     }
 
     sns.publish(

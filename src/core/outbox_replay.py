@@ -10,6 +10,7 @@ from typing import Any, Sequence
 import boto3
 from botocore.exceptions import ClientError
 
+from core.config import get_config
 from core.keys import (
     outbox_pk,
     outbox_sk,
@@ -111,6 +112,8 @@ def replay_event(
                 "updatedAt = :now, "
                 "updatedByRequestId = "
                 ":operator, "
+                "lastUpdatedRegion = :region, "
+                "lastUpdatedByDeploymentId = :deploymentId, "
                 "#version = "
                 "if_not_exists("
                 "#version, :zero"
@@ -156,6 +159,8 @@ def replay_event(
                 ":operator": (
                     normalized_operator
                 ),
+                ":region": get_config().aws_region,
+                ":deploymentId": get_config().deployment_id,
                 ":now": timestamp,
                 ":zero": 0,
                 ":one": 1,

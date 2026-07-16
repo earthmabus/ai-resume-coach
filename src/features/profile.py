@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from botocore.exceptions import ClientError
 
+from core.config import get_config
 from core.errors import ResourceConflictError
 from core.keys import profile_sk, user_pk
 from core.request_context import build_request_context
@@ -97,6 +98,7 @@ def update_profile(event):
                 "updatedAt = :updatedAt, "
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                 "#name = :name, "
                 "currentTitle = :currentTitle, "
                 "targetTitle = :targetTitle, "
@@ -134,6 +136,7 @@ def update_profile(event):
                 ":updatedAt": updated_at,
                 ":requestId": context.request_id,
                 ":region": context.region,
+                ":deploymentId": context.deployment_id,
                 ":name": str(body.get("name") or "").strip(),
                 ":currentTitle": str(
                     body.get("currentTitle") or ""

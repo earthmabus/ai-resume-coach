@@ -15,6 +15,10 @@ from botocore.exceptions import ClientError
 
 from providers.factory import get_analysis_provider
 
+AWS_REGION = os.getenv("AWS_REGION", "unknown")
+DEPLOYMENT_ID = os.getenv("DEPLOYMENT_ID", "unknown")
+ENVIRONMENT = os.getenv("ENVIRONMENT", "unknown")
+
 
 dynamodb = boto3.resource("dynamodb")
 table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
@@ -424,10 +428,8 @@ def update_claimed_record(
         ":status": status,
         ":attemptId": attempt_id,
         ":updatedAt": utc_now(),
-        ":region": os.getenv(
-            "AWS_REGION",
-            "unknown",
-        ),
+        ":region": AWS_REGION,
+        ":deploymentId": DEPLOYMENT_ID,
         ":zero": 0,
         ":one": 1,
     }
@@ -435,7 +437,8 @@ def update_claimed_record(
     assignments = [
         "#status = :status",
         "updatedAt = :updatedAt",
-        "lastUpdatedRegion = :region",
+        "lastUpdatedRegion = :region, "
+        "lastUpdatedByDeploymentId = :deploymentId",
         "#version = if_not_exists(#version, :zero) + :one",
     ]
 
@@ -598,6 +601,9 @@ def process_resume_analysis(
                 "",
             ),
             "completedAt": utc_now(),
+            "processedAt": utc_now(),
+            "processedRegion": AWS_REGION,
+            "processedByDeploymentId": DEPLOYMENT_ID,
         },
     )
 
@@ -983,6 +989,9 @@ def process_job_match(
         status=STATUS_COMPLETED,
         fields={
             "completedAt": utc_now(),
+            "processedAt": utc_now(),
+            "processedRegion": AWS_REGION,
+            "processedByDeploymentId": DEPLOYMENT_ID,
         },
     )
 
@@ -1074,6 +1083,9 @@ def process_resume_tailoring(
                 [],
             ),
             "completedAt": utc_now(),
+            "processedAt": utc_now(),
+            "processedRegion": AWS_REGION,
+            "processedByDeploymentId": DEPLOYMENT_ID,
         },
     )
 
@@ -1171,6 +1183,9 @@ def process_interview_preparation(
                 "",
             ),
             "completedAt": utc_now(),
+            "processedAt": utc_now(),
+            "processedRegion": AWS_REGION,
+            "processedByDeploymentId": DEPLOYMENT_ID,
         },
     )
 
@@ -1318,6 +1333,19 @@ def emit_worker_failure_metric(
 
 
 def lambda_handler(event, context):
+    logger.info(
+        json.dumps(
+            {
+                "message": "Worker invocation started",
+                "region": AWS_REGION,
+                "deploymentId": DEPLOYMENT_ID,
+                "environment": ENVIRONMENT,
+                "recordCount": len(event.get("Records", [])),
+                "awsRequestId": getattr(context, "aws_request_id", None),
+            },
+            separators=(",", ":"),
+        )
+    )
     """
     Return an SQS partial-batch response.
 

@@ -19,6 +19,8 @@ class RequestContext:
     request_id: str
     user_id: str
     region: str
+    deployment_id: str
+    environment: str
     idempotency_key: str | None
     route_key: str
     method: str
@@ -116,10 +118,14 @@ def build_request_context(
         else get_header(event, "Idempotency-Key")
     )
 
+    config = get_config()
+
     return RequestContext(
         request_id=get_request_id(event),
         user_id=get_authenticated_user_id(event),
-        region=get_config().aws_region,
+        region=config.aws_region,
+        deployment_id=config.deployment_id,
+        environment=config.environment,
         idempotency_key=idempotency_key,
         route_key=get_route_key(event),
         method=str(http.get("method", "UNKNOWN")),

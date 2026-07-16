@@ -1,3 +1,5 @@
+import json
+import logging
 import os
 from datetime import datetime, timezone
 
@@ -6,6 +8,7 @@ from core.responses import build_response
 from core.routes import route_request
 from core.config import get_config
 from core.health import live, ready
+from core.runtime_identity import current_runtime_identity
 
 # import features
 from features.profile import get_profile, update_profile
@@ -13,6 +16,10 @@ from features.target_career import get_target_career, update_target_career
 from features.job_matching import match_job_description, list_job_matches, get_job_match, delete_job_match, delete_all_job_matches
 from features.resume_analysis import analyze_resume, analyze_uploaded_resume, create_resume_upload_url, delete_all_analyses, delete_analysis, get_analysis, get_resume_download_url, list_analyses
 from features.resume_tailoring import tailor_resume, get_resume_tailoring, get_resume_tailoring_by_match, get_interview_prep_by_match
+
+
+logger = logging.getLogger(__name__)
+logger.setLevel(logging.INFO)
 
 
 def health(event=None):
@@ -49,6 +56,20 @@ def version(event=None):
 
 
 def lambda_handler(event, context):
+    identity = current_runtime_identity()
+    logger.info(
+        json.dumps(
+            {
+                "message": "API request received",
+                "region": identity.region,
+                "deploymentId": identity.deployment_id,
+                "environment": identity.environment,
+                "routeKey": event.get("routeKey", ""),
+                "awsRequestId": getattr(context, "aws_request_id", None),
+            },
+            separators=(",", ":"),
+        )
+    )
     routes = {
         # /health - application status
         # /health/live - lambda process and router alive

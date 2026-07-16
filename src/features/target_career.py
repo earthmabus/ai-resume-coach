@@ -4,6 +4,7 @@ from datetime import datetime, timezone
 
 from botocore.exceptions import ClientError
 
+from core.config import get_config
 from core.errors import ResourceConflictError
 from core.keys import base_keys, target_career_sk, user_pk
 from core.request_context import build_request_context
@@ -130,6 +131,7 @@ def update_target_career(event):
                 "updatedAt = :updatedAt, "
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
+"lastUpdatedByDeploymentId = :deploymentId, "
                 "roleTitle = :roleTitle, "
                 "industry = :industry, "
                 "seniorityLevel = :seniorityLevel, "
@@ -173,6 +175,7 @@ def update_target_career(event):
                 ":updatedAt": updated_at,
                 ":requestId": context.request_id,
                 ":region": context.region,
+                ":deploymentId": context.deployment_id,
                 ":roleTitle": role_title,
                 ":industry": industry,
                 ":seniorityLevel": str(
