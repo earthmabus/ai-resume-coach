@@ -10,8 +10,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 
-if str(SRC) not in sys.path:
-    sys.path.insert(0, str(SRC))
+for import_path in (
+    ROOT,
+    SRC,
+):
+    normalized_path = str(import_path)
+
+    if normalized_path not in sys.path:
+        sys.path.insert(
+            0,
+            normalized_path,
+        )
 
 
 TEST_ENVIRONMENT = {
@@ -31,23 +40,34 @@ TEST_ENVIRONMENT = {
     "ANALYSIS_PROVIDER": "rule-based",
     "OPENAI_MODEL": "",
     "LOG_LEVEL": "INFO",
+    "OUTBOX_BATCH_SIZE": "25",
+    "OUTBOX_MAX_WORKERS": "4",
+    "OUTBOX_MAX_DELIVERY_ATTEMPTS": "20",
+    "OUTBOX_DELIVERED_RETENTION_SECONDS": "2592000",
 }
 
 
 # Establish required values before pytest imports application modules.
 for variable_name, variable_value in TEST_ENVIRONMENT.items():
-    os.environ.setdefault(variable_name, variable_value)
+    os.environ.setdefault(
+        variable_name,
+        variable_value,
+    )
 
 
 @pytest.fixture(autouse=True)
-def application_environment(monkeypatch):
+def application_environment(
+    monkeypatch,
+):
     """
     Restore the baseline test environment before every test.
 
     Tests may temporarily modify values with monkeypatch.
     """
-
-    for variable_name, variable_value in TEST_ENVIRONMENT.items():
+    for (
+        variable_name,
+        variable_value,
+    ) in TEST_ENVIRONMENT.items():
         monkeypatch.setenv(
             variable_name,
             variable_value,

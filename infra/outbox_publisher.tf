@@ -1,9 +1,3 @@
-data "archive_file" "outbox_publisher_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/../src"
-  output_path = "${path.module}/outbox_publisher.zip"
-}
-
 resource "aws_iam_role" "outbox_publisher" {
   name = "${local.name_prefix}-outbox-publisher-role"
 
@@ -74,7 +68,7 @@ resource "aws_cloudwatch_log_group" "outbox_publisher" {
 resource "aws_lambda_function" "outbox_publisher" {
   function_name = "${local.name_prefix}-outbox-publisher"
   role          = aws_iam_role.outbox_publisher.arn
-  handler       = "outbox_publisher_handler.handler"
+  handler       = "handler.handler"
   runtime       = "python3.13"
 
   filename         = data.archive_file.outbox_publisher_zip.output_path

@@ -1,9 +1,3 @@
-data "archive_file" "registration_notification_zip" {
-  type        = "zip"
-  source_dir  = "${path.module}/../src/registration_notification"
-  output_path = "${path.module}/registration_notification.zip"
-}
-
 resource "aws_iam_role" "registration_notification_lambda_role" {
   name = "${local.name_prefix}-registration-notification-role"
 
