@@ -459,4 +459,3 @@ def handler(
 
     return response
 
-# Temporary MR-005A isolation verification

@@ -36,6 +36,8 @@ src/providers/__pycache__/*
 tools/__pycache__/*
 tests/__pycache__/*
 
+build/lambda/*
+
 # Terraform saved plan files
 infra/tfplan*
 *.tfplan
