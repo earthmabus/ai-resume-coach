@@ -26,11 +26,15 @@ infra/tfplan
 src/__pycache__/*
 src/core/__pycache__/*
 src/features/__pycache__/*
+src/lambdas/__pycache__/*
+src/lambdas/api/__pycache__/*
+src/lambdas/outbox_publisher/__pycache__/*
+src/lambdas/registration_notification/__pycache__/*
+src/lambdas/worker/__pycache__/*
 src/registration_notification/__pycache__/*
 src/providers/__pycache__/*
 tools/__pycache__/*
 tests/__pycache__/*
-
 
 # Terraform saved plan files
 infra/tfplan*
