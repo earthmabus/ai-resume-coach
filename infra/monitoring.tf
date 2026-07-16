@@ -5,7 +5,14 @@ locals {
     : trimspace(var.registration_notification_email)
   )
 
-  worker_metric_namespace = "${var.project_name}/${var.environment}"
+  application_metric_namespace = "${var.project_name}/${var.environment}"
+
+  outbox_publisher_function_name = "${local.name_prefix}-outbox-publisher"
+  outbox_publisher_schedule_name = "${local.name_prefix}-outbox-publisher-schedule"
+  worker_function_name           = "${local.name_prefix}-resume-analysis-worker"
+  processing_queue_name          = "${local.name_prefix}-resume-analysis-jobs"
+  processing_dlq_name            = "${local.name_prefix}-resume-analysis-dlq"
+
 }
 
 resource "aws_sns_topic" "operational_alerts" {
@@ -27,11 +34,11 @@ resource "aws_cloudwatch_metric_alarm" "worker_record_failures" {
     "One or more SQS records failed during resume-analysis worker processing."
   )
 
-  namespace   = local.worker_metric_namespace
+  namespace   = local.application_metric_namespace
   metric_name = "WorkerRecordFailures"
 
   dimensions = {
-    FunctionName = aws_lambda_function.resume_analysis_worker.function_name
+    FunctionName = local.worker_function_name
   }
 
   statistic           = "Sum"
@@ -61,7 +68,7 @@ resource "aws_cloudwatch_metric_alarm" "worker_lambda_errors" {
   metric_name = "Errors"
 
   dimensions = {
-    FunctionName = aws_lambda_function.resume_analysis_worker.function_name
+    FunctionName = local.worker_function_name
   }
 
   statistic           = "Sum"
@@ -91,7 +98,7 @@ resource "aws_cloudwatch_metric_alarm" "queue_oldest_message" {
   metric_name = "ApproximateAgeOfOldestMessage"
 
   dimensions = {
-    QueueName = aws_sqs_queue.resume_analysis_jobs.name
+    QueueName = local.processing_queue_name
   }
 
   statistic           = "Maximum"
@@ -121,7 +128,7 @@ resource "aws_cloudwatch_metric_alarm" "queue_backlog" {
   metric_name = "ApproximateNumberOfMessagesVisible"
 
   dimensions = {
-    QueueName = aws_sqs_queue.resume_analysis_jobs.name
+    QueueName = local.processing_queue_name
   }
 
   statistic           = "Maximum"
@@ -153,11 +160,139 @@ resource "aws_cloudwatch_metric_alarm" "dlq_messages" {
   metric_name = "ApproximateNumberOfMessagesVisible"
 
   dimensions = {
-    QueueName = aws_sqs_queue.resume_analysis_dlq.name
+    QueueName = local.processing_dlq_name
   }
 
   statistic           = "Maximum"
   period              = 60
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+
+  ok_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_publish_failures" {
+  alarm_name = "${local.name_prefix}-outbox-publish-failures"
+
+  alarm_description = (
+    "One or more transactional outbox events failed to publish to SQS."
+  )
+
+  namespace   = local.application_metric_namespace
+  metric_name = "OutboxPublishFailures"
+
+  dimensions = {
+    FunctionName = local.outbox_publisher_function_name
+  }
+
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+
+  ok_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_publisher_lambda_errors" {
+  alarm_name = "${local.name_prefix}-outbox-publisher-lambda-errors"
+
+  alarm_description = (
+    "The outbox publisher Lambda failed because of an unhandled, runtime, timeout, or configuration error."
+  )
+
+  namespace   = "AWS/Lambda"
+  metric_name = "Errors"
+
+  dimensions = {
+    FunctionName = local.outbox_publisher_function_name
+  }
+
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+
+  ok_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_publisher_throttles" {
+  alarm_name = "${local.name_prefix}-outbox-publisher-throttles"
+
+  alarm_description = (
+    "The outbox publisher Lambda was throttled one or more times."
+  )
+
+  namespace   = "AWS/Lambda"
+  metric_name = "Throttles"
+
+  dimensions = {
+    FunctionName = local.outbox_publisher_function_name
+  }
+
+  statistic           = "Sum"
+  period              = 300
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+  threshold           = 1
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+
+  treat_missing_data = "notBreaching"
+
+  alarm_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+
+  ok_actions = [
+    aws_sns_topic.operational_alerts.arn
+  ]
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_schedule_failed_invocations" {
+  alarm_name = "${local.name_prefix}-outbox-schedule-failed-invocations"
+
+  alarm_description = (
+    "EventBridge failed to invoke the transactional outbox publisher."
+  )
+
+  namespace   = "AWS/Events"
+  metric_name = "FailedInvocations"
+
+  dimensions = {
+    RuleName = local.outbox_publisher_schedule_name
+  }
+
+  statistic           = "Sum"
+  period              = 300
   evaluation_periods  = 1
   datapoints_to_alarm = 1
   threshold           = 1
@@ -198,6 +333,170 @@ resource "aws_cloudwatch_dashboard" "operations" {
         height = 6
 
         properties = {
+          title  = "Outbox publisher outcomes"
+          region = var.aws_region
+          period = 300
+          stat   = "Sum"
+
+          metrics = [
+            [
+              local.application_metric_namespace,
+              "OutboxEventsExamined",
+              "FunctionName",
+              local.outbox_publisher_function_name,
+              {
+                label = "Examined"
+              }
+            ],
+            [
+              ".",
+              "OutboxEventsClaimed",
+              ".",
+              ".",
+              {
+                label = "Claimed"
+              }
+            ],
+            [
+              ".",
+              "OutboxEventsPublished",
+              ".",
+              ".",
+              {
+                label = "Published"
+              }
+            ],
+            [
+              ".",
+              "OutboxPublishFailures",
+              ".",
+              ".",
+              {
+                label = "Publish failures"
+              }
+            ],
+            [
+              ".",
+              "OutboxClaimSkips",
+              ".",
+              ".",
+              {
+                label = "Claim skips"
+              }
+            ]
+          ]
+
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 2
+        width  = 12
+        height = 6
+
+        properties = {
+          title  = "Outbox publisher Lambda health"
+          region = var.aws_region
+          period = 300
+          stat   = "Sum"
+
+          metrics = [
+            [
+              "AWS/Lambda",
+              "Invocations",
+              "FunctionName",
+              local.outbox_publisher_function_name,
+              {
+                label = "Invocations"
+              }
+            ],
+            [
+              ".",
+              "Errors",
+              ".",
+              ".",
+              {
+                label = "Errors"
+              }
+            ],
+            [
+              ".",
+              "Throttles",
+              ".",
+              ".",
+              {
+                label = "Throttles"
+              }
+            ],
+            [
+              ".",
+              "Duration",
+              ".",
+              ".",
+              {
+                stat  = "Average"
+                label = "Average duration"
+                yAxis = "right"
+              }
+            ]
+          ]
+
+          yAxis = {
+            left = {
+              min = 0
+            }
+            right = {
+              min = 0
+            }
+          }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 8
+        width  = 24
+        height = 4
+
+        properties = {
+          title  = "Outbox publisher heartbeat"
+          region = var.aws_region
+          period = 300
+          stat   = "Sum"
+
+          metrics = [
+            [
+              local.application_metric_namespace,
+              "OutboxPublisherCycles",
+              "FunctionName",
+              local.outbox_publisher_function_name,
+              {
+                label = "Completed publisher cycles"
+              }
+            ]
+          ]
+
+          yAxis = {
+            left = {
+              min = 0
+            }
+          }
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 12
+        width  = 12
+        height = 6
+
+        properties = {
           title  = "Worker failures and runtime errors"
           region = var.aws_region
           period = 300
@@ -205,10 +504,10 @@ resource "aws_cloudwatch_dashboard" "operations" {
 
           metrics = [
             [
-              local.worker_metric_namespace,
+              local.application_metric_namespace,
               "WorkerRecordFailures",
               "FunctionName",
-              aws_lambda_function.resume_analysis_worker.function_name,
+              local.worker_function_name,
               {
                 label = "Failed SQS records"
               }
@@ -217,7 +516,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/Lambda",
               "Errors",
               "FunctionName",
-              aws_lambda_function.resume_analysis_worker.function_name,
+              local.worker_function_name,
               {
                 label = "Lambda invocation errors"
               }
@@ -226,7 +525,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/Lambda",
               "Throttles",
               "FunctionName",
-              aws_lambda_function.resume_analysis_worker.function_name,
+              local.worker_function_name,
               {
                 label = "Lambda throttles"
               }
@@ -237,7 +536,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 12
-        y      = 2
+        y      = 12
         width  = 12
         height = 6
 
@@ -251,7 +550,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/Lambda",
               "Duration",
               "FunctionName",
-              aws_lambda_function.resume_analysis_worker.function_name,
+              local.worker_function_name,
               {
                 stat  = "Average"
                 label = "Average duration"
@@ -276,7 +575,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 0
-        y      = 8
+        y      = 18
         width  = 12
         height = 6
 
@@ -291,7 +590,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/SQS",
               "ApproximateNumberOfMessagesVisible",
               "QueueName",
-              aws_sqs_queue.resume_analysis_jobs.name,
+              local.processing_queue_name,
               {
                 label = "Available"
               }
@@ -326,7 +625,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 12
-        y      = 8
+        y      = 18
         width  = 12
         height = 6
 
@@ -341,7 +640,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/SQS",
               "ApproximateAgeOfOldestMessage",
               "QueueName",
-              aws_sqs_queue.resume_analysis_jobs.name,
+              local.processing_queue_name,
               {
                 label = "Oldest message age"
               }
@@ -367,7 +666,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 0
-        y      = 14
+        y      = 24
         width  = 12
         height = 6
 
@@ -382,7 +681,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/SQS",
               "ApproximateNumberOfMessagesVisible",
               "QueueName",
-              aws_sqs_queue.resume_analysis_dlq.name,
+              local.processing_dlq_name,
               {
                 label = "DLQ messages"
               }
@@ -399,7 +698,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
       {
         type   = "metric"
         x      = 12
-        y      = 14
+        y      = 24
         width  = 12
         height = 6
 
@@ -414,7 +713,7 @@ resource "aws_cloudwatch_dashboard" "operations" {
               "AWS/Lambda",
               "Invocations",
               "FunctionName",
-              aws_lambda_function.resume_analysis_worker.function_name,
+              local.worker_function_name,
               {
                 label = "Invocations"
               }

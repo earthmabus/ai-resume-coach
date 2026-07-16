@@ -113,6 +113,7 @@ def test_build_outbox_event_creates_pending_item():
         f"{CREATED_AT}#{event.event_id}"
     )
 
+    assert "nextDeliveryAttemptAt" not in item
     assert "expiresAt" not in item
 
 

@@ -114,6 +114,10 @@ def build_outbox_event(
     """
     Build a PENDING outbox event.
 
+    Pending events are immediately dispatchable and therefore do not
+    contain nextDeliveryAttemptAt. That field is introduced only after
+    a failed delivery schedules a retry.
+
     The item intentionally has no TTL while it is pending. An undelivered
     event must never disappear because a retention period elapsed.
     A TTL may be added only after it reaches DELIVERED.
@@ -165,8 +169,9 @@ def build_outbox_event(
         "deliveryAttempts": 0,
         "version": 1,
 
-        # Reuse the table's existing sparse GSI to retrieve dispatchable
-        # outbox events by status and creation order.
+        # Reuse the table's existing sparse GSI to retrieve outbox events
+        # by status and original creation order. Retry eligibility is
+        # stored separately in nextDeliveryAttemptAt.
         #
         # These attributes should be removed when the event reaches
         # DELIVERED so delivered events no longer appear in the GSI.

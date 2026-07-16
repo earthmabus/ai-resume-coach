@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import logging
 import os
+import time
 from typing import Any
 
 import boto3
@@ -22,6 +23,8 @@ logger.setLevel(
 
 
 DEFAULT_OUTBOX_BATCH_SIZE = 25
+DEFAULT_PROJECT_NAME = "ai-resume-coach"
+DEFAULT_ENVIRONMENT = "unknown"
 
 _publisher: OutboxPublisher | None = None
 
@@ -43,8 +46,8 @@ def configured_table_name() -> str:
     Resolve the DynamoDB table name.
 
     RESUME_ANALYSIS_TABLE matches the existing application and worker
-    configuration. DYNAMODB_TABLE_NAME is accepted temporarily so the
-    previously drafted MR-004C Terraform remains compatible.
+    configuration. DYNAMODB_TABLE_NAME remains supported as a fallback
+    for compatibility with earlier infrastructure drafts.
     """
     return (
         str(os.getenv("RESUME_ANALYSIS_TABLE") or "").strip()
@@ -76,6 +79,51 @@ def configured_batch_size() -> int:
         )
 
     return batch_size
+
+
+def configured_metric_namespace() -> str:
+    """
+    Build the CloudWatch custom-metric namespace.
+
+    Example:
+        ai-resume-coach/dev
+    """
+    project_name = (
+        str(
+            os.getenv(
+                "PROJECT_NAME",
+                DEFAULT_PROJECT_NAME,
+            )
+        ).strip()
+        or DEFAULT_PROJECT_NAME
+    )
+
+    environment = (
+        str(
+            os.getenv(
+                "ENVIRONMENT",
+                DEFAULT_ENVIRONMENT,
+            )
+        ).strip()
+        or DEFAULT_ENVIRONMENT
+    )
+
+    return f"{project_name}/{environment}"
+
+
+def configured_function_name() -> str:
+    """
+    Return the Lambda function name used as the EMF dimension.
+    """
+    return (
+        str(
+            os.getenv(
+                "AWS_LAMBDA_FUNCTION_NAME",
+                "",
+            )
+        ).strip()
+        or "outbox-publisher"
+    )
 
 
 def build_publisher() -> OutboxPublisher:
@@ -150,8 +198,81 @@ def result_payload(
     }
 
 
+def embedded_metric_payload(
+    result: PublishResult,
+) -> dict[str, Any]:
+    """
+    Build a CloudWatch Embedded Metric Format payload.
+
+    CloudWatch extracts these metrics directly from the Lambda log event,
+    so the Lambda does not require cloudwatch:PutMetricData permission.
+    """
+    return {
+        "_aws": {
+            "Timestamp": int(time.time() * 1000),
+            "CloudWatchMetrics": [
+                {
+                    "Namespace": configured_metric_namespace(),
+                    "Dimensions": [
+                        [
+                            "FunctionName",
+                        ]
+                    ],
+                    "Metrics": [
+                        {
+                            "Name": "OutboxPublisherCycles",
+                            "Unit": "Count",
+                        },
+                        {
+                            "Name": "OutboxEventsExamined",
+                            "Unit": "Count",
+                        },
+                        {
+                            "Name": "OutboxEventsClaimed",
+                            "Unit": "Count",
+                        },
+                        {
+                            "Name": "OutboxEventsPublished",
+                            "Unit": "Count",
+                        },
+                        {
+                            "Name": "OutboxPublishFailures",
+                            "Unit": "Count",
+                        },
+                        {
+                            "Name": "OutboxClaimSkips",
+                            "Unit": "Count",
+                        },
+                    ],
+                }
+            ],
+        },
+        "FunctionName": configured_function_name(),
+        "OutboxPublisherCycles": 1,
+        "OutboxEventsExamined": result.examined,
+        "OutboxEventsClaimed": result.claimed,
+        "OutboxEventsPublished": result.published,
+        "OutboxPublishFailures": result.failed,
+        "OutboxClaimSkips": result.skipped,
+    }
+
+
+def emit_embedded_metrics(
+    result: PublishResult,
+) -> None:
+    """
+    Emit one EMF log event for the completed publisher cycle.
+    """
+    logger.info(
+        json.dumps(
+            embedded_metric_payload(result),
+            separators=(",", ":"),
+        )
+    )
+
+
 def handler(
-    event: dict[str, Any],
+    event: dict[str, Any] | None,
     context: Any,
 ) -> dict[str, int]:
     """
@@ -167,6 +288,17 @@ def handler(
         None,
     )
 
+    trigger_source = (
+        event.get(
+            "source",
+            "manual",
+        )
+        if isinstance(event, dict)
+        else "manual"
+    )
+
+    batch_size = configured_batch_size()
+
     logger.info(
         json.dumps(
             {
@@ -174,11 +306,8 @@ def handler(
                     "Starting outbox publisher invocation"
                 ),
                 "awsRequestId": request_id,
-                "triggerSource": event.get(
-                    "source",
-                    "manual",
-                ),
-                "batchSize": configured_batch_size(),
+                "triggerSource": trigger_source,
+                "batchSize": batch_size,
             },
             separators=(",", ":"),
         )
@@ -199,5 +328,7 @@ def handler(
             separators=(",", ":"),
         )
     )
+
+    emit_embedded_metrics(result)
 
     return response

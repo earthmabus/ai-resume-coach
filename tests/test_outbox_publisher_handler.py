@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 from types import SimpleNamespace
 from unittest.mock import MagicMock
 
@@ -62,6 +63,32 @@ def test_handler_returns_zero_counts_for_empty_batch(
 
     response = outbox_publisher_handler.handler(
         {},
+        None,
+    )
+
+    assert response == {
+        "examined": 0,
+        "claimed": 0,
+        "published": 0,
+        "failed": 0,
+        "skipped": 0,
+    }
+
+
+def test_handler_accepts_none_event(
+    monkeypatch,
+):
+    publisher = MagicMock()
+    publisher.publish_pending.return_value = PublishResult()
+
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "get_publisher",
+        MagicMock(return_value=publisher),
+    )
+
+    response = outbox_publisher_handler.handler(
+        None,
         None,
     )
 
@@ -180,6 +207,287 @@ def test_configured_batch_size_rejects_invalid_values(
         match="OUTBOX_BATCH_SIZE",
     ):
         outbox_publisher_handler.configured_batch_size()
+
+
+def test_configured_metric_namespace_uses_project_and_environment(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "PROJECT_NAME",
+        "resume-platform",
+    )
+    monkeypatch.setenv(
+        "ENVIRONMENT",
+        "production",
+    )
+
+    assert (
+        outbox_publisher_handler.configured_metric_namespace()
+        == "resume-platform/production"
+    )
+
+
+def test_configured_metric_namespace_uses_defaults(
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        "PROJECT_NAME",
+        raising=False,
+    )
+    monkeypatch.delenv(
+        "ENVIRONMENT",
+        raising=False,
+    )
+
+    assert (
+        outbox_publisher_handler.configured_metric_namespace()
+        == "ai-resume-coach/unknown"
+    )
+
+
+def test_configured_function_name_uses_lambda_environment(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "AWS_LAMBDA_FUNCTION_NAME",
+        "publisher-function",
+    )
+
+    assert (
+        outbox_publisher_handler.configured_function_name()
+        == "publisher-function"
+    )
+
+
+def test_configured_function_name_uses_fallback(
+    monkeypatch,
+):
+    monkeypatch.delenv(
+        "AWS_LAMBDA_FUNCTION_NAME",
+        raising=False,
+    )
+
+    assert (
+        outbox_publisher_handler.configured_function_name()
+        == "outbox-publisher"
+    )
+
+
+def test_embedded_metric_payload_contains_expected_metrics(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "PROJECT_NAME",
+        "ai-resume-coach",
+    )
+    monkeypatch.setenv(
+        "ENVIRONMENT",
+        "dev",
+    )
+    monkeypatch.setenv(
+        "AWS_LAMBDA_FUNCTION_NAME",
+        "ai-resume-coach-dev-outbox-publisher",
+    )
+
+    monkeypatch.setattr(
+        outbox_publisher_handler.time,
+        "time",
+        MagicMock(return_value=1234.567),
+    )
+
+    result = PublishResult(
+        examined=5,
+        claimed=4,
+        published=3,
+        failed=1,
+        skipped=1,
+    )
+
+    payload = (
+        outbox_publisher_handler.embedded_metric_payload(
+            result
+        )
+    )
+
+    assert payload["_aws"]["Timestamp"] == 1234567
+
+    metric_definition = payload["_aws"][
+        "CloudWatchMetrics"
+    ][0]
+
+    assert metric_definition["Namespace"] == (
+        "ai-resume-coach/dev"
+    )
+    assert metric_definition["Dimensions"] == [
+        ["FunctionName"]
+    ]
+
+    metric_names = {
+        metric["Name"]
+        for metric in metric_definition["Metrics"]
+    }
+
+    assert metric_names == {
+        "OutboxPublisherCycles",
+        "OutboxEventsExamined",
+        "OutboxEventsClaimed",
+        "OutboxEventsPublished",
+        "OutboxPublishFailures",
+        "OutboxClaimSkips",
+    }
+
+    assert payload["FunctionName"] == (
+        "ai-resume-coach-dev-outbox-publisher"
+    )
+    assert payload["OutboxPublisherCycles"] == 1
+    assert payload["OutboxEventsExamined"] == 5
+    assert payload["OutboxEventsClaimed"] == 4
+    assert payload["OutboxEventsPublished"] == 3
+    assert payload["OutboxPublishFailures"] == 1
+    assert payload["OutboxClaimSkips"] == 1
+
+
+def test_empty_batch_still_emits_heartbeat_metrics(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "PROJECT_NAME",
+        "ai-resume-coach",
+    )
+    monkeypatch.setenv(
+        "ENVIRONMENT",
+        "dev",
+    )
+
+    payload = (
+        outbox_publisher_handler.embedded_metric_payload(
+            PublishResult()
+        )
+    )
+
+    assert payload["OutboxPublisherCycles"] == 1
+    assert payload["OutboxEventsExamined"] == 0
+    assert payload["OutboxEventsClaimed"] == 0
+    assert payload["OutboxEventsPublished"] == 0
+    assert payload["OutboxPublishFailures"] == 0
+    assert payload["OutboxClaimSkips"] == 0
+
+
+def test_emit_embedded_metrics_logs_valid_json(
+    monkeypatch,
+):
+    log_info = MagicMock()
+
+    monkeypatch.setattr(
+        outbox_publisher_handler.logger,
+        "info",
+        log_info,
+    )
+
+    result = PublishResult(
+        examined=2,
+        claimed=2,
+        published=1,
+        failed=1,
+        skipped=0,
+    )
+
+    outbox_publisher_handler.emit_embedded_metrics(
+        result
+    )
+
+    log_info.assert_called_once()
+
+    logged_payload = json.loads(
+        log_info.call_args.args[0]
+    )
+
+    assert logged_payload["OutboxEventsExamined"] == 2
+    assert logged_payload["OutboxEventsClaimed"] == 2
+    assert logged_payload["OutboxEventsPublished"] == 1
+    assert logged_payload["OutboxPublishFailures"] == 1
+
+
+def test_handler_emits_metrics_after_successful_cycle(
+    monkeypatch,
+):
+    result = PublishResult(
+        examined=3,
+        claimed=2,
+        published=2,
+        failed=0,
+        skipped=1,
+    )
+
+    publisher = MagicMock()
+    publisher.publish_pending.return_value = result
+
+    emit_metrics = MagicMock()
+
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "get_publisher",
+        MagicMock(return_value=publisher),
+    )
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "emit_embedded_metrics",
+        emit_metrics,
+    )
+
+    response = outbox_publisher_handler.handler(
+        {
+            "source": "scheduled-test",
+        },
+        SimpleNamespace(
+            aws_request_id="request-789",
+        ),
+    )
+
+    assert response == {
+        "examined": 3,
+        "claimed": 2,
+        "published": 2,
+        "failed": 0,
+        "skipped": 1,
+    }
+
+    emit_metrics.assert_called_once_with(result)
+
+
+def test_handler_does_not_emit_success_metrics_when_publisher_raises(
+    monkeypatch,
+):
+    publisher = MagicMock()
+    publisher.publish_pending.side_effect = RuntimeError(
+        "publisher failed"
+    )
+
+    emit_metrics = MagicMock()
+
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "get_publisher",
+        MagicMock(return_value=publisher),
+    )
+    monkeypatch.setattr(
+        outbox_publisher_handler,
+        "emit_embedded_metrics",
+        emit_metrics,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="publisher failed",
+    ):
+        outbox_publisher_handler.handler(
+            {},
+            SimpleNamespace(
+                aws_request_id="request-error",
+            ),
+        )
+
+    emit_metrics.assert_not_called()
 
 
 def test_build_publisher_uses_expected_aws_resources(

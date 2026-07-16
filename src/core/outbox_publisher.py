@@ -3,9 +3,9 @@ from __future__ import annotations
 import json
 import time
 import uuid
-from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime, timezone
+from decimal import Decimal
 from typing import Any, Callable
 
 from boto3.dynamodb.conditions import Key
@@ -23,6 +23,16 @@ from core.outbox import (
 DEFAULT_DISPATCH_LEASE_SECONDS = 300
 DEFAULT_BATCH_SIZE = 25
 MAX_ERROR_MESSAGE_LENGTH = 2000
+MAX_QUERY_PAGES_PER_STATUS = 10
+
+RETRY_DELAY_SECONDS_BY_ATTEMPT = {
+    1: 60,
+    2: 120,
+    3: 240,
+    4: 480,
+    5: 900,
+}
+MAX_RETRY_DELAY_SECONDS = 1800
 
 
 @dataclass(frozen=True)
@@ -41,17 +51,20 @@ class ClaimResult:
     attempt_id: str | None = None
 
 
-def json_compatible(value: Any) -> Any:
-    """
-    Convert DynamoDB values into JSON-compatible Python values.
+def retry_delay_seconds(delivery_attempts: int) -> int:
+    """Return the retry delay for the completed delivery attempt."""
+    normalized_attempts = max(int(delivery_attempts), 1)
+    return RETRY_DELAY_SECONDS_BY_ATTEMPT.get(
+        normalized_attempts,
+        MAX_RETRY_DELAY_SECONDS,
+    )
 
-    boto3 represents DynamoDB numbers as Decimal. SQS message bodies must
-    contain standard JSON-compatible numbers.
-    """
+
+def json_compatible(value: Any) -> Any:
+    """Convert DynamoDB values into JSON-compatible Python values."""
     if isinstance(value, Decimal):
         if value == value.to_integral_value():
             return int(value)
-
         return float(value)
 
     if isinstance(value, dict):
@@ -61,16 +74,10 @@ def json_compatible(value: Any) -> Any:
         }
 
     if isinstance(value, (list, tuple)):
-        return [
-            json_compatible(item)
-            for item in value
-        ]
+        return [json_compatible(item) for item in value]
 
     if isinstance(value, set):
-        return [
-            json_compatible(item)
-            for item in value
-        ]
+        return [json_compatible(item) for item in value]
 
     return value
 
@@ -104,11 +111,12 @@ class DynamoDbOutboxRepository:
         limit: int,
     ) -> list[dict[str, Any]]:
         """
-        Return a bounded set of records that can be attempted.
+        Return a bounded set of records eligible for an attempt.
 
-        PENDING and FAILED_RETRYABLE records are immediately dispatchable.
-        DISPATCHING records are included only when their lease has expired,
-        allowing recovery after a publisher crashes.
+        PENDING records are immediately eligible. FAILED_RETRYABLE records
+        are eligible only after nextDeliveryAttemptAt. A missing retry time
+        remains immediately eligible for compatibility with older records.
+        DISPATCHING records are eligible only after their lease expires.
         """
         if limit <= 0:
             return []
@@ -121,35 +129,79 @@ class DynamoDbOutboxRepository:
             OUTBOX_STATUS_FAILED_RETRYABLE,
             OUTBOX_STATUS_DISPATCHING,
         ):
-            remaining = limit - len(results)
-
-            if remaining <= 0:
+            self._append_eligible_status_items(
+                results=results,
+                status=status,
+                limit=limit,
+                now_epoch=now_epoch,
+            )
+            if len(results) >= limit:
                 break
 
-            response = self._table.query(
-                IndexName="gsi1",
-                KeyConditionExpression=Key("gsi1pk").eq(
+        return results
+
+    def _append_eligible_status_items(
+        self,
+        *,
+        results: list[dict[str, Any]],
+        status: str,
+        limit: int,
+        now_epoch: int,
+    ) -> None:
+        last_evaluated_key: dict[str, Any] | None = None
+        pages_read = 0
+
+        while len(results) < limit:
+            parameters: dict[str, Any] = {
+                "IndexName": "gsi1",
+                "KeyConditionExpression": Key("gsi1pk").eq(
                     outbox_status_pk(status)
                 ),
-                Limit=remaining,
-                ScanIndexForward=True,
-            )
+                "Limit": limit - len(results),
+                "ScanIndexForward": True,
+            }
+
+            if last_evaluated_key is not None:
+                parameters["ExclusiveStartKey"] = last_evaluated_key
+
+            response = self._table.query(**parameters)
+            pages_read += 1
 
             for item in response.get("Items", []):
-                if status == OUTBOX_STATUS_DISPATCHING:
-                    lease_expires_at = int(
-                        item.get("dispatchLeaseExpiresAt", 0)
-                    )
+                if self._is_dispatchable(
+                    item=item,
+                    status=status,
+                    now_epoch=now_epoch,
+                ):
+                    results.append(item)
+                    if len(results) >= limit:
+                        break
 
-                    if lease_expires_at > now_epoch:
-                        continue
+            last_evaluated_key = response.get("LastEvaluatedKey")
+            if (
+                not last_evaluated_key
+                or pages_read >= MAX_QUERY_PAGES_PER_STATUS
+            ):
+                break
 
-                results.append(item)
+    @staticmethod
+    def _is_dispatchable(
+        *,
+        item: dict[str, Any],
+        status: str,
+        now_epoch: int,
+    ) -> bool:
+        if status == OUTBOX_STATUS_FAILED_RETRYABLE:
+            return int(
+                item.get("nextDeliveryAttemptAt", 0)
+            ) <= now_epoch
 
-                if len(results) >= limit:
-                    break
+        if status == OUTBOX_STATUS_DISPATCHING:
+            return int(
+                item.get("dispatchLeaseExpiresAt", 0)
+            ) <= now_epoch
 
-        return results
+        return True
 
     def claim(
         self,
@@ -178,10 +230,8 @@ class DynamoDbOutboxRepository:
             "#status = :expectedStatus "
             "AND ("
             "#version = :expectedVersion "
-            "OR ("
-            "attribute_not_exists(#version) "
-            "AND :expectedVersion = :zero"
-            ")"
+            "OR (attribute_not_exists(#version) "
+            "AND :expectedVersion = :zero)"
             ")"
         )
 
@@ -200,6 +250,13 @@ class DynamoDbOutboxRepository:
             ":one": 1,
         }
 
+        if current_status == OUTBOX_STATUS_FAILED_RETRYABLE:
+            condition_expression += (
+                " AND (attribute_not_exists(nextDeliveryAttemptAt) "
+                "OR nextDeliveryAttemptAt <= :nowEpoch)"
+            )
+            values[":nowEpoch"] = now_epoch
+
         if current_status == OUTBOX_STATUS_DISPATCHING:
             condition_expression += (
                 " AND dispatchLeaseExpiresAt <= :nowEpoch"
@@ -208,10 +265,7 @@ class DynamoDbOutboxRepository:
 
         try:
             response = self._table.update_item(
-                Key={
-                    "pk": item["pk"],
-                    "sk": item["sk"],
-                },
+                Key={"pk": item["pk"], "sk": item["sk"]},
                 UpdateExpression=(
                     "SET #status = :dispatching, "
                     "gsi1pk = :dispatchingPk, "
@@ -223,7 +277,8 @@ class DynamoDbOutboxRepository:
                     "lastUpdatedRegion = :region, "
                     "deliveryAttempts = "
                     "if_not_exists(deliveryAttempts, :zero) + :one, "
-                    "#version = if_not_exists(#version, :zero) + :one"
+                    "#version = if_not_exists(#version, :zero) + :one "
+                    "REMOVE nextDeliveryAttemptAt"
                 ),
                 ConditionExpression=condition_expression,
                 ExpressionAttributeNames={
@@ -236,7 +291,6 @@ class DynamoDbOutboxRepository:
         except ClientError as error:
             if self._is_conditional_failure(error):
                 return ClaimResult(claimed=False)
-
             raise
 
         return ClaimResult(
@@ -255,10 +309,7 @@ class DynamoDbOutboxRepository:
         now = self._now().isoformat()
 
         response = self._table.update_item(
-            Key={
-                "pk": item["pk"],
-                "sk": item["sk"],
-            },
+            Key={"pk": item["pk"], "sk": item["sk"]},
             UpdateExpression=(
                 "SET #status = :delivered, "
                 "deliveredAt = :now, "
@@ -269,8 +320,8 @@ class DynamoDbOutboxRepository:
                 "#version = if_not_exists(#version, :zero) + :one "
                 "REMOVE gsi1pk, gsi1sk, "
                 "dispatchAttemptId, dispatchStartedAt, "
-                "dispatchLeaseExpiresAt, lastDeliveryError, "
-                "lastDeliveryFailedAt"
+                "dispatchLeaseExpiresAt, nextDeliveryAttemptAt, "
+                "lastDeliveryError, lastDeliveryFailedAt"
             ),
             ConditionExpression=(
                 "#status = :dispatching "
@@ -303,17 +354,25 @@ class DynamoDbOutboxRepository:
         error_message: str,
     ) -> dict[str, Any] | None:
         now = self._now().isoformat()
-        truncated_error = str(error_message or "")[:MAX_ERROR_MESSAGE_LENGTH]
+        now_epoch = self._epoch_seconds()
+        delivery_attempts = max(
+            int(item.get("deliveryAttempts", 1)),
+            1,
+        )
+        next_attempt_at = (
+            now_epoch + retry_delay_seconds(delivery_attempts)
+        )
+        truncated_error = str(
+            error_message or ""
+        )[:MAX_ERROR_MESSAGE_LENGTH]
 
         try:
             response = self._table.update_item(
-                Key={
-                    "pk": item["pk"],
-                    "sk": item["sk"],
-                },
+                Key={"pk": item["pk"], "sk": item["sk"]},
                 UpdateExpression=(
                     "SET #status = :failedRetryable, "
                     "gsi1pk = :failedRetryablePk, "
+                    "nextDeliveryAttemptAt = :nextAttemptAt, "
                     "lastDeliveryError = :errorMessage, "
                     "lastDeliveryFailedAt = :now, "
                     "updatedAt = :now, "
@@ -340,6 +399,7 @@ class DynamoDbOutboxRepository:
                     ),
                     ":dispatching": OUTBOX_STATUS_DISPATCHING,
                     ":attemptId": attempt_id,
+                    ":nextAttemptAt": next_attempt_at,
                     ":errorMessage": truncated_error,
                     ":now": now,
                     ":region": self._region,
@@ -351,7 +411,6 @@ class DynamoDbOutboxRepository:
         except ClientError as error:
             if self._is_conditional_failure(error):
                 return None
-
             raise
 
         return response["Attributes"]
@@ -374,7 +433,6 @@ class SqsEventPublisher:
         queue_url: str,
     ) -> None:
         normalized_queue_url = str(queue_url or "").strip()
-
         if not normalized_queue_url:
             raise ValueError("queue_url is required")
 
@@ -383,7 +441,6 @@ class SqsEventPublisher:
 
     def publish(self, item: dict[str, Any]) -> str:
         payload = item.get("payload")
-
         if not isinstance(payload, dict):
             raise ValueError(
                 "outbox payload must be a dictionary"
@@ -399,10 +456,7 @@ class SqsEventPublisher:
                     "createdByRequestId",
                     "",
                 ),
-                "submittedAt": item.get(
-                    "createdAt",
-                    "",
-                ),
+                "submittedAt": item.get("createdAt", ""),
             }
         )
 
@@ -418,7 +472,6 @@ class SqsEventPublisher:
         message_id = str(
             response.get("MessageId") or ""
         ).strip()
-
         if not message_id:
             raise RuntimeError(
                 "SQS did not return a MessageId"
@@ -456,13 +509,12 @@ class OutboxPublisher:
 
         for event in events:
             claim = self._repository.claim(event)
-    
+
             if not claim.claimed:
                 skipped += 1
                 continue
 
             claimed += 1
-
             assert claim.item is not None
             assert claim.attempt_id is not None
 
@@ -470,18 +522,14 @@ class OutboxPublisher:
                 message_id = self._event_publisher.publish(
                     claim.item
                 )
-
                 self._repository.mark_delivered(
                     item=claim.item,
                     attempt_id=claim.attempt_id,
                     message_id=message_id,
                 )
-
                 published += 1
-
             except Exception as error:
                 failed += 1
-
                 self._repository.mark_failed_retryable(
                     item=claim.item,
                     attempt_id=claim.attempt_id,

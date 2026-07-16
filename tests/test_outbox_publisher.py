@@ -20,6 +20,7 @@ from core.outbox_publisher import (
     OutboxPublisher,
     PublishResult,
     SqsEventPublisher,
+    retry_delay_seconds,
 )
 
 NOW = datetime(2026, 7, 15, 20, 0, tzinfo=timezone.utc)
@@ -406,3 +407,257 @@ def test_sqs_publisher_serializes_dynamodb_decimals():
     assert message["retryScore"] == 0.75
     assert message["nested"]["count"] == 2
     assert message["values"] == [3, 4.5]
+
+@pytest.mark.parametrize(
+    "delivery_attempts,expected_delay",
+    [
+        (1, 60),
+        (2, 120),
+        (3, 240),
+        (4, 480),
+        (5, 900),
+        (6, 1800),
+        (20, 1800),
+    ],
+)
+def test_retry_delay_seconds_uses_expected_schedule(
+    delivery_attempts,
+    expected_delay,
+):
+    assert (
+        retry_delay_seconds(delivery_attempts)
+        == expected_delay
+    )
+
+
+def test_retry_delay_seconds_normalizes_non_positive_attempts():
+    assert retry_delay_seconds(0) == 60
+    assert retry_delay_seconds(-5) == 60
+
+
+def test_list_dispatchable_filters_future_retries():
+    table = MagicMock()
+
+    pending = event_item(OUTBOX_STATUS_PENDING)
+    ready_retry = {
+        **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+        "eventId": "event-ready",
+        "nextDeliveryAttemptAt": NOW_EPOCH,
+    }
+    future_retry = {
+        **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+        "eventId": "event-future",
+        "nextDeliveryAttemptAt": NOW_EPOCH + 60,
+    }
+    legacy_retry = {
+        **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+        "eventId": "event-legacy",
+    }
+    active_dispatch = {
+        **event_item(OUTBOX_STATUS_DISPATCHING),
+        "eventId": "event-active",
+        "dispatchLeaseExpiresAt": NOW_EPOCH + 60,
+    }
+    stale_dispatch = {
+        **event_item(OUTBOX_STATUS_DISPATCHING),
+        "eventId": "event-stale",
+        "dispatchLeaseExpiresAt": NOW_EPOCH - 1,
+    }
+
+    table.query.side_effect = [
+        {"Items": [pending]},
+        {
+            "Items": [
+                ready_retry,
+                future_retry,
+                legacy_retry,
+            ]
+        },
+        {
+            "Items": [
+                active_dispatch,
+                stale_dispatch,
+            ]
+        },
+    ]
+
+    repository = make_repository(table)
+
+    results = repository.list_dispatchable(limit=10)
+
+    assert results == [
+        pending,
+        ready_retry,
+        legacy_retry,
+        stale_dispatch,
+    ]
+
+
+def test_list_dispatchable_paginates_past_ineligible_retry():
+    table = MagicMock()
+
+    future_retry = {
+        **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+        "eventId": "event-future",
+        "nextDeliveryAttemptAt": NOW_EPOCH + 600,
+    }
+    ready_retry = {
+        **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+        "eventId": "event-ready",
+        "nextDeliveryAttemptAt": NOW_EPOCH,
+    }
+
+    table.query.side_effect = [
+        {"Items": []},
+        {
+            "Items": [future_retry],
+            "LastEvaluatedKey": {
+                "pk": "OUTBOX#event-future",
+                "sk": "OUTBOX#event-future",
+                "gsi1pk": "OUTBOX_STATUS#FAILED_RETRYABLE",
+                "gsi1sk": (
+                    "2026-07-15T19:00:00+00:00#event-future"
+                ),
+            },
+        },
+        {"Items": [ready_retry]},
+    ]
+
+    repository = make_repository(table)
+
+    results = repository.list_dispatchable(limit=1)
+
+    assert results == [ready_retry]
+    assert table.query.call_count == 3
+    assert (
+        "ExclusiveStartKey"
+        in table.query.call_args_list[2].kwargs
+    )
+
+
+def test_claim_retryable_requires_elapsed_retry_time():
+    table = MagicMock()
+    claimed = {
+        **event_item(OUTBOX_STATUS_DISPATCHING),
+        "deliveryAttempts": 2,
+        "version": 2,
+    }
+    table.update_item.return_value = {
+        "Attributes": claimed,
+    }
+
+    item = {
+        **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+        "nextDeliveryAttemptAt": NOW_EPOCH,
+    }
+
+    repository = make_repository(table)
+    result = repository.claim(item)
+
+    assert result.claimed is True
+
+    arguments = table.update_item.call_args.kwargs
+    assert "nextDeliveryAttemptAt <= :nowEpoch" in (
+        arguments["ConditionExpression"]
+    )
+    assert "REMOVE nextDeliveryAttemptAt" in (
+        arguments["UpdateExpression"]
+    )
+    assert (
+        arguments["ExpressionAttributeValues"][":nowEpoch"]
+        == NOW_EPOCH
+    )
+
+
+@pytest.mark.parametrize(
+    "delivery_attempts,expected_delay",
+    [
+        (1, 60),
+        (2, 120),
+        (3, 240),
+        (4, 480),
+        (5, 900),
+        (6, 1800),
+    ],
+)
+def test_mark_failed_retryable_schedules_next_attempt(
+    delivery_attempts,
+    expected_delay,
+):
+    table = MagicMock()
+    table.update_item.return_value = {
+        "Attributes": {
+            **event_item(OUTBOX_STATUS_FAILED_RETRYABLE),
+            "lastDeliveryError": "SQS unavailable",
+        }
+    }
+
+    item = {
+        **event_item(OUTBOX_STATUS_DISPATCHING),
+        "deliveryAttempts": delivery_attempts,
+    }
+
+    repository = make_repository(table)
+    repository.mark_failed_retryable(
+        item=item,
+        attempt_id="attempt-123",
+        error_message="SQS unavailable",
+    )
+
+    arguments = table.update_item.call_args.kwargs
+    values = arguments["ExpressionAttributeValues"]
+
+    assert values[":nextAttemptAt"] == (
+        NOW_EPOCH + expected_delay
+    )
+    assert "nextDeliveryAttemptAt = :nextAttemptAt" in (
+        arguments["UpdateExpression"]
+    )
+
+
+def test_mark_failed_retryable_defaults_to_first_delay():
+    table = MagicMock()
+    table.update_item.return_value = {
+        "Attributes": event_item(
+            OUTBOX_STATUS_FAILED_RETRYABLE
+        )
+    }
+
+    item = event_item(OUTBOX_STATUS_DISPATCHING)
+    item.pop("deliveryAttempts")
+
+    repository = make_repository(table)
+    repository.mark_failed_retryable(
+        item=item,
+        attempt_id="attempt-123",
+        error_message="SQS unavailable",
+    )
+
+    values = table.update_item.call_args.kwargs[
+        "ExpressionAttributeValues"
+    ]
+
+    assert values[":nextAttemptAt"] == NOW_EPOCH + 60
+
+
+def test_mark_delivered_removes_retry_schedule():
+    table = MagicMock()
+    table.update_item.return_value = {
+        "Attributes": {
+            **event_item(),
+            "status": "DELIVERED",
+        }
+    }
+
+    repository = make_repository(table)
+    repository.mark_delivered(
+        item=event_item(OUTBOX_STATUS_DISPATCHING),
+        attempt_id="attempt-123",
+        message_id="message-123",
+    )
+
+    update_expression = table.update_item.call_args.kwargs[
+        "UpdateExpression"
+    ]
+
+    assert "nextDeliveryAttemptAt" in update_expression
