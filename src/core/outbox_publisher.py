@@ -3,6 +3,7 @@ from __future__ import annotations
 import json
 import time
 import uuid
+from decimal import Decimal
 from dataclasses import dataclass
 from datetime import datetime, timezone
 from typing import Any, Callable
@@ -38,6 +39,40 @@ class ClaimResult:
     claimed: bool
     item: dict[str, Any] | None = None
     attempt_id: str | None = None
+
+
+def json_compatible(value: Any) -> Any:
+    """
+    Convert DynamoDB values into JSON-compatible Python values.
+
+    boto3 represents DynamoDB numbers as Decimal. SQS message bodies must
+    contain standard JSON-compatible numbers.
+    """
+    if isinstance(value, Decimal):
+        if value == value.to_integral_value():
+            return int(value)
+
+        return float(value)
+
+    if isinstance(value, dict):
+        return {
+            key: json_compatible(item)
+            for key, item in value.items()
+        }
+
+    if isinstance(value, (list, tuple)):
+        return [
+            json_compatible(item)
+            for item in value
+        ]
+
+    if isinstance(value, set):
+        return [
+            json_compatible(item)
+            for item in value
+        ]
+
+    return value
 
 
 class DynamoDbOutboxRepository:
@@ -350,16 +385,26 @@ class SqsEventPublisher:
         payload = item.get("payload")
 
         if not isinstance(payload, dict):
-            raise ValueError("outbox payload must be a dictionary")
+            raise ValueError(
+                "outbox payload must be a dictionary"
+            )
 
-        message = {
-            **payload,
-            "outboxEventId": item["eventId"],
-            "eventType": item["eventType"],
-            "eventVersion": item["eventVersion"],
-            "requestId": item.get("createdByRequestId", ""),
-            "submittedAt": item.get("createdAt", ""),
-        }
+        message = json_compatible(
+            {
+                **payload,
+                "outboxEventId": item["eventId"],
+                "eventType": item["eventType"],
+                "eventVersion": item["eventVersion"],
+                "requestId": item.get(
+                    "createdByRequestId",
+                    "",
+                ),
+                "submittedAt": item.get(
+                    "createdAt",
+                    "",
+                ),
+            }
+        )
 
         response = self._client.send_message(
             QueueUrl=self._queue_url,
@@ -370,10 +415,14 @@ class SqsEventPublisher:
             ),
         )
 
-        message_id = str(response.get("MessageId") or "").strip()
+        message_id = str(
+            response.get("MessageId") or ""
+        ).strip()
 
         if not message_id:
-            raise RuntimeError("SQS did not return a MessageId")
+            raise RuntimeError(
+                "SQS did not return a MessageId"
+            )
 
         return message_id
 

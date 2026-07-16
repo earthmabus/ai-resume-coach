@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+from decimal import Decimal
 from datetime import datetime, timezone
 from types import SimpleNamespace
 from unittest.mock import MagicMock
@@ -363,3 +364,45 @@ def test_publish_result_counts_remain_consistent():
     assert result.examined == (
         result.claimed + result.skipped
     )
+
+def test_sqs_publisher_serializes_dynamodb_decimals():
+    client = MagicMock()
+    client.send_message.return_value = {
+        "MessageId": "message-123",
+    }
+
+    publisher = SqsEventPublisher(
+        client=client,
+        queue_url="https://example.com/queue",
+    )
+
+    item = event_item()
+    item["eventVersion"] = Decimal("1")
+    item["payload"] = {
+        **item["payload"],
+        "schemaVersion": Decimal("1"),
+        "retryScore": Decimal("0.75"),
+        "nested": {
+            "count": Decimal("2"),
+        },
+        "values": [
+            Decimal("3"),
+            Decimal("4.5"),
+        ],
+    }
+
+    message_id = publisher.publish(item)
+
+    assert message_id == "message-123"
+
+    message = json.loads(
+        client.send_message.call_args.kwargs[
+            "MessageBody"
+        ]
+    )
+
+    assert message["eventVersion"] == 1
+    assert message["schemaVersion"] == 1
+    assert message["retryScore"] == 0.75
+    assert message["nested"]["count"] == 2
+    assert message["values"] == [3, 4.5]
