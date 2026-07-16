@@ -1,0 +1,14 @@
+flowchart LR
+  subgraph MR007[MR-007]
+    E1[East Independent Table]
+    W1[West Independent Table]
+  end
+  subgraph MR008[MR-008]
+    E2[East Active Replica]
+    W2[West Active Replica]
+    Witness[us-east-2 Witness]
+    E2 <--> W2
+    Witness --- E2
+    Witness --- W2
+  end
+  MR007 --> MR008

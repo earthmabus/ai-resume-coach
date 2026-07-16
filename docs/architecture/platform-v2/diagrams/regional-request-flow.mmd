@@ -1,0 +1,18 @@
+sequenceDiagram
+  participant Browser
+  participant API as Regional API Gateway
+  participant Lambda as Regional API Lambda
+  participant DB as Regional DynamoDB
+  participant Publisher as Regional Outbox Publisher
+  participant Queue as Regional SQS
+  participant Worker as Regional Worker
+  Browser->>API: Authenticated request + idempotency key
+  API->>Lambda: Invoke
+  Lambda->>DB: Transaction: business item + outbox
+  DB-->>Lambda: Committed
+  Lambda-->>Browser: 202 Accepted
+  Publisher->>DB: Claim pending event
+  Publisher->>Queue: Publish job
+  Publisher->>DB: Mark delivered
+  Queue->>Worker: Deliver job
+  Worker->>DB: Claim lease and persist result

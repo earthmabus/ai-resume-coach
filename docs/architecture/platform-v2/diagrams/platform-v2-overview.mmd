@@ -1,0 +1,37 @@
+flowchart TB
+  User[User]
+  subgraph Global[Shared Global and Edge]
+    DNS[Route 53]
+    CDN[CloudFront]
+    Frontend[S3 Frontend]
+    Identity[Cognito]
+  end
+  subgraph East[us-east-1]
+    EAPI[API Gateway]
+    EL[API Lambda]
+    EDB[DynamoDB]
+    ES3[S3 Documents]
+    EO[Outbox]
+    EQ[SQS]
+    EW[Worker]
+  end
+  subgraph West[us-west-2]
+    WAPI[API Gateway]
+    WL[API Lambda]
+    WDB[DynamoDB]
+    WS3[S3 Documents]
+    WO[Outbox]
+    WQ[SQS]
+    WW[Worker]
+  end
+  User --> DNS --> CDN --> Frontend
+  User --> Identity
+  Frontend --> EAPI
+  Identity --> EAPI
+  Identity --> WAPI
+  EAPI --> EL --> EDB
+  EL --> ES3
+  EO --> EQ --> EW --> EDB
+  WAPI --> WL --> WDB
+  WL --> WS3
+  WO --> WQ --> WW --> WDB
