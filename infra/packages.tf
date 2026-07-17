@@ -1,7 +1,7 @@
-data "archive_file" "lambda_zip" {
+data "archive_file" "api_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../build/lambda/api"
-  output_path = "${path.module}/lambda.zip"
+  output_path = "${path.module}/api.zip"
 }
 
 data "archive_file" "worker_zip" {
@@ -20,4 +20,10 @@ data "archive_file" "registration_notification_zip" {
   type        = "zip"
   source_dir  = "${path.module}/../build/lambda/registration_notification"
   output_path = "${path.module}/registration_notification.zip"
+}
+
+data "archive_file" "synthetic_health_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/synthetics"
+  output_path = "${path.root}/.terraform-build/platform-v2-synthetic-health.zip"
 }

@@ -1,83 +1,281 @@
-output "api_endpoint" {
-  description = "Base URL for the HTTP API."
-  value       = aws_apigatewayv2_api.http_api.api_endpoint
+output "architecture_version" {
+  description = "Infrastructure architecture version."
+  value       = local.architecture_version
 }
 
-output "health_check_url" {
-  description = "Health check endpoint."
-  value       = "${aws_apigatewayv2_api.http_api.api_endpoint}/health"
+output "regional_sites" {
+  description = "Regional site identities."
+  value = {
+    east = module.east.site_identity
+    west = module.west.site_identity
+  }
 }
 
-output "lambda_function_name" {
-  description = "Lambda function name."
-  value       = aws_lambda_function.api.function_name
+output "east_region" {
+  description = "East active application Region."
+  value       = module.east.region
 }
 
-output "frontend_bucket_name" {
-  description = "S3 bucket hosting the frontend website."
-  value       = aws_s3_bucket.frontend.bucket
+output "west_region" {
+  description = "West active application Region."
+  value       = module.west.region
 }
 
-output "frontend_cloudfront_domain" {
-  description = "CloudFront distribution domain name"
-  value       = aws_cloudfront_distribution.frontend.domain_name
+output "witness_region" {
+  description = "Reserved DynamoDB MRSC witness Region."
+  value       = local.witness_region
 }
 
-output "frontend_https_url" {
-  description = "HTTPS URL for the frontend"
-  value       = "https://${aws_cloudfront_distribution.frontend.domain_name}"
+output "frontend_domain_name" {
+  description = "Configured frontend domain."
+  value       = module.global_edge.domain_name
 }
 
-output "frontend_custom_domain_url" {
-  description = "Custom HTTPS URL for the frontend"
-  value       = "https://resume.michaelpopovich.com"
-}
-
-output "resume_analysis_table_name" {
-  description = "DynamoDB table storing resume analyses."
-  value       = aws_dynamodb_table.resume_analysis.name
-}
-
-output "document_bucket_name" {
-  description = "S3 bucket storing uploaded resume documents."
-  value       = aws_s3_bucket.documents.bucket
-}
-
-output "resume_analysis_queue_url" {
-  description = "SQS queue URL for asynchronous resume analysis jobs."
-  value       = aws_sqs_queue.resume_analysis_jobs.url
-}
-
-output "resume_analysis_worker_function_name" {
-  description = "Lambda worker function that processes asynchronous resume analysis jobs."
-  value       = aws_lambda_function.resume_analysis_worker.function_name
-}
-
-output "outbox_publisher_function_name" {
-  description = "Lambda function that publishes transactional outbox events to SQS."
-  value       = aws_lambda_function.outbox_publisher.function_name
-}
-
-output "outbox_publisher_schedule_name" {
-  description = "EventBridge schedule rule that invokes the outbox publisher."
-  value       = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
+output "primary_frontend_site" {
+  description = "Regional site selected as the initial frontend API target."
+  value       = module.global_edge.primary_site
 }
 
 output "cognito_user_pool_id" {
+  description = "Shared Cognito user-pool ID."
   value       = aws_cognito_user_pool.users.id
-  description = "Cognito User Pool ID"
 }
 
 output "cognito_user_pool_client_id" {
+  description = "Shared Cognito web-client ID."
   value       = aws_cognito_user_pool_client.web.id
-  description = "Cognito User Pool Web Client ID"
 }
 
-output "cloudfront_domain_name" {
-  value = aws_cloudfront_distribution.frontend.domain_name
+output "cognito_user_pool_domain" {
+  description = "Shared Cognito hosted-domain prefix."
+  value       = aws_cognito_user_pool_domain.main.domain
 }
 
-output "cloudfront_distribution_id" {
-  description = "CloudFront distribution ID"
-  value       = aws_cloudfront_distribution.frontend.id
+output "cognito_issuer" {
+  description = "JWT issuer trusted by both regional APIs."
+  value = join(
+    "",
+    [
+      "https://cognito-idp.us-east-1.amazonaws.com/",
+      aws_cognito_user_pool.users.id,
+    ],
+  )
+}
+
+output "registration_notification_lambda_name" {
+  description = "Shared registration-notification Lambda function name."
+  value       = aws_lambda_function.registration_notification.function_name
+}
+
+output "registration_notification_topic_arn" {
+  description = "SNS topic receiving registration notifications."
+  value       = aws_sns_topic.user_registration_notifications.arn
+}
+
+output "lambda_package_hashes" {
+  description = "Deterministic hashes for isolated Lambda packages."
+  value = {
+    api                       = data.archive_file.api_zip.output_base64sha256
+    worker                    = data.archive_file.worker_zip.output_base64sha256
+    outbox_publisher          = data.archive_file.outbox_publisher_zip.output_base64sha256
+    registration_notification = data.archive_file.registration_notification_zip.output_base64sha256
+  }
+}
+
+output "regional_foundations" {
+  description = "Regional storage, messaging, scheduling, and execution-role foundations."
+  value = {
+    east = {
+      document_bucket           = module.east.document_bucket
+      processing_queue          = module.east.processing_queue
+      processing_dlq            = module.east.processing_dlq
+      outbox_publisher_schedule = module.east.outbox_publisher_schedule
+      execution_roles           = module.east.execution_roles
+      compute                   = module.east.compute
+      data_contract             = module.east.data_contract
+      api_gateway               = module.east.api_gateway
+    }
+
+    west = {
+      document_bucket           = module.west.document_bucket
+      processing_queue          = module.west.processing_queue
+      processing_dlq            = module.west.processing_dlq
+      outbox_publisher_schedule = module.west.outbox_publisher_schedule
+      execution_roles           = module.west.execution_roles
+      compute                   = module.west.compute
+      data_contract             = module.west.data_contract
+      api_gateway               = module.west.api_gateway
+    }
+  }
+}
+
+
+output "application_data" {
+  description = "DynamoDB MRSC application-system-of-record contract."
+  value = {
+    table_name         = aws_dynamodb_table.application.name
+    primary_table_arn  = aws_dynamodb_table.application.arn
+    primary_region     = local.sites.east.region
+    replica_regions    = [local.sites.east.region, local.sites.west.region]
+    witness_region     = local.witness_region
+    consistency_mode   = "STRONG"
+    billing_mode       = aws_dynamodb_table.application.billing_mode
+    pitr_enabled       = true
+    deletion_protected = var.dynamodb_deletion_protection_enabled
+  }
+}
+
+
+output "regional_api_endpoints" {
+  description = "Direct regional HTTP API endpoints for validation before global routing."
+  value = {
+    east = module.east.api_gateway.endpoint
+    west = module.west.api_gateway.endpoint
+  }
+}
+
+output "global_api_routing" {
+  description = "Feature-gated Route 53 latency-routing contract for the regional APIs."
+  value       = module.global_edge.global_api
+}
+
+output "edge_security" {
+  description = "Cost-gated edge-security and HTTP API hardening contract."
+  value = {
+    cognito_waf = {
+      enabled             = var.enable_cognito_waf
+      logging_enabled     = var.enable_cognito_waf_logging
+      scope               = "REGIONAL"
+      protected_resource  = "COGNITO_USER_POOL"
+      rate_limit          = var.cognito_waf_rate_limit
+      managed_rule_groups = local.cognito_waf_managed_rule_groups
+      log_retention_days  = var.cognito_waf_log_retention_days
+      redacted_headers    = ["authorization"]
+    }
+
+    regional_http_apis = {
+      waf_association_supported = false
+      protection_model          = "JWT_AUTHORIZATION_PLUS_STAGE_THROTTLING"
+      east_throttling           = module.east.api_gateway.stage.throttling
+      west_throttling           = module.west.api_gateway.stage.throttling
+    }
+
+    ddos_baseline = "AWS_SHIELD_STANDARD"
+  }
+}
+
+output "observability" {
+  description = "Platform V2 telemetry, dashboard, alarm, tracing, and synthetic-monitoring contract."
+  value = {
+    telemetry = {
+      metric_namespace           = var.telemetry_metric_namespace
+      structured_logging_enabled = var.enable_structured_logging
+      schema_version             = "1.0"
+      schema_fields              = local.telemetry_log_schema_fields
+      correlation_model = {
+        request_id_field     = "requestId"
+        correlation_id_field = "correlationId"
+        propagation_header   = "x-correlation-id"
+        deployment_id_field  = "deploymentId"
+      }
+      privacy = {
+        never_logged_fields           = local.telemetry_never_logged_fields
+        authorization_header_redacted = true
+      }
+      retention_days = {
+        application         = var.lambda_log_retention_days
+        api_access          = var.api_access_log_retention_days
+        waf                 = var.cognito_waf_log_retention_days
+        synthetic_artifacts = var.synthetic_artifact_retention_days
+      }
+    }
+
+    tracing = {
+      enabled                                       = var.enable_active_tracing
+      provider                                      = "AWS_XRAY"
+      east_modes                                    = module.east.observability.tracing_modes
+      west_modes                                    = module.west.observability.tracing_modes
+      api_gateway_http_api_active_tracing_supported = false
+    }
+
+    dashboard = {
+      enabled                            = var.enable_observability_dashboard
+      name                               = local.observability_dashboard_name
+      regional_sites                     = ["east", "west"]
+      includes_business_metric_namespace = true
+    }
+
+    alarms = {
+      enabled = var.enable_operational_alarms
+      actions = var.observability_alarm_actions
+      names   = local.regional_alarm_names
+      categories = [
+        "API_AVAILABILITY",
+        "API_LATENCY",
+        "LAMBDA_ERRORS",
+        "QUEUE_AGE",
+        "QUEUE_DEPTH",
+        "DLQ",
+        "DYNAMODB_THROTTLING",
+      ]
+    }
+
+    synthetics = {
+      enabled                 = var.enable_synthetic_monitoring
+      schedule_expression     = var.synthetic_schedule_expression
+      runtime_version         = var.synthetic_runtime_version
+      health_paths            = ["/health", "/health/live", "/health/ready"]
+      artifact_retention_days = var.synthetic_artifact_retention_days
+      regional_canaries = var.enable_synthetic_monitoring ? {
+        east = aws_synthetics_canary.east[0].name
+        west = aws_synthetics_canary.west[0].name
+      } : {}
+    }
+
+    log_groups = {
+      east = module.east.observability.log_groups
+      west = module.west.observability.log_groups
+    }
+  }
+}
+
+
+output "operations" {
+  description = "Multi-site deployment, routing isolation, rollback, and production-readiness contract."
+  value = {
+    production_readiness_enforced = var.production_readiness_enforced
+    production_ready              = local.production_ready
+    required_production_controls  = local.required_production_controls
+    missing_production_controls   = local.missing_production_controls
+
+    routing_enabled_by_site = var.site_routing_enabled
+    active_sites            = local.active_routing_sites
+
+    deployment = {
+      order = [
+        "west",
+        "validate-west",
+        "east",
+        "validate-east",
+        "enable-global-routing",
+      ]
+      strategy = "REGIONAL_SEQUENTIAL"
+      validation_contract = [
+        "regional-health",
+        "synthetics",
+        "alarms",
+        "deployment-id",
+      ]
+    }
+
+    regional_health_endpoints = local.regional_health_endpoints
+
+    rollback = {
+      unit           = "REGIONAL_SITE"
+      application    = "redeploy-previous-lambda-package"
+      infrastructure = "apply-previous-validated-terraform-configuration"
+      routing        = "disable-affected-site-route53-record"
+      data           = "compensating-action-not-infrastructure-rollback"
+    }
+  }
 }

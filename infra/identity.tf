@@ -1,8 +1,9 @@
 resource "aws_cognito_user_pool" "users" {
-  name = "${local.name_prefix}-users"
+  provider = aws.us_east_1
 
-  username_attributes = ["email"]
+  name = "${local.global_name_prefix}-users"
 
+  username_attributes      = ["email"]
   auto_verified_attributes = ["email"]
 
   lambda_config {
@@ -12,15 +13,15 @@ resource "aws_cognito_user_pool" "users" {
   verification_message_template {
     default_email_option  = "CONFIRM_WITH_LINK"
     email_subject_by_link = "Verify your AI Resume Coach account"
-    email_message_by_link = <<EOT
-Welcome to AI Resume Coach!
+    email_message_by_link = <<-EOT
+      Welcome to AI Resume Coach!
 
-Please verify your email address by clicking the link below:
+      Please verify your email address by clicking the link below:
 
-{##Verify your email##}
+      {##Verify your email##}
 
-After verification, return to the AI Resume Coach login page and sign in.
-EOT
+      After verification, return to the AI Resume Coach login page and sign in.
+    EOT
   }
 
   password_policy {
@@ -38,15 +39,20 @@ EOT
     }
   }
 
-  tags = {
-    Project     = "ai-resume-coach"
-    Environment = "dev"
-    ManagedBy   = "Terraform"
-  }
+  tags = merge(
+    local.common_tags,
+    {
+      Scope      = "global"
+      RegionRole = "shared"
+      Capability = "identity"
+    },
+  )
 }
 
 resource "aws_cognito_user_pool_client" "web" {
-  name         = "${local.name_prefix}-web-client"
+  provider = aws.us_east_1
+
+  name         = "${local.global_name_prefix}-web-client"
   user_pool_id = aws_cognito_user_pool.users.id
 
   generate_secret = false
@@ -54,13 +60,15 @@ resource "aws_cognito_user_pool_client" "web" {
   explicit_auth_flows = [
     "ALLOW_USER_PASSWORD_AUTH",
     "ALLOW_USER_SRP_AUTH",
-    "ALLOW_REFRESH_TOKEN_AUTH"
+    "ALLOW_REFRESH_TOKEN_AUTH",
   ]
 
   prevent_user_existence_errors = "ENABLED"
 }
 
 resource "aws_cognito_user_pool_domain" "main" {
-  domain       = "ai-resume-coach-${data.aws_caller_identity.current.account_id}"
+  provider = aws.us_east_1
+
+  domain       = "${var.project_name}-${data.aws_caller_identity.current.account_id}"
   user_pool_id = aws_cognito_user_pool.users.id
 }

@@ -1,5 +1,4 @@
 terraform {
-
   backend "s3" {
     bucket       = "earthmabus-ai-resume-coach-tfstate-940827434048"
     key          = "ai-resume-coach/dev/terraform.tfstate"
@@ -15,10 +14,12 @@ terraform {
       source  = "hashicorp/aws"
       version = "~> 6.0"
     }
+
     archive = {
       source  = "hashicorp/archive"
       version = "~> 2.4"
     }
+
     null = {
       source  = "hashicorp/null"
       version = "~> 3.2"

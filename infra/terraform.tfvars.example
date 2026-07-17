@@ -1,4 +1,99 @@
-analysis_provider = "openai"
+project_name = "ai-resume-coach"
+environment  = "dev"
+
+app_version   = "0.1.0"
+deployment_id = "local"
+log_level     = "INFO"
+
+analysis_provider = "rule-based"
 openai_model      = "gpt-5.5"
-openai_api_key    = "replace-me"
-registration_notification_email = "earthmabus@hotmail.com"
+openai_api_key    = ""
+
+registration_notification_email = "replace-me@example.com"
+operational_alert_email          = "replace-me@example.com"
+
+frontend_domain_name = "resume.example.com"
+
+# Regional storage and messaging
+document_bucket_force_destroy                   = false
+document_noncurrent_version_expiration_days     = 30
+processing_queue_visibility_timeout_seconds     = 180
+processing_queue_message_retention_seconds      = 345600
+processing_dlq_message_retention_seconds        = 1209600
+processing_queue_max_receive_count              = 5
+outbox_publisher_schedule_expression            = "rate(1 minute)"
+
+# Regional compute
+lambda_runtime                                 = "python3.13"
+lambda_architecture                            = "arm64"
+lambda_log_retention_days                      = 30
+api_lambda_memory_mb                           = 512
+api_lambda_timeout_seconds                     = 30
+worker_lambda_memory_mb                        = 1024
+worker_lambda_timeout_seconds                  = 120
+outbox_publisher_lambda_memory_mb              = 256
+outbox_publisher_lambda_timeout_seconds        = 30
+worker_batch_size                              = 5
+worker_maximum_batching_window_seconds         = 5
+
+# DynamoDB MRSC data foundation
+dynamodb_deletion_protection_enabled = false
+dynamodb_pitr_recovery_period_days   = 35
+
+# Regional HTTP APIs
+api_cors_allowed_origins = [
+  "http://localhost:5173",
+  "http://localhost:8000",
+]
+api_throttling_burst_limit    = 25
+api_throttling_rate_limit     = 10
+api_access_log_retention_days = 14
+
+# Global active-active API routing (disabled by default to avoid recurring cost)
+enable_global_api_routing          = false
+enable_route53_api_health_checks   = false
+api_domain_name                    = "api.resume.michaelpopovich.com"
+route53_public_zone_id             = ""
+east_api_certificate_arn           = ""
+west_api_certificate_arn           = ""
+route53_health_check_failure_threshold = 3
+
+# MR-007H edge-security controls (disabled by default to control portfolio cost)
+enable_cognito_waf         = false
+enable_cognito_waf_logging = false
+cognito_waf_rate_limit     = 500
+cognito_waf_log_retention_days = 7
+
+# MR-007I observability controls
+telemetry_metric_namespace       = "AIResumeCoach/Platform"
+enable_structured_logging        = true
+
+# Cost-gated operational resources
+enable_active_tracing            = false
+enable_observability_dashboard   = false
+enable_operational_alarms        = false
+enable_synthetic_monitoring      = false
+
+# Optional alarm destinations, such as an SNS topic ARN
+observability_alarm_actions = []
+
+# Curated thresholds
+api_5xx_alarm_threshold             = 5
+api_latency_alarm_threshold_ms      = 3000
+lambda_error_alarm_threshold        = 3
+queue_age_alarm_threshold_seconds   = 300
+queue_depth_alarm_threshold         = 25
+
+# Cost-conscious synthetic monitoring defaults
+synthetic_schedule_expression       = "rate(5 minutes)"
+synthetic_runtime_version           = "syn-nodejs-5.1"
+synthetic_artifact_retention_days   = 7
+synthetic_timeout_seconds           = 60
+
+
+# MR-007J multi-site production readiness
+site_routing_enabled = {
+  east = true
+  west = true
+}
+production_readiness_enforced = false
