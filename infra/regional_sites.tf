@@ -14,10 +14,10 @@ module "east" {
   region_code = local.sites.east.region_code
   region_role = local.sites.east.role
 
-
   identity = {
     user_pool_id = aws_cognito_user_pool.users.id
     client_id    = aws_cognito_user_pool_client.web.id
+
     issuer = join(
       "",
       [
@@ -26,7 +26,6 @@ module "east" {
       ],
     )
   }
-
 
   storage = {
     force_destroy                      = var.document_bucket_force_destroy
@@ -46,10 +45,12 @@ module "east" {
       filename         = data.archive_file.api_zip.output_path
       source_code_hash = data.archive_file.api_zip.output_base64sha256
     }
+
     worker = {
       filename         = data.archive_file.worker_zip.output_path
       source_code_hash = data.archive_file.worker_zip.output_base64sha256
     }
+
     outbox_publisher = {
       filename         = data.archive_file.outbox_publisher_zip.output_path
       source_code_hash = data.archive_file.outbox_publisher_zip.output_base64sha256
@@ -70,11 +71,11 @@ module "east" {
     worker_maximum_batching_window_seconds = var.worker_maximum_batching_window_seconds
   }
 
-  data = {
-    table_name         = local.application_table.name
-    regional_table_arn = local.application_table_regional_arns.east
-    consistency_mode   = local.application_table.consistency_mode
-    witness_region     = local.application_table.witness_region
+  resume_analysis = {
+    table_name       = local.resume_analysis_table.name
+    table_arn        = local.resume_analysis_table_arns.east
+    consistency_mode = local.resume_analysis_table.consistency_mode
+    witness_region   = local.resume_analysis_table.witness_region
   }
 
   api = {
@@ -98,6 +99,7 @@ module "east" {
   }
 
   runtime = local.application_runtime
+
   common_tags = merge(
     local.common_tags,
     {
@@ -123,10 +125,10 @@ module "west" {
   region_code = local.sites.west.region_code
   region_role = local.sites.west.role
 
-
   identity = {
     user_pool_id = aws_cognito_user_pool.users.id
     client_id    = aws_cognito_user_pool_client.web.id
+
     issuer = join(
       "",
       [
@@ -135,7 +137,6 @@ module "west" {
       ],
     )
   }
-
 
   storage = {
     force_destroy                      = var.document_bucket_force_destroy
@@ -155,10 +156,12 @@ module "west" {
       filename         = data.archive_file.api_zip.output_path
       source_code_hash = data.archive_file.api_zip.output_base64sha256
     }
+
     worker = {
       filename         = data.archive_file.worker_zip.output_path
       source_code_hash = data.archive_file.worker_zip.output_base64sha256
     }
+
     outbox_publisher = {
       filename         = data.archive_file.outbox_publisher_zip.output_path
       source_code_hash = data.archive_file.outbox_publisher_zip.output_base64sha256
@@ -179,11 +182,11 @@ module "west" {
     worker_maximum_batching_window_seconds = var.worker_maximum_batching_window_seconds
   }
 
-  data = {
-    table_name         = local.application_table.name
-    regional_table_arn = local.application_table_regional_arns.west
-    consistency_mode   = local.application_table.consistency_mode
-    witness_region     = local.application_table.witness_region
+  resume_analysis = {
+    table_name       = local.resume_analysis_table.name
+    table_arn        = local.resume_analysis_table_arns.west
+    consistency_mode = local.resume_analysis_table.consistency_mode
+    witness_region   = local.resume_analysis_table.witness_region
   }
 
   api = {
@@ -207,6 +210,7 @@ module "west" {
   }
 
   runtime = local.application_runtime
+
   common_tags = merge(
     local.common_tags,
     {

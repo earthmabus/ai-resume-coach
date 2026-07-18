@@ -42,6 +42,8 @@ variable "region_role" {
 }
 
 variable "runtime" {
+  description = "Application runtime identity and provider configuration."
+
   type = object({
     app_version       = string
     deployment_id     = string
@@ -57,6 +59,7 @@ variable "common_tags" {
 
 variable "identity" {
   description = "Shared identity configuration consumed by the regional API."
+
   type = object({
     user_pool_id = string
     client_id    = string
@@ -66,6 +69,7 @@ variable "identity" {
 
 variable "storage" {
   description = "Regional document-storage configuration."
+
   type = object({
     force_destroy                      = bool
     noncurrent_version_expiration_days = number
@@ -74,6 +78,7 @@ variable "storage" {
 
 variable "messaging" {
   description = "Regional asynchronous-processing configuration."
+
   type = object({
     visibility_timeout_seconds = number
     queue_retention_seconds    = number
@@ -85,15 +90,18 @@ variable "messaging" {
 
 variable "packages" {
   description = "Deterministic Lambda package artifacts produced by the root module."
+
   type = object({
     api = object({
       filename         = string
       source_code_hash = string
     })
+
     worker = object({
       filename         = string
       source_code_hash = string
     })
+
     outbox_publisher = object({
       filename         = string
       source_code_hash = string
@@ -103,6 +111,7 @@ variable "packages" {
 
 variable "compute" {
   description = "Regional Lambda runtime and event-source configuration."
+
   type = object({
     runtime                                = string
     architecture                           = string
@@ -118,23 +127,48 @@ variable "compute" {
   })
 }
 
-variable "data" {
-  description = "Shared MRSC application-table contract for this regional application site."
+variable "resume_analysis" {
+  description = "Regional contract for the multi-Region Resume Analysis system of record."
+
   type = object({
-    table_name         = string
-    regional_table_arn = string
-    consistency_mode   = string
-    witness_region     = string
+    table_name       = string
+    table_arn        = string
+    consistency_mode = string
+    witness_region   = string
   })
 
   validation {
-    condition     = var.data.consistency_mode == "STRONG"
-    error_message = "Regional application sites require the MRSC application table."
+    condition     = length(trimspace(var.resume_analysis.table_name)) > 0
+    error_message = "resume_analysis.table_name must not be empty."
+  }
+
+  validation {
+    condition = can(
+      regex(
+        "^arn:aws[a-z-]*:dynamodb:",
+        var.resume_analysis.table_arn,
+      )
+    )
+    error_message = "resume_analysis.table_arn must be a DynamoDB table ARN."
+  }
+
+  validation {
+    condition = contains(
+      ["STRONG", "EVENTUAL"],
+      upper(var.resume_analysis.consistency_mode),
+    )
+    error_message = "resume_analysis.consistency_mode must be STRONG or EVENTUAL."
+  }
+
+  validation {
+    condition     = length(trimspace(var.resume_analysis.witness_region)) > 0
+    error_message = "resume_analysis.witness_region must not be empty."
   }
 }
 
 variable "api" {
   description = "Regional HTTP API configuration."
+
   type = object({
     cors_allowed_origins      = list(string)
     throttling_burst_limit    = number
@@ -145,6 +179,7 @@ variable "api" {
 
 variable "observability" {
   description = "Regional telemetry, tracing, and alarm configuration."
+
   type = object({
     metric_namespace            = string
     structured_logging_enabled  = bool

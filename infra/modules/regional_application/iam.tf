@@ -12,9 +12,9 @@ locals {
     ]
   })
 
-  application_table_resources = [
-    var.data.regional_table_arn,
-    "${var.data.regional_table_arn}/index/*",
+  resume_analysis_table_resources = [
+    var.resume_analysis.table_arn,
+    "${var.resume_analysis.table_arn}/index/*",
   ]
 }
 
@@ -22,21 +22,36 @@ resource "aws_iam_role" "api" {
   name               = "${local.name_prefix}-api-role"
   assume_role_policy = local.lambda_assume_role_policy
 
-  tags = merge(local.tags, { Capability = "api-execution" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "api-execution"
+    },
+  )
 }
 
 resource "aws_iam_role" "worker" {
   name               = "${local.name_prefix}-worker-role"
   assume_role_policy = local.lambda_assume_role_policy
 
-  tags = merge(local.tags, { Capability = "worker-execution" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "resume-analysis-worker-execution"
+    },
+  )
 }
 
 resource "aws_iam_role" "outbox_publisher" {
   name               = "${local.name_prefix}-outbox-publisher-role"
   assume_role_policy = local.lambda_assume_role_policy
 
-  tags = merge(local.tags, { Capability = "outbox-publisher-execution" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "resume-analysis-outbox-publisher-execution"
+    },
+  )
 }
 
 resource "aws_iam_role_policy_attachment" "api_basic_execution" {
@@ -72,13 +87,13 @@ resource "aws_iam_role_policy" "api_runtime" {
         Resource = "${aws_s3_bucket.documents.arn}/*"
       },
       {
-        Sid      = "SubmitProcessingWork"
+        Sid      = "SubmitResumeAnalysisWork"
         Effect   = "Allow"
         Action   = ["sqs:SendMessage"]
         Resource = aws_sqs_queue.processing.arn
       },
       {
-        Sid    = "ApplicationDataAccess"
+        Sid    = "ResumeAnalysisDataAccess"
         Effect = "Allow"
         Action = [
           "dynamodb:BatchGetItem",
@@ -91,7 +106,7 @@ resource "aws_iam_role_policy" "api_runtime" {
           "dynamodb:TransactWriteItems",
           "dynamodb:UpdateItem",
         ]
-        Resource = local.application_table_resources
+        Resource = local.resume_analysis_table_resources
       },
     ]
   })
@@ -105,7 +120,7 @@ resource "aws_iam_role_policy" "worker_runtime" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ConsumeProcessingWork"
+        Sid    = "ConsumeResumeAnalysisWork"
         Effect = "Allow"
         Action = [
           "sqs:ReceiveMessage",
@@ -124,7 +139,7 @@ resource "aws_iam_role_policy" "worker_runtime" {
         Resource = "${aws_s3_bucket.documents.arn}/*"
       },
       {
-        Sid    = "ApplicationDataAccess"
+        Sid    = "ResumeAnalysisDataAccess"
         Effect = "Allow"
         Action = [
           "dynamodb:GetItem",
@@ -134,7 +149,7 @@ resource "aws_iam_role_policy" "worker_runtime" {
           "dynamodb:TransactWriteItems",
           "dynamodb:UpdateItem",
         ]
-        Resource = local.application_table_resources
+        Resource = local.resume_analysis_table_resources
       },
     ]
   })
@@ -148,13 +163,13 @@ resource "aws_iam_role_policy" "outbox_publisher_runtime" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid      = "PublishProcessingWork"
+        Sid      = "PublishResumeAnalysisWork"
         Effect   = "Allow"
         Action   = ["sqs:SendMessage"]
         Resource = aws_sqs_queue.processing.arn
       },
       {
-        Sid    = "OutboxDataAccess"
+        Sid    = "ResumeAnalysisOutboxDataAccess"
         Effect = "Allow"
         Action = [
           "dynamodb:GetItem",
@@ -162,7 +177,7 @@ resource "aws_iam_role_policy" "outbox_publisher_runtime" {
           "dynamodb:TransactWriteItems",
           "dynamodb:UpdateItem",
         ]
-        Resource = local.application_table_resources
+        Resource = local.resume_analysis_table_resources
       },
     ]
   })

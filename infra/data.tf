@@ -1,7 +1,7 @@
-resource "aws_dynamodb_table" "application" {
+resource "aws_dynamodb_table" "resume_analysis" {
   provider = aws.us_east_1
 
-  name         = "${local.global_name_prefix}-application"
+  name         = "${local.global_name_prefix}-resume-analysis"
   billing_mode = "PAY_PER_REQUEST"
   table_class  = "STANDARD"
 
@@ -44,7 +44,7 @@ resource "aws_dynamodb_table" "application" {
     local.common_tags,
     {
       Scope          = "multi-region-data"
-      Capability     = "application-system-of-record"
+      Capability     = "resume-analysis-system-of-record"
       Consistency    = "multi-region-strong"
       PrimaryReplica = local.sites.east.region
       PeerReplica    = local.sites.west.region
@@ -54,19 +54,20 @@ resource "aws_dynamodb_table" "application" {
 }
 
 locals {
-  application_table = {
-    name             = aws_dynamodb_table.application.name
-    primary_arn      = aws_dynamodb_table.application.arn
+  resume_analysis_table = {
+    name             = aws_dynamodb_table.resume_analysis.name
+    primary_arn      = aws_dynamodb_table.resume_analysis.arn
     primary_region   = local.sites.east.region
     replica_regions  = [local.sites.east.region, local.sites.west.region]
     witness_region   = local.witness_region
     consistency_mode = "STRONG"
   }
 
-  application_table_regional_arns = {
-    east = aws_dynamodb_table.application.arn
+  resume_analysis_table_arns = {
+    east = aws_dynamodb_table.resume_analysis.arn
+
     west = replace(
-      aws_dynamodb_table.application.arn,
+      aws_dynamodb_table.resume_analysis.arn,
       ":${local.sites.east.region}:",
       ":${local.sites.west.region}:",
     )

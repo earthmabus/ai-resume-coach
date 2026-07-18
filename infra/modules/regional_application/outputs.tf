@@ -58,8 +58,8 @@ output "execution_roles" {
 }
 
 output "api_endpoint" {
-  description = "Populated when API Gateway is implemented."
-  value       = null
+  description = "Direct regional HTTP API endpoint."
+  value       = aws_apigatewayv2_api.regional.api_endpoint
 }
 
 output "compute" {
@@ -96,12 +96,14 @@ output "compute" {
   }
 }
 
-output "data_contract" {
+output "resume_analysis_contract" {
+  description = "Regional contract for the multi-Region Resume Analysis system of record."
+
   value = {
-    table_name         = var.data.table_name
-    regional_table_arn = var.data.regional_table_arn
-    consistency_mode   = var.data.consistency_mode
-    witness_region     = var.data.witness_region
+    table_name       = var.resume_analysis.table_name
+    table_arn        = var.resume_analysis.table_arn
+    consistency_mode = var.resume_analysis.consistency_mode
+    witness_region   = var.resume_analysis.witness_region
   }
 }
 
@@ -160,17 +162,23 @@ output "observability" {
 
     alarms = {
       enabled = var.observability.operational_alarms_enabled
-      names = var.observability.operational_alarms_enabled ? sort(concat(
-        [
-          aws_cloudwatch_metric_alarm.api_5xx[0].alarm_name,
-          aws_cloudwatch_metric_alarm.api_latency[0].alarm_name,
-          aws_cloudwatch_metric_alarm.processing_queue_age[0].alarm_name,
-          aws_cloudwatch_metric_alarm.processing_queue_depth[0].alarm_name,
-          aws_cloudwatch_metric_alarm.processing_dlq_messages[0].alarm_name,
-          aws_cloudwatch_metric_alarm.dynamodb_throttles[0].alarm_name,
-        ],
-        [for alarm in aws_cloudwatch_metric_alarm.lambda_errors : alarm.alarm_name],
-      )) : []
+
+      names = var.observability.operational_alarms_enabled ? sort(
+        concat(
+          [
+            aws_cloudwatch_metric_alarm.api_5xx[0].alarm_name,
+            aws_cloudwatch_metric_alarm.api_latency[0].alarm_name,
+            aws_cloudwatch_metric_alarm.processing_queue_age[0].alarm_name,
+            aws_cloudwatch_metric_alarm.processing_queue_depth[0].alarm_name,
+            aws_cloudwatch_metric_alarm.processing_dlq_messages[0].alarm_name,
+            aws_cloudwatch_metric_alarm.dynamodb_throttles[0].alarm_name,
+          ],
+          [
+            for alarm in aws_cloudwatch_metric_alarm.lambda_errors :
+            alarm.alarm_name
+          ],
+        )
+      ) : []
     }
   }
 }

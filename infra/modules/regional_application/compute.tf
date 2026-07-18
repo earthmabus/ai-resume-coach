@@ -1,26 +1,18 @@
 locals {
   function_environment = {
-    APP_VERSION                = var.runtime.app_version
-    ARCHITECTURE               = var.architecture_version
-    DEPLOYMENT_ID              = var.runtime.deployment_id
-    ENVIRONMENT                = var.environment
-    LOG_LEVEL                  = var.runtime.log_level
-    REGION_ROLE                = var.region_role
-    SITE_NAME                  = var.site_name
-    USER_POOL_ID               = var.identity.user_pool_id
-    USER_POOL_CLIENT           = var.identity.client_id
-    IDENTITY_ISSUER            = var.identity.issuer
-    DOCUMENT_BUCKET            = aws_s3_bucket.documents.bucket
-    PROCESSING_QUEUE_URL       = aws_sqs_queue.processing.url
-    APPLICATION_TABLE          = var.data.table_name
-    DATA_CONSISTENCY           = var.data.consistency_mode
-    DATA_WITNESS_REGION        = var.data.witness_region
-    TELEMETRY_NAMESPACE        = var.observability.metric_namespace
-    STRUCTURED_LOGGING         = tostring(var.observability.structured_logging_enabled)
-    CORRELATION_HEADER         = "x-correlation-id"
-    REQUEST_ID_FIELD           = "requestId"
-    CORRELATION_ID_FIELD       = "correlationId"
-    ARCHITECTURE_VERSION_FIELD = var.architecture_version
+    PROJECT_NAME              = var.project_name
+    APP_VERSION               = var.runtime.app_version
+    ENVIRONMENT               = var.environment
+    DEPLOYMENT_ID             = var.runtime.deployment_id
+    LOG_LEVEL                 = var.runtime.log_level
+    ANALYSIS_PROVIDER         = var.runtime.analysis_provider
+    OPENAI_MODEL              = var.runtime.openai_model
+    AWS_REGION_NAME           = var.region
+    SITE_NAME                 = var.site_name
+    REGION_ROLE               = var.region_role
+    DOCUMENT_BUCKET           = aws_s3_bucket.documents.bucket
+    RESUME_ANALYSIS_TABLE     = var.resume_analysis.table_name
+    RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.processing.url
   }
 }
 
@@ -28,26 +20,41 @@ resource "aws_cloudwatch_log_group" "api" {
   name              = "/aws/lambda/${local.name_prefix}-api"
   retention_in_days = var.compute.log_retention_days
 
-  tags = merge(local.tags, { Capability = "api-logs" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "api-logs"
+    },
+  )
 }
 
 resource "aws_cloudwatch_log_group" "worker" {
   name              = "/aws/lambda/${local.name_prefix}-worker"
   retention_in_days = var.compute.log_retention_days
 
-  tags = merge(local.tags, { Capability = "worker-logs" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "worker-logs"
+    },
+  )
 }
 
 resource "aws_cloudwatch_log_group" "outbox_publisher" {
   name              = "/aws/lambda/${local.name_prefix}-outbox-publisher"
   retention_in_days = var.compute.log_retention_days
 
-  tags = merge(local.tags, { Capability = "outbox-publisher-logs" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "outbox-publisher-logs"
+    },
+  )
 }
 
 resource "aws_lambda_function" "api" {
   function_name = "${local.name_prefix}-api"
-  description   = "Regional API application function."
+  description   = "Regional AI Resume Coach HTTP API."
   role          = aws_iam_role.api.arn
   runtime       = var.compute.runtime
   architectures = [var.compute.architecture]
@@ -62,7 +69,6 @@ resource "aws_lambda_function" "api" {
   tracing_config {
     mode = var.observability.active_tracing_enabled ? "Active" : "PassThrough"
   }
-
 
   environment {
     variables = merge(
@@ -79,12 +85,17 @@ resource "aws_lambda_function" "api" {
     aws_iam_role_policy.api_runtime,
   ]
 
-  tags = merge(local.tags, { Capability = "regional-api" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "regional-api"
+    },
+  )
 }
 
 resource "aws_lambda_function" "worker" {
   function_name = "${local.name_prefix}-worker"
-  description   = "Regional asynchronous processing worker."
+  description   = "Regional Resume Analysis asynchronous worker."
   role          = aws_iam_role.worker.arn
   runtime       = var.compute.runtime
   architectures = [var.compute.architecture]
@@ -99,7 +110,6 @@ resource "aws_lambda_function" "worker" {
   tracing_config {
     mode = var.observability.active_tracing_enabled ? "Active" : "PassThrough"
   }
-
 
   environment {
     variables = merge(
@@ -116,12 +126,17 @@ resource "aws_lambda_function" "worker" {
     aws_iam_role_policy.worker_runtime,
   ]
 
-  tags = merge(local.tags, { Capability = "regional-worker" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "resume-analysis-worker"
+    },
+  )
 }
 
 resource "aws_lambda_function" "outbox_publisher" {
   function_name = "${local.name_prefix}-outbox-publisher"
-  description   = "Regional transactional-outbox publisher."
+  description   = "Regional Resume Analysis transactional-outbox publisher."
   role          = aws_iam_role.outbox_publisher.arn
   runtime       = var.compute.runtime
   architectures = [var.compute.architecture]
@@ -136,7 +151,6 @@ resource "aws_lambda_function" "outbox_publisher" {
   tracing_config {
     mode = var.observability.active_tracing_enabled ? "Active" : "PassThrough"
   }
-
 
   environment {
     variables = merge(
@@ -153,7 +167,12 @@ resource "aws_lambda_function" "outbox_publisher" {
     aws_iam_role_policy.outbox_publisher_runtime,
   ]
 
-  tags = merge(local.tags, { Capability = "regional-outbox-publisher" })
+  tags = merge(
+    local.tags,
+    {
+      Capability = "resume-analysis-outbox-publisher"
+    },
+  )
 }
 
 resource "aws_lambda_event_source_mapping" "worker_processing_queue" {

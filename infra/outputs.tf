@@ -5,6 +5,7 @@ output "architecture_version" {
 
 output "regional_sites" {
   description = "Regional site identities."
+
   value = {
     east = module.east.site_identity
     west = module.west.site_identity
@@ -22,7 +23,7 @@ output "west_region" {
 }
 
 output "witness_region" {
-  description = "Reserved DynamoDB MRSC witness Region."
+  description = "DynamoDB MRSC witness Region."
   value       = local.witness_region
 }
 
@@ -53,6 +54,7 @@ output "cognito_user_pool_domain" {
 
 output "cognito_issuer" {
   description = "JWT issuer trusted by both regional APIs."
+
   value = join(
     "",
     [
@@ -74,6 +76,7 @@ output "registration_notification_topic_arn" {
 
 output "lambda_package_hashes" {
   description = "Deterministic hashes for isolated Lambda packages."
+
   value = {
     api                       = data.archive_file.api_zip.output_base64sha256
     worker                    = data.archive_file.worker_zip.output_base64sha256
@@ -83,7 +86,8 @@ output "lambda_package_hashes" {
 }
 
 output "regional_foundations" {
-  description = "Regional storage, messaging, scheduling, and execution-role foundations."
+  description = "Regional storage, messaging, scheduling, compute, data, and API foundations."
+
   value = {
     east = {
       document_bucket           = module.east.document_bucket
@@ -92,7 +96,7 @@ output "regional_foundations" {
       outbox_publisher_schedule = module.east.outbox_publisher_schedule
       execution_roles           = module.east.execution_roles
       compute                   = module.east.compute
-      data_contract             = module.east.data_contract
+      resume_analysis           = module.east.resume_analysis_contract
       api_gateway               = module.east.api_gateway
     }
 
@@ -103,31 +107,31 @@ output "regional_foundations" {
       outbox_publisher_schedule = module.west.outbox_publisher_schedule
       execution_roles           = module.west.execution_roles
       compute                   = module.west.compute
-      data_contract             = module.west.data_contract
+      resume_analysis           = module.west.resume_analysis_contract
       api_gateway               = module.west.api_gateway
     }
   }
 }
 
+output "resume_analysis_data" {
+  description = "DynamoDB MRSC Resume Analysis system-of-record contract."
 
-output "application_data" {
-  description = "DynamoDB MRSC application-system-of-record contract."
   value = {
-    table_name         = aws_dynamodb_table.application.name
-    primary_table_arn  = aws_dynamodb_table.application.arn
-    primary_region     = local.sites.east.region
-    replica_regions    = [local.sites.east.region, local.sites.west.region]
-    witness_region     = local.witness_region
-    consistency_mode   = "STRONG"
-    billing_mode       = aws_dynamodb_table.application.billing_mode
+    table_name         = aws_dynamodb_table.resume_analysis.name
+    primary_table_arn  = aws_dynamodb_table.resume_analysis.arn
+    primary_region     = local.resume_analysis_table.primary_region
+    replica_regions    = local.resume_analysis_table.replica_regions
+    witness_region     = local.resume_analysis_table.witness_region
+    consistency_mode   = local.resume_analysis_table.consistency_mode
+    billing_mode       = aws_dynamodb_table.resume_analysis.billing_mode
     pitr_enabled       = true
     deletion_protected = var.dynamodb_deletion_protection_enabled
   }
 }
 
-
 output "regional_api_endpoints" {
   description = "Direct regional HTTP API endpoints for validation before global routing."
+
   value = {
     east = module.east.api_gateway.endpoint
     west = module.west.api_gateway.endpoint
@@ -141,6 +145,7 @@ output "global_api_routing" {
 
 output "edge_security" {
   description = "Cost-gated edge-security and HTTP API hardening contract."
+
   value = {
     cognito_waf = {
       enabled             = var.enable_cognito_waf
@@ -166,22 +171,26 @@ output "edge_security" {
 
 output "observability" {
   description = "Platform V2 telemetry, dashboard, alarm, tracing, and synthetic-monitoring contract."
+
   value = {
     telemetry = {
       metric_namespace           = var.telemetry_metric_namespace
       structured_logging_enabled = var.enable_structured_logging
       schema_version             = "1.0"
       schema_fields              = local.telemetry_log_schema_fields
+
       correlation_model = {
         request_id_field     = "requestId"
         correlation_id_field = "correlationId"
         propagation_header   = "x-correlation-id"
         deployment_id_field  = "deploymentId"
       }
+
       privacy = {
         never_logged_fields           = local.telemetry_never_logged_fields
         authorization_header_redacted = true
       }
+
       retention_days = {
         application         = var.lambda_log_retention_days
         api_access          = var.api_access_log_retention_days
@@ -209,6 +218,7 @@ output "observability" {
       enabled = var.enable_operational_alarms
       actions = var.observability_alarm_actions
       names   = local.regional_alarm_names
+
       categories = [
         "API_AVAILABILITY",
         "API_LATENCY",
@@ -226,6 +236,7 @@ output "observability" {
       runtime_version         = var.synthetic_runtime_version
       health_paths            = ["/health", "/health/live", "/health/ready"]
       artifact_retention_days = var.synthetic_artifact_retention_days
+
       regional_canaries = var.enable_synthetic_monitoring ? {
         east = aws_synthetics_canary.east[0].name
         west = aws_synthetics_canary.west[0].name
@@ -239,9 +250,9 @@ output "observability" {
   }
 }
 
-
 output "operations" {
   description = "Multi-site deployment, routing isolation, rollback, and production-readiness contract."
+
   value = {
     production_readiness_enforced = var.production_readiness_enforced
     production_ready              = local.production_ready
@@ -259,7 +270,9 @@ output "operations" {
         "validate-east",
         "enable-global-routing",
       ]
+
       strategy = "REGIONAL_SEQUENTIAL"
+
       validation_contract = [
         "regional-health",
         "synthetics",

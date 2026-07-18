@@ -139,8 +139,8 @@ resource "aws_cloudwatch_dashboard" "platform_operations" {
           region = local.sites.east.region
           period = 60
           metrics = [
-            ["AWS/DynamoDB", "ThrottledRequests", "TableName", aws_dynamodb_table.application.name, { label = "East throttles" }],
-            ["AWS/DynamoDB", "ThrottledRequests", "TableName", aws_dynamodb_table.application.name, { label = "West throttles", region = local.sites.west.region }],
+            ["AWS/DynamoDB", "ThrottledRequests", "TableName", aws_dynamodb_table.resume_analysis.name, { label = "East throttles" }],
+            ["AWS/DynamoDB", "ThrottledRequests", "TableName", aws_dynamodb_table.resume_analysis.name, { label = "West throttles", region = local.sites.west.region }],
           ]
         }
       },
