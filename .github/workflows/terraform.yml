@@ -78,17 +78,11 @@ jobs:
 
       - name: Build PDF Lambda layer
         working-directory: ${{ github.workspace }}
-        run: |
-          rm -rf lambda_layer/build
-          mkdir -p lambda_layer/build/python
+        run: python tools/build_pdf_dependency_layer.py
 
-          python -m pip install \
-            --platform manylinux2014_x86_64 \
-            --implementation cp \
-            --python-version 3.13 \
-            --only-binary=:all: \
-            --requirement lambda_layer/requirements.txt \
-            --target lambda_layer/build/python
+      - name: Build Lambda packages
+        working-directory: ${{ github.workspace }}
+        run: python tools/build_lambda_packages.py
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3

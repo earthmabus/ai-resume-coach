@@ -81,33 +81,37 @@ output "api_endpoint" {
 output "compute" {
   value = {
     api = {
-      name         = aws_lambda_function.api.function_name
-      runtime      = aws_lambda_function.api.runtime
-      architecture = aws_lambda_function.api.architectures[0]
-      memory_mb    = aws_lambda_function.api.memory_size
-      timeout      = aws_lambda_function.api.timeout
-      log_group    = aws_cloudwatch_log_group.api.name
+      name                   = aws_lambda_function.api.function_name
+      runtime                = aws_lambda_function.api.runtime
+      architecture           = aws_lambda_function.api.architectures[0]
+      memory_mb              = aws_lambda_function.api.memory_size
+      timeout                = aws_lambda_function.api.timeout
+      log_group              = aws_cloudwatch_log_group.api.name
+      dependency_layer_count = length(coalesce(aws_lambda_function.api.layers, []))
+      dependency_layers      = coalesce(aws_lambda_function.api.layers, [])
     }
 
     worker = {
-      name         = aws_lambda_function.worker.function_name
-      runtime      = aws_lambda_function.worker.runtime
-      architecture = aws_lambda_function.worker.architectures[0]
-      memory_mb    = aws_lambda_function.worker.memory_size
-      timeout      = aws_lambda_function.worker.timeout
-      log_group    = aws_cloudwatch_log_group.worker.name
-      batch_size   = aws_lambda_event_source_mapping.worker_processing_queue.batch_size
-      enabled      = aws_lambda_event_source_mapping.worker_processing_queue.enabled
+      name                   = aws_lambda_function.worker.function_name
+      runtime                = aws_lambda_function.worker.runtime
+      architecture           = aws_lambda_function.worker.architectures[0]
+      memory_mb              = aws_lambda_function.worker.memory_size
+      timeout                = aws_lambda_function.worker.timeout
+      log_group              = aws_cloudwatch_log_group.worker.name
+      batch_size             = aws_lambda_event_source_mapping.worker_processing_queue.batch_size
+      enabled                = aws_lambda_event_source_mapping.worker_processing_queue.enabled
+      dependency_layer_count = length(coalesce(aws_lambda_function.worker.layers, []))
     }
 
     outbox_publisher = {
-      name         = aws_lambda_function.outbox_publisher.function_name
-      runtime      = aws_lambda_function.outbox_publisher.runtime
-      architecture = aws_lambda_function.outbox_publisher.architectures[0]
-      memory_mb    = aws_lambda_function.outbox_publisher.memory_size
-      timeout      = aws_lambda_function.outbox_publisher.timeout
-      log_group    = aws_cloudwatch_log_group.outbox_publisher.name
-      schedule     = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
+      name                   = aws_lambda_function.outbox_publisher.function_name
+      runtime                = aws_lambda_function.outbox_publisher.runtime
+      architecture           = aws_lambda_function.outbox_publisher.architectures[0]
+      memory_mb              = aws_lambda_function.outbox_publisher.memory_size
+      timeout                = aws_lambda_function.outbox_publisher.timeout
+      log_group              = aws_cloudwatch_log_group.outbox_publisher.name
+      schedule               = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
+      dependency_layer_count = length(coalesce(aws_lambda_function.outbox_publisher.layers, []))
     }
   }
 }

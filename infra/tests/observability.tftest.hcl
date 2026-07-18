@@ -142,8 +142,10 @@ run "dashboard_and_alarm_contracts_cover_both_regions" {
       output.observability.dashboard.includes_worker_outbox_failures
       &&
       output.observability.dashboard.includes_lambda_throttles
+      &&
+      output.observability.dashboard.includes_dlq_depth
     )
-    error_message = "The operations dashboard must represent both active sites, reserve the business metric namespace, and expose key failure and throttle signals."
+    error_message = "The operations dashboard must represent both active sites, reserve the business metric namespace, and expose key failure, throttle, and DLQ signals."
   }
 
   assert {

@@ -5,11 +5,15 @@ import subprocess
 import sys
 from pathlib import Path
 
+import pytest
+
+from tools.build_pdf_dependency_layer import build_pdf_dependency_layer
 from tools.build_lambda_packages import build_all_packages
 
 
 ROOT = Path(__file__).resolve().parents[1]
 BUILD_ROOT = ROOT / "build" / "lambda"
+LAYER_ROOT = ROOT / "build" / "lambda_layer" / "pdf_dependencies"
 
 
 def built_files(package_name: str) -> set[str]:
@@ -59,11 +63,82 @@ def test_packages_exclude_cache_and_test_files():
         assert not any(path.startswith("tests/") for path in files)
 
 
-def import_package_handler(package_name: str, extra_env=None):
+def write_aws_sdk_stubs(stub_root: Path) -> Path:
+    (stub_root / "boto3" / "dynamodb").mkdir(parents=True, exist_ok=True)
+    (stub_root / "botocore").mkdir(parents=True, exist_ok=True)
+
+    (stub_root / "boto3" / "__init__.py").write_text(
+        "class _Resource:\n"
+        "    def Table(self, *args, **kwargs):\n"
+        "        return object()\n"
+        "\n"
+        "def client(*args, **kwargs):\n"
+        "    return object()\n"
+        "\n"
+        "def resource(*args, **kwargs):\n"
+        "    return _Resource()\n",
+        encoding="utf-8",
+    )
+    (stub_root / "boto3" / "dynamodb" / "__init__.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (stub_root / "boto3" / "dynamodb" / "conditions.py").write_text(
+        "class Key:\n"
+        "    def __init__(self, *args, **kwargs):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    (stub_root / "boto3" / "dynamodb" / "types.py").write_text(
+        "class TypeSerializer:\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
+    (stub_root / "botocore" / "__init__.py").write_text(
+        "",
+        encoding="utf-8",
+    )
+    (stub_root / "botocore" / "config.py").write_text(
+        "class Config:\n"
+        "    def __init__(self, *args, **kwargs):\n"
+        "        pass\n",
+        encoding="utf-8",
+    )
+    (stub_root / "botocore" / "exceptions.py").write_text(
+        "class BotoCoreError(Exception):\n"
+        "    pass\n"
+        "\n"
+        "class ClientError(Exception):\n"
+        "    def __init__(self, error_response=None, operation_name=''):\n"
+        "        self.response = error_response or {}\n"
+        "        super().__init__(str(self.response))\n",
+        encoding="utf-8",
+    )
+
+    return stub_root
+
+
+def import_package_handler(package_name: str, *, layer_root=None, extra_env=None):
     package_root = BUILD_ROOT / package_name
+    stub_root = package_root.parent / "_aws_sdk_stubs"
+    if stub_root.exists():
+        import shutil
+
+        shutil.rmtree(stub_root)
+    write_aws_sdk_stubs(stub_root)
+
+    python_path_entries = [
+        str(package_root),
+        str(stub_root),
+    ]
+    if layer_root is not None:
+        python_path_entries.insert(1, str(layer_root / "python"))
+
+    write_aws_sdk_stubs(stub_root)
+
     environment = {
-        **os.environ,
-        "PYTHONPATH": str(package_root),
+        "PYTHONPATH": os.pathsep.join(python_path_entries),
+        "PYTHONDONTWRITEBYTECODE": "1",
         "AWS_EC2_METADATA_DISABLED": "true",
         "AWS_ACCESS_KEY_ID": "testing",
         "AWS_SECRET_ACCESS_KEY": "testing",
@@ -91,7 +166,7 @@ def import_package_handler(package_name: str, extra_env=None):
         environment.update(extra_env)
 
     return subprocess.run(
-        [sys.executable, "-c", "import handler"],
+        [sys.executable, "-S", "-c", "import handler"],
         cwd=package_root,
         env=environment,
         capture_output=True,
@@ -102,19 +177,77 @@ def import_package_handler(package_name: str, extra_env=None):
 
 def test_each_built_handler_imports_in_isolation():
     build_all_packages(repository_root=ROOT)
+    fake_layer_root = BUILD_ROOT.parent / "test_pdf_layer"
+    (fake_layer_root / "python" / "pypdf").mkdir(parents=True, exist_ok=True)
+    (fake_layer_root / "python" / "pypdf" / "__init__.py").write_text(
+        "class PdfReader:\n"
+        "    pass\n",
+        encoding="utf-8",
+    )
 
-    for package_name in (
-        "api",
-        "worker",
-        "outbox_publisher",
-        "registration_notification",
-    ):
-        result = import_package_handler(package_name)
+    package_layers = {
+        "api": fake_layer_root,
+        "worker": None,
+        "outbox_publisher": None,
+        "registration_notification": None,
+    }
+
+    for package_name, layer_root in package_layers.items():
+        result = import_package_handler(
+            package_name,
+            layer_root=layer_root,
+        )
         assert result.returncode == 0, (
             f"{package_name} import failed:\n"
             f"stdout={result.stdout}\n"
             f"stderr={result.stderr}"
         )
+
+
+def test_pdf_dependency_layer_builder_targets_lambda_runtime(monkeypatch, tmp_path):
+    calls = []
+
+    def fake_run(command, check):
+        calls.append(command)
+        target = Path(command[command.index("--target") + 1])
+        (target / "pypdf").mkdir(parents=True)
+
+    monkeypatch.setattr("subprocess.run", fake_run)
+
+    layer_root = build_pdf_dependency_layer(
+        repository_root=ROOT,
+        output_root=tmp_path / "layer",
+    )
+
+    assert (layer_root / "python" / "pypdf").is_dir()
+    assert calls
+    command = calls[0]
+    assert "--platform" in command
+    assert command[command.index("--platform") + 1] == "manylinux2014_aarch64"
+    assert "--python-version" in command
+    assert command[command.index("--python-version") + 1] == "3.13"
+    assert "--abi" in command
+    assert command[command.index("--abi") + 1] == "cp313"
+    assert "--only-binary=:all:" in command
+
+
+def test_pdf_dependency_layer_artifact_contains_runtime_packages():
+    if not LAYER_ROOT.exists():
+        pytest.skip("PDF dependency layer has not been built")
+
+    assert (LAYER_ROOT / "python" / "pypdf").is_dir()
+    assert (LAYER_ROOT / "python" / "openai").is_dir()
+    assert not any("__pycache__" in path.parts for path in LAYER_ROOT.rglob("*"))
+    assert not any(path.suffix == ".pyc" for path in LAYER_ROOT.rglob("*"))
+
+
+def test_api_handler_import_fails_without_pdf_dependency_layer():
+    build_all_packages(repository_root=ROOT)
+
+    result = import_package_handler("api")
+
+    assert result.returncode != 0
+    assert "No module named 'pypdf'" in result.stderr
 
 
 def test_build_is_deterministic_for_unchanged_sources():

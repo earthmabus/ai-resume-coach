@@ -54,6 +54,9 @@ module "east" {
     api = {
       filename         = data.archive_file.api_zip.output_path
       source_code_hash = data.archive_file.api_zip.output_base64sha256
+      dependency_layers = [
+        aws_lambda_layer_version.pdf_dependencies_east.arn,
+      ]
     }
 
     worker = {
@@ -175,6 +178,9 @@ module "west" {
     api = {
       filename         = data.archive_file.api_zip.output_path
       source_code_hash = data.archive_file.api_zip.output_base64sha256
+      dependency_layers = [
+        aws_lambda_layer_version.pdf_dependencies_west.arn,
+      ]
     }
 
     worker = {

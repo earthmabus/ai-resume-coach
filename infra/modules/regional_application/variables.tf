@@ -132,8 +132,9 @@ variable "packages" {
 
   type = object({
     api = object({
-      filename         = string
-      source_code_hash = string
+      filename          = string
+      source_code_hash  = string
+      dependency_layers = list(string)
     })
 
     worker = object({

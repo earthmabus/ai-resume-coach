@@ -82,6 +82,7 @@ output "lambda_package_hashes" {
     worker                    = data.archive_file.worker_zip.output_base64sha256
     outbox_publisher          = data.archive_file.outbox_publisher_zip.output_base64sha256
     registration_notification = data.archive_file.registration_notification_zip.output_base64sha256
+    pdf_dependency_layer      = data.archive_file.pdf_dependency_layer_zip.output_base64sha256
   }
 }
 
@@ -218,6 +219,7 @@ output "observability" {
       includes_business_metric_namespace = true
       includes_worker_outbox_failures    = true
       includes_lambda_throttles          = true
+      includes_dlq_depth                 = true
     }
 
     alarms = {

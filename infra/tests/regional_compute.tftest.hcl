@@ -61,6 +61,41 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.compute.api.dependency_layer_count == 1
+      &&
+      output.regional_foundations.west.compute.api.dependency_layer_count == 1
+    )
+    error_message = "Each regional API Lambda must receive one PDF dependency layer."
+  }
+
+  assert {
+    condition = (
+      aws_lambda_layer_version.pdf_dependencies_east.layer_name
+      == "ai-resume-coach-dev-use1-pdf-dependencies"
+      &&
+      aws_lambda_layer_version.pdf_dependencies_west.layer_name
+      == "ai-resume-coach-dev-usw2-pdf-dependencies"
+    )
+    error_message = "Regional PDF dependency layers must be named for their local active region."
+  }
+
+  assert {
+    condition = (
+      length(coalesce(aws_lambda_function.registration_notification.layers, [])) == 0
+      &&
+      output.regional_foundations.east.compute.worker.dependency_layer_count == 0
+      &&
+      output.regional_foundations.west.compute.worker.dependency_layer_count == 0
+      &&
+      output.regional_foundations.east.compute.outbox_publisher.dependency_layer_count == 0
+      &&
+      output.regional_foundations.west.compute.outbox_publisher.dependency_layer_count == 0
+    )
+    error_message = "The PDF dependency layer must be attached only to API Lambdas."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.compute.worker.batch_size
       == 5
       &&

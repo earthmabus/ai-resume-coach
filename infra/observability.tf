@@ -202,10 +202,27 @@ resource "aws_cloudwatch_dashboard" "platform_operations" {
         }
       },
       {
-        type   = "log"
+        type   = "metric"
         x      = 0
         y      = 26
-        width  = 24
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Processing DLQ Depth"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 60
+          metrics = [
+            ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", module.east.processing_dlq.name, { label = "East DLQ depth" }],
+            ["AWS/SQS", "ApproximateNumberOfMessagesVisible", "QueueName", module.west.processing_dlq.name, { label = "West DLQ depth", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "log"
+        x      = 12
+        y      = 26
+        width  = 12
         height = 6
         properties = {
           title  = "Recent Regional Application Errors"

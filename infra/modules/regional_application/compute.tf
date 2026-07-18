@@ -67,6 +67,7 @@ resource "aws_lambda_function" "api" {
 
   filename         = var.packages.api.filename
   source_code_hash = var.packages.api.source_code_hash
+  layers           = var.packages.api.dependency_layers
 
   memory_size = var.compute.api_memory_mb
   timeout     = var.compute.api_timeout_seconds

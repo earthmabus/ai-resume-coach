@@ -33,6 +33,12 @@ def handler(event, context):
 PY
 done
 
+mkdir -p "${VALIDATION_ROOT}/build/lambda_layer/pdf_dependencies/python/pypdf"
+cat > "${VALIDATION_ROOT}/build/lambda_layer/pdf_dependencies/python/pypdf/__init__.py" <<'PY'
+class PdfReader:
+    pass
+PY
+
 rm -rf "${VALIDATION_ROOT}/infra/.terraform"
 rm -f "${VALIDATION_ROOT}/infra/.terraform.lock.hcl"
 

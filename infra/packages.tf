@@ -22,6 +22,12 @@ data "archive_file" "registration_notification_zip" {
   output_path = "${path.module}/registration_notification.zip"
 }
 
+data "archive_file" "pdf_dependency_layer_zip" {
+  type        = "zip"
+  source_dir  = "${path.module}/../build/lambda_layer/pdf_dependencies"
+  output_path = "${path.module}/pdf_dependency_layer.zip"
+}
+
 data "archive_file" "synthetic_health_zip" {
   type        = "zip"
   source_dir  = "${path.module}/synthetics"

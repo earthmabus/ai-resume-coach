@@ -110,6 +110,8 @@ Verify:
 Verify:
 
 * S3 upload bucket
-* PDF layer deployment
+* PDF layer build with `python tools/build_pdf_dependency_layer.py`
+* Lambda package build with `python tools/build_lambda_packages.py`
+* Deployment artifact validation with `python tools/validate_lambda_artifacts.py`
+* PDF layer attachment on the regional API Lambdas
 * Lambda memory settings
-
