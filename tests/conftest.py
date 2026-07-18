@@ -34,6 +34,7 @@ TEST_ENVIRONMENT = {
     "REGION_ROLE": "active",
     "PRIMARY_REGION": "us-east-1",
     "SECONDARY_REGIONS": "us-west-2",
+    "WITNESS_REGION": "us-east-2",
     "RESUME_ANALYSIS_TABLE": "test-table",
     "DOCUMENT_BUCKET": "test-bucket",
     "RESUME_ANALYSIS_QUEUE_URL": (
@@ -44,6 +45,10 @@ TEST_ENVIRONMENT = {
     "ANALYSIS_PROVIDER": "rule-based",
     "OPENAI_MODEL": "",
     "LOG_LEVEL": "INFO",
+    "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE": "false",
+    "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP": (
+        "synthetic-runtime-validation"
+    ),
     "OUTBOX_BATCH_SIZE": "25",
     "OUTBOX_MAX_WORKERS": "4",
     "OUTBOX_MAX_DELIVERY_ATTEMPTS": "20",

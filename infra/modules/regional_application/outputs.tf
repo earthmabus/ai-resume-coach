@@ -162,6 +162,18 @@ output "api_gateway" {
   }
 }
 
+output "validation" {
+  value = {
+    synthetic_placement_override = {
+      enabled          = var.validation.enable_synthetic_placement_override
+      group_name       = var.validation.synthetic_placement_override_group
+      active_regions   = sort(keys(var.regional_transport.processing_queue_names_by_region))
+      witness_region   = var.resume_analysis.witness_region
+      production_ready = !var.validation.enable_synthetic_placement_override
+    }
+  }
+}
+
 output "observability" {
   value = {
     metric_namespace           = var.observability.metric_namespace

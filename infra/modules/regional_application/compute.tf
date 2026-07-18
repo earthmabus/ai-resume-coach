@@ -12,12 +12,15 @@ locals {
     REGION_ROLE       = var.region_role
     PRIMARY_REGION    = var.routing.primary_region
     SECONDARY_REGIONS = join(",", var.routing.secondary_regions)
+    WITNESS_REGION    = var.resume_analysis.witness_region
     REGIONAL_PROCESSING_QUEUE_NAMES = jsonencode(
       var.regional_transport.processing_queue_names_by_region
     )
-    DOCUMENT_BUCKET           = aws_s3_bucket.documents.bucket
-    RESUME_ANALYSIS_TABLE     = var.resume_analysis.table_name
-    RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.processing.url
+    DOCUMENT_BUCKET                     = aws_s3_bucket.documents.bucket
+    RESUME_ANALYSIS_TABLE               = var.resume_analysis.table_name
+    RESUME_ANALYSIS_QUEUE_URL           = aws_sqs_queue.processing.url
+    ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE = tostring(var.validation.enable_synthetic_placement_override)
+    SYNTHETIC_PLACEMENT_OVERRIDE_GROUP  = var.validation.synthetic_placement_override_group
   }
 }
 

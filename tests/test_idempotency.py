@@ -123,6 +123,29 @@ def test_request_fingerprint_changes_for_different_operation():
     assert first != second
 
 
+def test_request_fingerprint_changes_for_different_owner_region():
+    first = request_fingerprint(
+        user_id=USER_ID,
+        operation=OPERATION,
+        body={
+            "resumeName": "Resume",
+            "documentKey": "users/1/file.pdf",
+            "ownerRegion": "us-east-1",
+        },
+    )
+    second = request_fingerprint(
+        user_id=USER_ID,
+        operation=OPERATION,
+        body={
+            "resumeName": "Resume",
+            "documentKey": "users/1/file.pdf",
+            "ownerRegion": "us-west-2",
+        },
+    )
+
+    assert first != second
+
+
 def test_idempotency_key_is_hashed_before_storage():
     hashed = idempotency_key_hash(IDEMPOTENCY_KEY)
 

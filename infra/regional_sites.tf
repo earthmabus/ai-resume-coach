@@ -98,6 +98,11 @@ module "east" {
     access_log_retention_days = var.api_access_log_retention_days
   }
 
+  validation = {
+    enable_synthetic_placement_override = var.enable_synthetic_placement_override
+    synthetic_placement_override_group  = var.synthetic_placement_override_group_name
+  }
+
   observability = {
     metric_namespace            = var.telemetry_metric_namespace
     structured_logging_enabled  = var.enable_structured_logging
@@ -220,6 +225,11 @@ module "west" {
     throttling_burst_limit    = var.api_throttling_burst_limit
     throttling_rate_limit     = var.api_throttling_rate_limit
     access_log_retention_days = var.api_access_log_retention_days
+  }
+
+  validation = {
+    enable_synthetic_placement_override = var.enable_synthetic_placement_override
+    synthetic_placement_override_group  = var.synthetic_placement_override_group_name
   }
 
   observability = {

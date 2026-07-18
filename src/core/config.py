@@ -69,6 +69,7 @@ class AppConfig:
     region_role: str
     primary_region: str
     secondary_regions: tuple[str, ...]
+    witness_region: str
 
     table_name: str
     document_bucket: str
@@ -78,6 +79,8 @@ class AppConfig:
     analysis_provider: str
     openai_model: str
     log_level: str
+    enable_synthetic_placement_override: bool
+    synthetic_placement_override_group: str
 
 
 @lru_cache(maxsize=1)
@@ -97,6 +100,7 @@ def get_config() -> AppConfig:
             or aws_region
         ),
         secondary_regions=_optional_list("SECONDARY_REGIONS"),
+        witness_region=os.getenv("WITNESS_REGION", "").strip(),
         table_name=_required("RESUME_ANALYSIS_TABLE"),
         document_bucket=_required("DOCUMENT_BUCKET"),
         processing_queue_url=_required("RESUME_ANALYSIS_QUEUE_URL"),
@@ -106,6 +110,21 @@ def get_config() -> AppConfig:
         analysis_provider=os.getenv("ANALYSIS_PROVIDER", "rule-based"),
         openai_model=os.getenv("OPENAI_MODEL", ""),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),
+        enable_synthetic_placement_override=(
+            os.getenv(
+                "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE",
+                "false",
+            )
+            .strip()
+            .lower()
+            == "true"
+        ),
+        synthetic_placement_override_group=(
+            os.getenv(
+                "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP",
+                "",
+            ).strip()
+        ),
     )
 
 

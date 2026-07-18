@@ -217,6 +217,33 @@ variable "api" {
   })
 }
 
+variable "validation" {
+  description = "Development-only runtime validation controls."
+
+  type = object({
+    enable_synthetic_placement_override = bool
+    synthetic_placement_override_group  = string
+  })
+
+  validation {
+    condition = (
+      !var.validation.enable_synthetic_placement_override
+      ||
+      var.environment == "dev"
+    )
+    error_message = "Synthetic placement override can only be enabled in dev."
+  }
+
+  validation {
+    condition = (
+      !var.validation.enable_synthetic_placement_override
+      ||
+      length(trimspace(var.validation.synthetic_placement_override_group)) > 0
+    )
+    error_message = "Synthetic placement override requires a Cognito group."
+  }
+}
+
 variable "observability" {
   description = "Regional telemetry, tracing, and alarm configuration."
 

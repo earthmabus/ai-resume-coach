@@ -23,6 +23,7 @@ def test_get_config_reads_required_values():
     assert config.region_role == "active"
     assert config.primary_region == "us-east-1"
     assert config.secondary_regions == ("us-west-2",)
+    assert config.witness_region == "us-east-2"
     assert config.table_name == "test-table"
     assert config.document_bucket == "test-bucket"
 
@@ -35,6 +36,11 @@ def test_get_config_reads_required_values():
     assert config.analysis_provider == "rule-based"
     assert config.openai_model == ""
     assert config.log_level == "INFO"
+    assert not config.enable_synthetic_placement_override
+    assert (
+        config.synthetic_placement_override_group
+        == "synthetic-runtime-validation"
+    )
 
 
 def test_missing_aws_region_raises(monkeypatch):
@@ -99,9 +105,18 @@ def test_defaults_are_applied(monkeypatch):
     monkeypatch.delenv("REGION_ROLE", raising=False)
     monkeypatch.delenv("PRIMARY_REGION", raising=False)
     monkeypatch.delenv("SECONDARY_REGIONS", raising=False)
+    monkeypatch.delenv("WITNESS_REGION", raising=False)
     monkeypatch.delenv("ANALYSIS_PROVIDER", raising=False)
     monkeypatch.delenv("OPENAI_MODEL", raising=False)
     monkeypatch.delenv("LOG_LEVEL", raising=False)
+    monkeypatch.delenv(
+        "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE",
+        raising=False,
+    )
+    monkeypatch.delenv(
+        "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP",
+        raising=False,
+    )
 
     reset_config_cache()
 
@@ -115,10 +130,34 @@ def test_defaults_are_applied(monkeypatch):
     assert config.region_role == "active"
     assert config.primary_region == "us-east-1"
     assert config.secondary_regions == ()
+    assert config.witness_region == ""
     assert config.regional_processing_queue_names == {}
     assert config.analysis_provider == "rule-based"
     assert config.openai_model == ""
     assert config.log_level == "INFO"
+    assert not config.enable_synthetic_placement_override
+    assert config.synthetic_placement_override_group == ""
+
+
+def test_synthetic_placement_override_config_is_parsed(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE",
+        " true ",
+    )
+    monkeypatch.setenv(
+        "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP",
+        " runtime-validation ",
+    )
+    reset_config_cache()
+
+    config = get_config()
+
+    assert config.enable_synthetic_placement_override
+    assert config.synthetic_placement_override_group == (
+        "runtime-validation"
+    )
 
 
 def test_log_level_is_normalized_to_uppercase(

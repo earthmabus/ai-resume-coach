@@ -101,6 +101,7 @@ output "regional_foundations" {
       regional_transport        = module.east.regional_transport
       resume_analysis           = module.east.resume_analysis_contract
       api_gateway               = module.east.api_gateway
+      validation                = module.east.validation
     }
 
     west = {
@@ -114,6 +115,7 @@ output "regional_foundations" {
       regional_transport        = module.west.regional_transport
       resume_analysis           = module.west.resume_analysis_contract
       api_gateway               = module.west.api_gateway
+      validation                = module.west.validation
     }
   }
 }

@@ -6,6 +6,7 @@ from datetime import datetime, timezone
 # import core utilities
 from core.responses import build_response
 from core.routes import route_request
+from core.api_contract import handler_route_contract
 from core.config import get_config
 from core.health import live, ready
 from core.request_context import get_correlation_id, get_request_id
@@ -56,6 +57,45 @@ def version(event=None):
     )
 
 
+def build_routes():
+    routes = {
+        "GET /health": health,
+        "GET /health/live": live,
+        "GET /health/ready": ready,
+        "GET /version": version,
+        "POST /analyze-resume": analyze_resume,
+        "POST /analyze-uploaded-resume": analyze_uploaded_resume,
+        "GET /analyses": list_analyses,
+        "GET /analysis/{id}": get_analysis,
+        "GET /analysis/{id}/download-url": get_resume_download_url,
+        "POST /resume-upload-url": create_resume_upload_url,
+        "DELETE /analysis/{id}": delete_analysis,
+        "DELETE /analyses": delete_all_analyses,
+        "POST /match-job-description": match_job_description,
+        "GET /job-matches": list_job_matches,
+        "GET /job-match/{id}": get_job_match,
+        "DELETE /job-match/{id}": delete_job_match,
+        "DELETE /job-matches": delete_all_job_matches,
+        "POST /tailor-resume": tailor_resume,
+        "GET /resume-tailoring/{id}": get_resume_tailoring,
+        "GET /job-match/{matchId}/tailoring": (
+            get_resume_tailoring_by_match
+        ),
+        "GET /job-match/{matchId}/interview-prep": (
+            get_interview_prep_by_match
+        ),
+        "GET /profile": get_profile,
+        "PUT /profile": update_profile,
+        "GET /target-career": get_target_career,
+        "PUT /target-career": update_target_career,
+    }
+
+    if tuple(sorted(routes)) != handler_route_contract():
+        raise RuntimeError("Handler routes do not match API contract")
+
+    return routes
+
+
 def lambda_handler(event, context):
     identity = current_runtime_identity()
     try:
@@ -93,46 +133,4 @@ def lambda_handler(event, context):
             separators=(",", ":"),
         )
     )
-    routes = {
-        # /health - application status
-        # /health/live - lambda process and router alive
-        # /health/ready - region can safely accept requests
-        # /version - build and runtime metadata
-        "GET /health": health,
-        "GET /health/live": live,
-        "GET /health/ready": ready,
-        "GET /version": version,
-
-        # features/resume_analysis.py
-        "POST /analyze-resume": analyze_resume,
-        "POST /analyze-uploaded-resume": analyze_uploaded_resume,
-        "GET /analyses": list_analyses,
-        "GET /analysis/{id}": get_analysis,
-        "GET /analysis/{id}/download-url": get_resume_download_url,
-        "POST /resume-upload-url": create_resume_upload_url,
-        "DELETE /analysis/{id}": delete_analysis,
-        "DELETE /analyses": delete_all_analyses,
-
-        # features/job_matching.py
-        "POST /match-job-description": match_job_description,
-        "GET /job-matches": list_job_matches,
-        "GET /job-match/{id}": get_job_match,
-        "DELETE /job-match/{id}": delete_job_match,
-        "DELETE /job-matches": delete_all_job_matches,
-
-        # features/resume_tailoring.py
-        "POST /tailor-resume": tailor_resume,
-        "GET /resume-tailoring/{id}": get_resume_tailoring,
-        "GET /job-match/{matchId}/tailoring": get_resume_tailoring_by_match,
-        "GET /job-match/{matchId}/interview-prep": get_interview_prep_by_match,
-
-        # features/profile.py
-        "GET /profile": get_profile,
-        "PUT /profile": update_profile,
-
-        # features/target_career.py
-        "GET /target-career": get_target_career,
-        "PUT /target-career": update_target_career,
-    }
-
-    return route_request(event, routes)
+    return route_request(event, build_routes())

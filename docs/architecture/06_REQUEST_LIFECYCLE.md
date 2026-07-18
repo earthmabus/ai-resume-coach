@@ -40,6 +40,14 @@ Legacy idempotency records without `ownerRegion` remain usable. Ownership
 resolution can treat missing ownership as legacy local work when the caller
 chooses that compatibility mode.
 
+For development runtime validation only, uploaded-resume analysis creation can
+accept `X-Validation-Owner-Region` when all validation controls are enabled:
+`ENVIRONMENT=dev`, `ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE=true`, and the
+authenticated Cognito principal has the configured validation group claim. The
+requested owner must be one of the configured active regions and cannot be the
+MRSC witness. This override is recorded on the work item, participates in the
+idempotency fingerprint, and is applied only when creating new work.
+
 ## Placement Evaluation
 
 Placement evaluation is transport-neutral:
@@ -55,3 +63,30 @@ ownership candidate
 The placement result can describe local, non-local, invalid, or unresolved
 placement. It is diagnostic only in the current implementation. HTTP handlers
 do not redirect, reject, or forward based on placement.
+
+## API Route Contract
+
+Unauthenticated public API Gateway routes are limited to:
+
+- `GET /health`
+- `GET /health/live`
+- `GET /health/ready`
+
+Protected product routes require Cognito JWT authorization and include the
+current handler routes for profile, target career, uploaded-resume analysis,
+text analysis, job matching, tailoring, status retrieval, listing, and delete
+operations.
+
+The async resume-analysis workflow depends on:
+
+- `PUT /target-career`
+- `POST /resume-upload-url`
+- `POST /analyze-uploaded-resume`
+- `GET /analysis/{id}`
+- `DELETE /analysis/{id}`
+
+Legacy infrastructure route keys `POST /resume-analysis`,
+`POST /job-matching`, `GET /job-matching`,
+`DELETE /job-matching/{matchId}`, and `POST /resume-tailoring` are obsolete
+and are not compatibility aliases for the current handler or frontend route
+contract.

@@ -18,6 +18,7 @@ from core.auth import current_user_id, assert_item_owner
 from core.errors import ResourceConflictError
 from core.keys import base_keys, resume_sk, user_pk
 from core.outbox import build_resume_analysis_outbox_event
+from core.synthetic_placement import resolve_synthetic_owner_region
 from core.storage import (
     document_bucket,
     get_entity_by_id,
@@ -694,6 +695,16 @@ def analyze_uploaded_resume(event):
         body.get("analysisProvider")
         or os.getenv("ANALYSIS_PROVIDER", "rule-based")
     )
+    synthetic_placement = resolve_synthetic_owner_region(event)
+    owner_region = (
+        synthetic_placement.owner_region
+        if synthetic_placement is not None
+        else context.region
+    )
+    synthetic_placement_override_used = (
+        synthetic_placement is not None
+        and synthetic_placement.used
+    )
 
     fingerprint_body = {
         "documentBucket": bucket_name,
@@ -701,6 +712,10 @@ def analyze_uploaded_resume(event):
         "fileName": file_name,
         "resumeName": resume_name,
         "analysisProvider": requested_provider,
+        "ownerRegion": owner_region,
+        "syntheticPlacementOverrideUsed": (
+            synthetic_placement_override_used
+        ),
     }
 
     request_hash = request_fingerprint(
@@ -720,6 +735,7 @@ def analyze_uploaded_resume(event):
         request_id=context.request_id,
         correlation_id=context.correlation_id,
         region=context.region,
+        owner_region=owner_region,
     )
 
     if reservation.disposition == DISPOSITION_REPLAY_COMPLETED:
@@ -813,6 +829,10 @@ def analyze_uploaded_resume(event):
                 "correlationId": effective_correlation_id,
                 "createdByRequestHash": request_hash,
                 "createdRegion": context.region,
+                "ownerRegion": owner_region,
+                "syntheticPlacementOverrideUsed": (
+                    synthetic_placement_override_used
+                ),
                 "createdByDeploymentId": context.deployment_id,
                 "lastUpdatedRegion": context.region,
                 "lastUpdatedByDeploymentId": context.deployment_id,
@@ -866,6 +886,7 @@ def analyze_uploaded_resume(event):
                 request_id=context.request_id,
                 correlation_id=effective_correlation_id,
                 created_at=created_at,
+                owner_region=owner_region,
             )
 
             created = put_item_and_outbox_if_absent(

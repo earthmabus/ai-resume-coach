@@ -144,6 +144,24 @@ Validate after deployment in a separately approved execution step:
 
 Do not deploy as part of implementation slices unless explicitly requested.
 
+The runtime-validation plan is maintained at
+`docs/operations/platform-v2/MR-009D_RUNTIME_VALIDATION_PLAN.md`. A completed
+evidence report must not be created until target-environment authorization and
+runtime access are explicitly established. The current read-only discovery
+result is recorded at
+`docs/operations/platform-v2/MR-009D_RUNTIME_DISCOVERY_REPORT.md`; it does not
+mark MR-009D complete. The current development deployment attempt is recorded
+at `docs/operations/platform-v2/MR-009D_DEPLOYMENT_REPORT.md`; the development
+deployment prerequisite is verified after repairing the API PDF dependency
+layer, readiness IAM permissions, and DLQ-depth dashboard coverage. Synthetic
+end-to-end validation was attempted in MR-009D3 and is recorded at
+`docs/operations/platform-v2/MR-009D_RUNTIME_EVIDENCE_REPORT.md`.
+MR-009D remains open. MR-009D3A is the authorized remediation slice for the
+two blockers discovered by MR-009D3: API Gateway route-contract drift and lack
+of a supported way to create remote-owned synthetic work for cross-region
+transport validation. MR-009D3B must still perform the actual end-to-end
+synthetic runtime validation after MR-009D3A is deployed and verified.
+
 ## MR-010 — Failover and Recovery Validation
 
 Scenarios:

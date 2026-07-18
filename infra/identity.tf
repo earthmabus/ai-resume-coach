@@ -66,6 +66,15 @@ resource "aws_cognito_user_pool_client" "web" {
   prevent_user_existence_errors = "ENABLED"
 }
 
+resource "aws_cognito_user_group" "synthetic_runtime_validation" {
+  provider = aws.us_east_1
+  count    = var.enable_synthetic_placement_override ? 1 : 0
+
+  name         = var.synthetic_placement_override_group_name
+  user_pool_id = aws_cognito_user_pool.users.id
+  description  = "Development-only group allowed to request synthetic owner-region placement."
+}
+
 resource "aws_cognito_user_pool_domain" "main" {
   provider = aws.us_east_1
 

@@ -411,6 +411,32 @@ variable "enable_cognito_waf_logging" {
   }
 }
 
+variable "enable_synthetic_placement_override" {
+  description = "Enable the authenticated development-only owner-region override for runtime validation."
+  type        = bool
+  default     = false
+
+  validation {
+    condition = (
+      !var.enable_synthetic_placement_override
+      ||
+      var.environment == "dev"
+    )
+    error_message = "Synthetic placement override can only be enabled in dev."
+  }
+}
+
+variable "synthetic_placement_override_group_name" {
+  description = "Cognito group authorized to request synthetic owner-region placement in development."
+  type        = string
+  default     = "synthetic-runtime-validation"
+
+  validation {
+    condition     = length(trimspace(var.synthetic_placement_override_group_name)) > 0
+    error_message = "synthetic_placement_override_group_name must not be blank."
+  }
+}
+
 variable "cognito_waf_rate_limit" {
   description = "Maximum requests allowed from one source IP in the AWS WAF five-minute evaluation window."
   type        = number

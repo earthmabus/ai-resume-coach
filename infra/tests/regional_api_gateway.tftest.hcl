@@ -130,36 +130,166 @@ run "health_is_public_and_application_routes_are_protected" {
 
   assert {
     condition = (
-      length(output.regional_foundations.east.api_gateway.routes.protected) == 7
+      length(output.regional_foundations.east.api_gateway.routes.protected) == 21
       &&
-      length(output.regional_foundations.west.api_gateway.routes.protected) == 7
+      length(output.regional_foundations.west.api_gateway.routes.protected) == 21
     )
-    error_message = "Each regional API must expose exactly seven protected routes."
+    error_message = "Each regional API must expose the authoritative protected route inventory."
   }
 
   assert {
     condition = alltrue([
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /resume-analysis"),
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /job-matching"),
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /resume-tailoring"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "DELETE /analysis/{id}"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "DELETE /analyses"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "DELETE /job-match/{id}"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "DELETE /job-matches"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /analyses"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /analysis/{id}"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /analysis/{id}/download-url"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-match/{id}"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-match/{matchId}/interview-prep"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-match/{matchId}/tailoring"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-matches"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /profile"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /resume-tailoring/{id}"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /target-career"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /analyze-resume"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /analyze-uploaded-resume"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /match-job-description"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /resume-upload-url"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /tailor-resume"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "PUT /profile"),
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "DELETE /job-matching/{matchId}"),
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-matching"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "PUT /target-career"),
     ])
-    error_message = "The east Region is missing one or more protected application routes."
+    error_message = "The east Region protected routes must match the application route contract."
   }
 
   assert {
     condition = alltrue([
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /resume-analysis"),
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /job-matching"),
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /resume-tailoring"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "DELETE /analysis/{id}"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "DELETE /analyses"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "DELETE /job-match/{id}"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "DELETE /job-matches"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /analyses"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /analysis/{id}"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /analysis/{id}/download-url"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-match/{id}"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-match/{matchId}/interview-prep"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-match/{matchId}/tailoring"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-matches"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /profile"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /resume-tailoring/{id}"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /target-career"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /analyze-resume"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /analyze-uploaded-resume"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /match-job-description"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /resume-upload-url"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /tailor-resume"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "PUT /profile"),
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "DELETE /job-matching/{matchId}"),
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-matching"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "PUT /target-career"),
     ])
-    error_message = "The west Region is missing one or more protected application routes."
+    error_message = "The west Region protected routes must match the application route contract."
+  }
+
+  assert {
+    condition = alltrue([
+      !contains(output.regional_foundations.east.api_gateway.routes.protected, "DELETE /job-matching/{matchId}"),
+      !contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-matching"),
+      !contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /job-matching"),
+      !contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /resume-analysis"),
+      !contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /resume-tailoring"),
+    ])
+    error_message = "The east Region must not expose obsolete legacy route keys."
+  }
+
+  assert {
+    condition = alltrue([
+      !contains(output.regional_foundations.west.api_gateway.routes.protected, "DELETE /job-matching/{matchId}"),
+      !contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-matching"),
+      !contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /job-matching"),
+      !contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /resume-analysis"),
+      !contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /resume-tailoring"),
+    ])
+    error_message = "The west Region must not expose obsolete legacy route keys."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.api_gateway.routes.protected
+      ==
+      output.regional_foundations.west.api_gateway.routes.protected
+    )
+    error_message = "East and west protected route sets must be identical."
+  }
+}
+
+run "synthetic_placement_override_is_disabled_by_default" {
+  command = plan
+
+  assert {
+    condition = (
+      !output.regional_foundations.east.validation.synthetic_placement_override.enabled
+      &&
+      !output.regional_foundations.west.validation.synthetic_placement_override.enabled
+    )
+    error_message = "Synthetic placement override must be disabled by default."
+  }
+
+  assert {
+    condition = (
+      !contains(
+        output.regional_foundations.east.validation.synthetic_placement_override.active_regions,
+        output.witness_region,
+      )
+      &&
+      !contains(
+        output.regional_foundations.west.validation.synthetic_placement_override.active_regions,
+        output.witness_region,
+      )
+    )
+    error_message = "The witness Region must not be selectable as an active owner region."
+  }
+}
+
+run "synthetic_placement_override_can_be_enabled_for_dev" {
+  command = plan
+
+  variables {
+    enable_synthetic_placement_override = true
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.validation.synthetic_placement_override.enabled
+      &&
+      output.regional_foundations.west.validation.synthetic_placement_override.enabled
+    )
+    error_message = "Synthetic placement override should be explicitly enableable for dev validation."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.validation.synthetic_placement_override.group_name
+      == "synthetic-runtime-validation"
+      &&
+      output.regional_foundations.west.validation.synthetic_placement_override.group_name
+      == "synthetic-runtime-validation"
+    )
+    error_message = "Synthetic placement override must use the dedicated validation Cognito group."
+  }
+
+  assert {
+    condition = (
+      !contains(
+        output.regional_foundations.east.validation.synthetic_placement_override.active_regions,
+        output.witness_region,
+      )
+      &&
+      !contains(
+        output.regional_foundations.west.validation.synthetic_placement_override.active_regions,
+        output.witness_region,
+      )
+    )
+    error_message = "The witness Region must remain excluded when synthetic placement override is enabled."
   }
 }

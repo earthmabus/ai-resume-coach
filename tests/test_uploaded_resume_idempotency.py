@@ -6,7 +6,12 @@ from unittest.mock import MagicMock
 
 import pytest
 
-from core.errors import IdempotencyKeyRequiredError
+from core.config import reset_config_cache
+from core.errors import (
+    ForbiddenError,
+    IdempotencyKeyRequiredError,
+    ValidationError,
+)
 from core.idempotency import (
     DISPOSITION_REPLAY_COMPLETED,
     DISPOSITION_REPLAY_IN_PROGRESS,
@@ -28,14 +33,19 @@ def make_event(
     *,
     idempotency_key: str | None = IDEMPOTENCY_KEY,
     body: dict | None = None,
+    headers: dict | None = None,
+    claims: dict | None = None,
 ) -> dict:
-    headers = {
+    request_headers = {
         "Content-Type": "application/json",
         "X-Correlation-Id": CORRELATION_ID,
     }
 
     if idempotency_key is not None:
-        headers["Idempotency-Key"] = idempotency_key
+        request_headers["Idempotency-Key"] = idempotency_key
+
+    if headers:
+        request_headers.update(headers)
 
     payload = body or {
         "documentBucket": "test-bucket",
@@ -47,7 +57,7 @@ def make_event(
 
     return {
         "routeKey": "POST /analyze-uploaded-resume",
-        "headers": headers,
+        "headers": request_headers,
         "body": json.dumps(payload),
         "requestContext": {
             "requestId": REQUEST_ID,
@@ -58,7 +68,7 @@ def make_event(
             },
             "authorizer": {
                 "jwt": {
-                    "claims": {
+                    "claims": claims or {
                         "sub": USER_ID,
                     }
                 }
@@ -229,20 +239,178 @@ def test_first_submission_creates_item_and_outbox_without_direct_dispatch(
     assert created_item["version"] == 1
     assert created_item["createdByRequestHash"] == REQUEST_HASH
     assert created_item["correlationId"] == CORRELATION_ID
+    assert created_item["createdRegion"] == "us-east-1"
+    assert created_item["ownerRegion"] == "us-east-1"
+    assert not created_item["syntheticPlacementOverrideUsed"]
 
     assert outbox_item["recordType"] == "outboxEvent"
     assert outbox_item["eventType"] == "RESUME_ANALYSIS_REQUESTED"
     assert outbox_item["aggregateId"] == ANALYSIS_ID
     assert outbox_item["status"] == "PENDING"
     assert outbox_item["correlationId"] == CORRELATION_ID
+    assert outbox_item["createdRegion"] == "us-east-1"
+    assert outbox_item["ownerRegion"] == "us-east-1"
     assert outbox_item["payload"]["requestId"] == REQUEST_ID
     assert outbox_item["payload"]["correlationId"] == CORRELATION_ID
+    assert outbox_item["payload"]["sourceRegion"] == "us-east-1"
+    assert outbox_item["payload"]["ownerRegion"] == "us-east-1"
+
+    reserve_call = dependencies.reserve_request.call_args.kwargs
+    assert reserve_call["region"] == "us-east-1"
+    assert reserve_call["owner_region"] == "us-east-1"
+
+    fingerprint_body = (
+        dependencies.request_fingerprint.call_args.kwargs["body"]
+    )
+    assert fingerprint_body["ownerRegion"] == "us-east-1"
+    assert not fingerprint_body["syntheticPlacementOverrideUsed"]
 
     completion = dependencies.complete_request.call_args.kwargs
     assert completion["response_body"]["status"] == (
         "QUEUED_PENDING_DISPATCH"
     )
     assert "resumeText" not in completion["response_body"]
+
+
+def test_authorized_synthetic_placement_override_selects_peer_owner(
+    monkeypatch,
+    dependencies,
+):
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    monkeypatch.setenv(
+        "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE",
+        "true",
+    )
+    monkeypatch.setenv(
+        "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP",
+        "synthetic-runtime-validation",
+    )
+    reset_config_cache()
+
+    response = resume_analysis.analyze_uploaded_resume(
+        make_event(
+            headers={
+                "X-Validation-Owner-Region": "us-west-2",
+            },
+            claims={
+                "sub": USER_ID,
+                "cognito:groups": [
+                    "synthetic-runtime-validation",
+                ],
+            },
+        )
+    )
+
+    assert response["statusCode"] == 202
+
+    transaction = (
+        dependencies.put_item_and_outbox_if_absent.call_args.kwargs
+    )
+    created_item = transaction["item"]
+    outbox_item = transaction["outbox_item"]
+
+    assert created_item["createdRegion"] == "us-east-1"
+    assert created_item["ownerRegion"] == "us-west-2"
+    assert created_item["syntheticPlacementOverrideUsed"]
+    assert outbox_item["createdRegion"] == "us-east-1"
+    assert outbox_item["ownerRegion"] == "us-west-2"
+    assert outbox_item["payload"]["sourceRegion"] == "us-east-1"
+    assert outbox_item["payload"]["ownerRegion"] == "us-west-2"
+
+    reserve_call = dependencies.reserve_request.call_args.kwargs
+    assert reserve_call["owner_region"] == "us-west-2"
+
+    fingerprint_body = (
+        dependencies.request_fingerprint.call_args.kwargs["body"]
+    )
+    assert fingerprint_body["ownerRegion"] == "us-west-2"
+    assert fingerprint_body["syntheticPlacementOverrideUsed"]
+
+
+@pytest.mark.parametrize(
+    ("owner_region", "claims", "error_type"),
+    [
+        ("us-west-2", {"sub": USER_ID}, ForbiddenError),
+        (
+            "us-east-2",
+            {
+                "sub": USER_ID,
+                "cognito:groups": ["synthetic-runtime-validation"],
+            },
+            ValidationError,
+        ),
+        (
+            "eu-central-1",
+            {
+                "sub": USER_ID,
+                "cognito:groups": ["synthetic-runtime-validation"],
+            },
+            ValidationError,
+        ),
+    ],
+)
+def test_synthetic_placement_override_rejections_create_no_work(
+    monkeypatch,
+    dependencies,
+    owner_region,
+    claims,
+    error_type,
+):
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    monkeypatch.setenv(
+        "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE",
+        "true",
+    )
+    monkeypatch.setenv(
+        "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP",
+        "synthetic-runtime-validation",
+    )
+    reset_config_cache()
+
+    with pytest.raises(error_type):
+        resume_analysis.analyze_uploaded_resume(
+            make_event(
+                headers={
+                    "X-Validation-Owner-Region": owner_region,
+                },
+                claims=claims,
+            )
+        )
+
+    dependencies.request_fingerprint.assert_not_called()
+    dependencies.reserve_request.assert_not_called()
+    dependencies.extract_text.assert_not_called()
+    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+
+
+def test_synthetic_placement_override_rejected_when_not_enabled(
+    monkeypatch,
+    dependencies,
+):
+    monkeypatch.setenv("ENVIRONMENT", "dev")
+    monkeypatch.setenv(
+        "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE",
+        "false",
+    )
+    reset_config_cache()
+
+    with pytest.raises(ForbiddenError):
+        resume_analysis.analyze_uploaded_resume(
+            make_event(
+                headers={
+                    "X-Validation-Owner-Region": "us-west-2",
+                },
+                claims={
+                    "sub": USER_ID,
+                    "cognito:groups": [
+                        "synthetic-runtime-validation",
+                    ],
+                },
+            )
+        )
+
+    dependencies.request_fingerprint.assert_not_called()
+    dependencies.reserve_request.assert_not_called()
 
 
 def test_completed_replay_does_not_repeat_work(dependencies):

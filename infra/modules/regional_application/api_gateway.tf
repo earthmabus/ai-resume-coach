@@ -6,13 +6,27 @@ locals {
   ])
 
   protected_api_routes = toset([
-    "DELETE /job-matching/{matchId}",
-    "GET /job-matching",
+    "DELETE /analysis/{id}",
+    "DELETE /analyses",
+    "DELETE /job-match/{id}",
+    "DELETE /job-matches",
+    "GET /analyses",
+    "GET /analysis/{id}",
+    "GET /analysis/{id}/download-url",
+    "GET /job-match/{id}",
+    "GET /job-match/{matchId}/interview-prep",
+    "GET /job-match/{matchId}/tailoring",
+    "GET /job-matches",
     "GET /profile",
-    "POST /job-matching",
-    "POST /resume-analysis",
-    "POST /resume-tailoring",
+    "GET /resume-tailoring/{id}",
+    "GET /target-career",
+    "POST /analyze-resume",
+    "POST /analyze-uploaded-resume",
+    "POST /match-job-description",
+    "POST /resume-upload-url",
+    "POST /tailor-resume",
     "PUT /profile",
+    "PUT /target-career",
   ])
 
   api_access_log_format = jsonencode({
@@ -55,7 +69,10 @@ resource "aws_apigatewayv2_api" "regional" {
     allow_headers = [
       "Authorization",
       "Content-Type",
+      "Idempotency-Key",
+      "X-Correlation-Id",
       "X-Request-Id",
+      "X-Validation-Owner-Region",
     ]
     allow_methods = [
       "DELETE",
