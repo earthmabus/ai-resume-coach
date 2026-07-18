@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import os
 from dataclasses import dataclass
 from functools import lru_cache
@@ -32,6 +33,31 @@ def _optional_list(name: str) -> tuple[str, ...]:
     )
 
 
+def _optional_json_string_map(name: str) -> dict[str, str]:
+    raw_value = str(
+        os.getenv(name, "{}") or "{}"
+    ).strip()
+
+    try:
+        parsed = json.loads(raw_value)
+    except json.JSONDecodeError as error:
+        raise ConfigurationError(
+            f"{name} must be a JSON object"
+        ) from error
+
+    if not isinstance(parsed, dict):
+        raise ConfigurationError(
+            f"{name} must be a JSON object"
+        )
+
+    return {
+        str(key or "").strip(): str(value or "").strip()
+        for key, value in parsed.items()
+        if str(key or "").strip()
+        and str(value or "").strip()
+    }
+
+
 @dataclass(frozen=True)
 class AppConfig:
     project_name: str
@@ -47,6 +73,7 @@ class AppConfig:
     table_name: str
     document_bucket: str
     processing_queue_url: str
+    regional_processing_queue_names: dict[str, str]
 
     analysis_provider: str
     openai_model: str
@@ -73,6 +100,9 @@ def get_config() -> AppConfig:
         table_name=_required("RESUME_ANALYSIS_TABLE"),
         document_bucket=_required("DOCUMENT_BUCKET"),
         processing_queue_url=_required("RESUME_ANALYSIS_QUEUE_URL"),
+        regional_processing_queue_names=_optional_json_string_map(
+            "REGIONAL_PROCESSING_QUEUE_NAMES"
+        ),
         analysis_provider=os.getenv("ANALYSIS_PROVIDER", "rule-based"),
         openai_model=os.getenv("OPENAI_MODEL", ""),
         log_level=os.getenv("LOG_LEVEL", "INFO").upper(),

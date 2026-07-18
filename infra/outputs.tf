@@ -97,6 +97,7 @@ output "regional_foundations" {
       execution_roles           = module.east.execution_roles
       compute                   = module.east.compute
       routing                   = module.east.routing
+      regional_transport        = module.east.regional_transport
       resume_analysis           = module.east.resume_analysis_contract
       api_gateway               = module.east.api_gateway
     }
@@ -109,6 +110,7 @@ output "regional_foundations" {
       execution_roles           = module.west.execution_roles
       compute                   = module.west.compute
       routing                   = module.west.routing
+      regional_transport        = module.west.regional_transport
       resume_analysis           = module.west.resume_analysis_contract
       api_gateway               = module.west.api_gateway
     }
@@ -214,6 +216,8 @@ output "observability" {
       name                               = local.observability_dashboard_name
       regional_sites                     = ["east", "west"]
       includes_business_metric_namespace = true
+      includes_worker_outbox_failures    = true
+      includes_lambda_throttles          = true
     }
 
     alarms = {
@@ -229,6 +233,21 @@ output "observability" {
         "QUEUE_DEPTH",
         "DLQ",
         "DYNAMODB_THROTTLING",
+        "WORKER_RECORD_FAILURES",
+        "OUTBOX_PUBLISH_FAILURES",
+      ]
+
+      missing_data_treatment = {
+        native_error_and_backlog_metrics = "notBreaching"
+        application_failure_metrics      = "notBreaching"
+      }
+
+      bounded_dimensions = [
+        "ApiId",
+        "Stage",
+        "FunctionName",
+        "QueueName",
+        "TableName",
       ]
     }
 

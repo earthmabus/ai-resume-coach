@@ -19,6 +19,16 @@ locals {
 
   global_name_prefix = "${var.project_name}-${var.environment}"
 
+  processing_queue_names_by_region = {
+    for _, site in local.sites :
+    site.region => "${var.project_name}-${var.environment}-${site.region_code}-processing"
+  }
+
+  processing_queue_arns = [
+    for _, site in local.sites :
+    "arn:aws:sqs:${site.region}:${data.aws_caller_identity.current.account_id}:${var.project_name}-${var.environment}-${site.region_code}-processing"
+  ]
+
   common_tags = {
     Project             = var.project_name
     Environment         = var.environment

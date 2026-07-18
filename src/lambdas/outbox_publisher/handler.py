@@ -8,14 +8,22 @@ from typing import Any
 
 import boto3
 
+from core.config import get_config
 from core.outbox_publisher import (
     DEFAULT_MAX_DELIVERY_ATTEMPTS,
     DEFAULT_MAX_WORKERS,
     DEFAULT_DELIVERED_RETENTION_SECONDS,
     DynamoDbOutboxRepository,
     OutboxPublisher,
+    PlacementAwareEventPublisher,
     PublishResult,
     SqsEventPublisher,
+)
+from core.region_routing import RegionRoutingService
+from core.regional_transport import SqsRegionalTransport
+from core.work_placement import (
+    WorkOwnershipResolver,
+    WorkPlacementService,
 )
 
 
@@ -176,6 +184,12 @@ def configured_metric_namespace() -> str:
     )
 
 
+def configured_regional_processing_queue_names() -> dict[str, str]:
+    return dict(
+        get_config().regional_processing_queue_names
+    )
+
+
 def configured_function_name() -> str:
     return (
         str(
@@ -229,7 +243,10 @@ def build_publisher() -> OutboxPublisher:
                 table_name
             ),
             region=region,
-        deployment_id=str(os.getenv("DEPLOYMENT_ID") or "unknown"),
+            deployment_id=str(
+                os.getenv("DEPLOYMENT_ID")
+                or "unknown"
+            ),
             delivered_retention_seconds=(
                 delivered_retention_seconds
             ),
@@ -240,10 +257,35 @@ def build_publisher() -> OutboxPublisher:
         client=sqs,
         queue_url=queue_url,
     )
+    routing_service = RegionRoutingService()
+    placement_service = WorkPlacementService(
+        ownership_resolver=WorkOwnershipResolver(
+            routing_service.topology
+        ),
+        routing_service=routing_service,
+    )
+    regional_transport = SqsRegionalTransport(
+        client_factory=(
+            lambda owner_region: boto3.client(
+                "sqs",
+                region_name=owner_region,
+            )
+        ),
+        queue_names_by_region=(
+            configured_regional_processing_queue_names()
+        ),
+    )
+    placement_aware_publisher = (
+        PlacementAwareEventPublisher(
+            local_publisher=event_publisher,
+            regional_transport=regional_transport,
+            placement_service=placement_service,
+        )
+    )
 
     return OutboxPublisher(
         repository=repository,
-        event_publisher=event_publisher,
+        event_publisher=placement_aware_publisher,
         batch_size=batch_size,
         max_workers=max_workers,
         max_delivery_attempts=(
@@ -422,10 +464,16 @@ def handler(
                 "awsRequestId": (
                     request_id
                 ),
+                "runtimeInvocationId": (
+                    request_id
+                ),
                 "triggerSource": (
                     trigger_source
                 ),
                 "region": str(os.getenv("AWS_REGION") or "unknown"),
+                "currentRegion": str(
+                    os.getenv("AWS_REGION") or "unknown"
+                ),
                 "deploymentId": str(
                     os.getenv("DEPLOYMENT_ID") or "unknown"
                 ),
@@ -455,6 +503,9 @@ def handler(
                     "publisher invocation"
                 ),
                 "awsRequestId": (
+                    request_id
+                ),
+                "runtimeInvocationId": (
                     request_id
                 ),
                 **response,

@@ -45,6 +45,11 @@ module "east" {
     publisher_schedule         = var.outbox_publisher_schedule_expression
   }
 
+  regional_transport = {
+    processing_queue_names_by_region = local.processing_queue_names_by_region
+    processing_queue_arns            = local.processing_queue_arns
+  }
+
   packages = {
     api = {
       filename         = data.archive_file.api_zip.output_path
@@ -159,6 +164,11 @@ module "west" {
     dlq_retention_seconds      = var.processing_dlq_message_retention_seconds
     max_receive_count          = var.processing_queue_max_receive_count
     publisher_schedule         = var.outbox_publisher_schedule_expression
+  }
+
+  regional_transport = {
+    processing_queue_names_by_region = local.processing_queue_names_by_region
+    processing_queue_arns            = local.processing_queue_arns
   }
 
   packages = {

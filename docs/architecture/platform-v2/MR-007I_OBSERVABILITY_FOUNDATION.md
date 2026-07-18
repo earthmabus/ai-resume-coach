@@ -33,8 +33,9 @@ failures from internal noise.
 1. Every regional workload receives the same structured logging contract.
 2. Request IDs, correlation IDs, and deployment IDs remain distinct.
 3. Lambda tracing can be enabled symmetrically in both Regions.
-4. One dashboard provides API, Lambda, queue, data, synthetic, and log views.
-5. Nine curated alarms can be enabled per Region.
+4. One dashboard provides API, Lambda, queue, worker/outbox failure, data,
+   synthetic, and log views.
+5. Eleven curated alarms can be enabled per Region.
 6. One canary per Region validates `/health`, `/health/live`, and `/health/ready`.
 7. Cost-bearing capabilities are disabled until explicitly selected.
 8. Sensitive and high-volume customer content is prohibited from logs.
@@ -62,7 +63,8 @@ choice; a larger organization might export telemetry to a centralized platform.
 ### Curated alarms over exhaustive alarms
 
 The alarm set focuses on availability, latency, Lambda errors, queue health,
-dead-letter messages, and DynamoDB throttling. Fewer actionable alarms are more
+dead-letter messages, DynamoDB throttling, sustained worker record failures,
+and sustained outbox publishing failures. Fewer actionable alarms are more
 valuable than a large, noisy catalog.
 
 ### Lambda X-Ray is cost-gated

@@ -19,6 +19,7 @@ from features import resume_tailoring
 IDEMPOTENCY_KEY = "12345678-1234-1234-1234-123456789012"
 USER_ID = "user-123"
 REQUEST_ID = "request-123"
+CORRELATION_ID = "correlation-123"
 REQUEST_HASH = "request-hash-123"
 MATCH_ID = "11111111-1111-4111-8111-111111111111"
 TAILORING_ID = "22222222-2222-4222-8222-222222222222"
@@ -31,6 +32,7 @@ def make_event(
 ) -> dict:
     headers = {
         "Content-Type": "application/json",
+        "X-Correlation-Id": CORRELATION_ID,
     }
 
     if idempotency_key is not None:
@@ -229,6 +231,9 @@ def test_waiting_tailoring_creates_outbox_without_direct_dispatch(
     )
     assert outbox_item["aggregateId"] == TAILORING_ID
     assert outbox_item["payload"]["matchId"] == MATCH_ID
+    assert outbox_item["correlationId"] == CORRELATION_ID
+    assert outbox_item["payload"]["requestId"] == REQUEST_ID
+    assert outbox_item["payload"]["correlationId"] == CORRELATION_ID
     assert outbox_item["status"] == "PENDING"
 
     dependencies.table.update_item.assert_not_called()

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+import json
+
 import pytest
 
 from core.config import (
@@ -28,6 +30,7 @@ def test_get_config_reads_required_values():
         "https://sqs.us-east-1.amazonaws.com/"
         "123456789012/test-queue"
     )
+    assert config.regional_processing_queue_names == {}
 
     assert config.analysis_provider == "rule-based"
     assert config.openai_model == ""
@@ -112,6 +115,7 @@ def test_defaults_are_applied(monkeypatch):
     assert config.region_role == "active"
     assert config.primary_region == "us-east-1"
     assert config.secondary_regions == ()
+    assert config.regional_processing_queue_names == {}
     assert config.analysis_provider == "rule-based"
     assert config.openai_model == ""
     assert config.log_level == "INFO"
@@ -143,6 +147,54 @@ def test_secondary_regions_are_normalized_and_deduplicated(
         "us-west-2",
         "us-east-1",
     )
+
+
+def test_regional_processing_queue_names_are_parsed(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "REGIONAL_PROCESSING_QUEUE_NAMES",
+        json.dumps(
+            {
+                "us-east-1": "east-processing",
+                " us-west-2 ": " west-processing ",
+                " ": "ignored",
+                "us-east-2": "",
+            }
+        ),
+    )
+    reset_config_cache()
+
+    config = get_config()
+
+    assert config.regional_processing_queue_names == {
+        "us-east-1": "east-processing",
+        "us-west-2": "west-processing",
+    }
+
+
+@pytest.mark.parametrize(
+    "configured_value",
+    [
+        "[\"east-processing\"]",
+        "{not-json",
+    ],
+)
+def test_regional_processing_queue_names_require_json_object(
+    monkeypatch,
+    configured_value,
+):
+    monkeypatch.setenv(
+        "REGIONAL_PROCESSING_QUEUE_NAMES",
+        configured_value,
+    )
+    reset_config_cache()
+
+    with pytest.raises(
+        ConfigurationError,
+        match="REGIONAL_PROCESSING_QUEUE_NAMES",
+    ):
+        get_config()
 
 
 def test_config_cache_can_be_reset(monkeypatch):

@@ -113,6 +113,7 @@ def build_outbox_event(
     created_region: str,
     request_id: str,
     owner_region: str | None = None,
+    correlation_id: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
@@ -130,6 +131,10 @@ def build_outbox_event(
     normalized_job_type = str(job_type or "").strip()
     normalized_region = str(created_region or "").strip()
     normalized_request_id = str(request_id or "").strip()
+    normalized_correlation_id = (
+        str(correlation_id or "").strip()
+        or normalized_request_id
+    )
     normalized_owner_region = (
         str(owner_region or "").strip()
         or normalized_region
@@ -183,6 +188,7 @@ def build_outbox_event(
         "lastUpdatedByDeploymentId": normalized_deployment_id,
         "createdByRequestId": normalized_request_id,
         "updatedByRequestId": normalized_request_id,
+        "correlationId": normalized_correlation_id,
         "deliveryAttempts": 0,
         "version": 1,
 
@@ -215,6 +221,7 @@ def build_resume_analysis_outbox_event(
     created_region: str,
     request_id: str,
     owner_region: str | None = None,
+    correlation_id: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
@@ -237,10 +244,16 @@ def build_resume_analysis_outbox_event(
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
             "ownerRegion": resolved_owner_region,
+            "requestId": request_id,
+            "correlationId": (
+                str(correlation_id or "").strip()
+                or request_id
+            ),
         },
         created_region=created_region,
         request_id=request_id,
         owner_region=resolved_owner_region,
+        correlation_id=correlation_id,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
@@ -255,6 +268,7 @@ def build_job_match_outbox_event(
     created_region: str,
     request_id: str,
     owner_region: str | None = None,
+    correlation_id: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
@@ -278,10 +292,16 @@ def build_job_match_outbox_event(
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
             "ownerRegion": resolved_owner_region,
+            "requestId": request_id,
+            "correlationId": (
+                str(correlation_id or "").strip()
+                or request_id
+            ),
         },
         created_region=created_region,
         request_id=request_id,
         owner_region=resolved_owner_region,
+        correlation_id=correlation_id,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
@@ -296,6 +316,7 @@ def build_resume_tailoring_outbox_event(
     created_region: str,
     request_id: str,
     owner_region: str | None = None,
+    correlation_id: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
@@ -319,10 +340,16 @@ def build_resume_tailoring_outbox_event(
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
             "ownerRegion": resolved_owner_region,
+            "requestId": request_id,
+            "correlationId": (
+                str(correlation_id or "").strip()
+                or request_id
+            ),
         },
         created_region=created_region,
         request_id=request_id,
         owner_region=resolved_owner_region,
+        correlation_id=correlation_id,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
@@ -337,6 +364,7 @@ def build_interview_preparation_outbox_event(
     created_region: str,
     request_id: str,
     owner_region: str | None = None,
+    correlation_id: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
@@ -360,10 +388,16 @@ def build_interview_preparation_outbox_event(
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
             "ownerRegion": resolved_owner_region,
+            "requestId": request_id,
+            "correlationId": (
+                str(correlation_id or "").strip()
+                or request_id
+            ),
         },
         created_region=created_region,
         request_id=request_id,
         owner_region=resolved_owner_region,
+        correlation_id=correlation_id,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )

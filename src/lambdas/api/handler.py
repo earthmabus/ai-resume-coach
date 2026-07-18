@@ -8,6 +8,7 @@ from core.responses import build_response
 from core.routes import route_request
 from core.config import get_config
 from core.health import live, ready
+from core.request_context import get_correlation_id, get_request_id
 from core.runtime_identity import current_runtime_identity
 
 # import features
@@ -57,14 +58,36 @@ def version(event=None):
 
 def lambda_handler(event, context):
     identity = current_runtime_identity()
+    try:
+        request_id = get_request_id(event)
+        correlation_id = get_correlation_id(
+            event,
+            request_id=request_id,
+        )
+    except Exception:
+        request_id = ""
+        correlation_id = ""
+
     logger.info(
         json.dumps(
             {
+                "service": "resume-analysis",
+                "component": "api",
+                "operation": "api-request",
+                "result": "RECEIVED",
                 "message": "API request received",
                 "region": identity.region,
+                "currentRegion": identity.region,
                 "deploymentId": identity.deployment_id,
                 "environment": identity.environment,
                 "routeKey": event.get("routeKey", ""),
+                "requestId": request_id,
+                "correlationId": correlation_id,
+                "runtimeInvocationId": getattr(
+                    context,
+                    "aws_request_id",
+                    None,
+                ),
                 "awsRequestId": getattr(context, "aws_request_id", None),
             },
             separators=(",", ":"),

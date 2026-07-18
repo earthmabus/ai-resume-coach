@@ -102,6 +102,31 @@ variable "messaging" {
   })
 }
 
+variable "regional_transport" {
+  description = "Regional transport configuration for active processing queues."
+
+  type = object({
+    processing_queue_names_by_region = map(string)
+    processing_queue_arns            = list(string)
+  })
+
+  validation {
+    condition = alltrue([
+      for region, queue_name in var.regional_transport.processing_queue_names_by_region :
+      length(trimspace(region)) > 0 && length(trimspace(queue_name)) > 0
+    ])
+    error_message = "regional_transport.processing_queue_names_by_region must not contain blank regions or queue names."
+  }
+
+  validation {
+    condition = alltrue([
+      for queue_arn in var.regional_transport.processing_queue_arns :
+      can(regex("^arn:aws[a-z-]*:sqs:", queue_arn))
+    ])
+    error_message = "regional_transport.processing_queue_arns must contain SQS queue ARNs."
+  }
+}
+
 variable "packages" {
   description = "Deterministic Lambda package artifacts produced by the root module."
 

@@ -1,17 +1,20 @@
 locals {
   function_environment = {
-    PROJECT_NAME              = var.project_name
-    APP_VERSION               = var.runtime.app_version
-    ENVIRONMENT               = var.environment
-    DEPLOYMENT_ID             = var.runtime.deployment_id
-    LOG_LEVEL                 = var.runtime.log_level
-    ANALYSIS_PROVIDER         = var.runtime.analysis_provider
-    OPENAI_MODEL              = var.runtime.openai_model
-    AWS_REGION_NAME           = var.region
-    SITE_NAME                 = var.site_name
-    REGION_ROLE               = var.region_role
-    PRIMARY_REGION            = var.routing.primary_region
-    SECONDARY_REGIONS         = join(",", var.routing.secondary_regions)
+    PROJECT_NAME      = var.project_name
+    APP_VERSION       = var.runtime.app_version
+    ENVIRONMENT       = var.environment
+    DEPLOYMENT_ID     = var.runtime.deployment_id
+    LOG_LEVEL         = var.runtime.log_level
+    ANALYSIS_PROVIDER = var.runtime.analysis_provider
+    OPENAI_MODEL      = var.runtime.openai_model
+    AWS_REGION_NAME   = var.region
+    SITE_NAME         = var.site_name
+    REGION_ROLE       = var.region_role
+    PRIMARY_REGION    = var.routing.primary_region
+    SECONDARY_REGIONS = join(",", var.routing.secondary_regions)
+    REGIONAL_PROCESSING_QUEUE_NAMES = jsonencode(
+      var.regional_transport.processing_queue_names_by_region
+    )
     DOCUMENT_BUCKET           = aws_s3_bucket.documents.bucket
     RESUME_ANALYSIS_TABLE     = var.resume_analysis.table_name
     RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.processing.url

@@ -19,6 +19,7 @@ from features import resume_analysis
 IDEMPOTENCY_KEY = "12345678-1234-1234-1234-123456789012"
 USER_ID = "user-123"
 REQUEST_ID = "request-123"
+CORRELATION_ID = "correlation-123"
 ANALYSIS_ID = "analysis-123"
 REQUEST_HASH = "request-hash-123"
 
@@ -30,6 +31,7 @@ def make_event(
 ) -> dict:
     headers = {
         "Content-Type": "application/json",
+        "X-Correlation-Id": CORRELATION_ID,
     }
 
     if idempotency_key is not None:
@@ -226,11 +228,15 @@ def test_first_submission_creates_item_and_outbox_without_direct_dispatch(
     assert created_item["status"] == "QUEUED_PENDING_DISPATCH"
     assert created_item["version"] == 1
     assert created_item["createdByRequestHash"] == REQUEST_HASH
+    assert created_item["correlationId"] == CORRELATION_ID
 
     assert outbox_item["recordType"] == "outboxEvent"
     assert outbox_item["eventType"] == "RESUME_ANALYSIS_REQUESTED"
     assert outbox_item["aggregateId"] == ANALYSIS_ID
     assert outbox_item["status"] == "PENDING"
+    assert outbox_item["correlationId"] == CORRELATION_ID
+    assert outbox_item["payload"]["requestId"] == REQUEST_ID
+    assert outbox_item["payload"]["correlationId"] == CORRELATION_ID
 
     completion = dependencies.complete_request.call_args.kwargs
     assert completion["response_body"]["status"] == (

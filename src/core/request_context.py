@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import re
 from typing import Any
 
 from core.config import get_config
@@ -12,11 +13,18 @@ from core.errors import (
 
 MIN_IDEMPOTENCY_KEY_LENGTH = 16
 MAX_IDEMPOTENCY_KEY_LENGTH = 128
+MIN_CORRELATION_ID_LENGTH = 8
+MAX_CORRELATION_ID_LENGTH = 128
+CORRELATION_ID_HEADER = "x-correlation-id"
+CORRELATION_ID_PATTERN = re.compile(
+    r"^[A-Za-z0-9][A-Za-z0-9_.:/=-]*$"
+)
 
 
 @dataclass(frozen=True)
 class RequestContext:
     request_id: str
+    correlation_id: str
     user_id: str
     region: str
     deployment_id: str
@@ -63,6 +71,34 @@ def get_request_id(event: dict[str, Any]) -> str:
         raise ValidationError("Request identifier is unavailable")
 
     return str(request_id)
+
+
+def is_valid_correlation_id(value: str | None) -> bool:
+    normalized = str(value or "").strip()
+
+    return (
+        MIN_CORRELATION_ID_LENGTH
+        <= len(normalized)
+        <= MAX_CORRELATION_ID_LENGTH
+        and CORRELATION_ID_PATTERN.match(normalized)
+        is not None
+    )
+
+
+def get_correlation_id(
+    event: dict[str, Any],
+    *,
+    request_id: str,
+) -> str:
+    candidate = get_header(
+        event,
+        CORRELATION_ID_HEADER,
+    )
+
+    if is_valid_correlation_id(candidate):
+        return str(candidate).strip()
+
+    return request_id
 
 
 def get_route_key(event: dict[str, Any]) -> str:
@@ -120,8 +156,14 @@ def build_request_context(
 
     config = get_config()
 
+    request_id = get_request_id(event)
+
     return RequestContext(
-        request_id=get_request_id(event),
+        request_id=request_id,
+        correlation_id=get_correlation_id(
+            event,
+            request_id=request_id,
+        ),
         user_id=get_authenticated_user_id(event),
         region=config.aws_region,
         deployment_id=config.deployment_id,

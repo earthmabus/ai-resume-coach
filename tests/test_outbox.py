@@ -109,6 +109,7 @@ def test_build_outbox_event_creates_pending_item():
     assert item["lastUpdatedRegion"] == REGION
     assert item["createdByRequestId"] == REQUEST_ID
     assert item["updatedByRequestId"] == REQUEST_ID
+    assert item["correlationId"] == REQUEST_ID
 
     assert item["gsi1pk"] == "OUTBOX_STATUS#PENDING"
     assert item["gsi1sk"] == (
@@ -139,6 +140,8 @@ def test_resume_analysis_event_matches_worker_contract():
         "analysisProvider": "openai",
         "sourceRegion": REGION,
         "ownerRegion": REGION,
+        "requestId": REQUEST_ID,
+        "correlationId": REQUEST_ID,
     }
 
 
@@ -181,6 +184,8 @@ def test_job_match_event_matches_worker_contract():
     assert payload["analysisProvider"] == "openai"
     assert payload["sourceRegion"] == REGION
     assert payload["ownerRegion"] == REGION
+    assert payload["requestId"] == REQUEST_ID
+    assert payload["correlationId"] == REQUEST_ID
 
 
 def test_tailoring_event_matches_worker_contract():
@@ -205,6 +210,8 @@ def test_tailoring_event_matches_worker_contract():
     assert payload["analysisProvider"] == "openai"
     assert payload["sourceRegion"] == REGION
     assert payload["ownerRegion"] == REGION
+    assert payload["requestId"] == REQUEST_ID
+    assert payload["correlationId"] == REQUEST_ID
 
 
 def test_interview_event_matches_worker_contract():
@@ -229,6 +236,8 @@ def test_interview_event_matches_worker_contract():
     assert payload["analysisProvider"] == "openai"
     assert payload["sourceRegion"] == REGION
     assert payload["ownerRegion"] == REGION
+    assert payload["requestId"] == REQUEST_ID
+    assert payload["correlationId"] == REQUEST_ID
 
 
 @pytest.mark.parametrize(
@@ -292,3 +301,19 @@ def test_outbox_event_records_deployment_provenance():
 
     assert event.item["createdByDeploymentId"] == "deployment-123"
     assert event.item["lastUpdatedByDeploymentId"] == "deployment-123"
+
+
+def test_outbox_event_records_explicit_correlation_id():
+    event = build_outbox_event(
+        event_type="TEST_REQUESTED",
+        aggregate_type="testAggregate",
+        aggregate_id="aggregate-789",
+        job_type="testJob",
+        payload={"jobType": "testJob"},
+        created_region=REGION,
+        request_id=REQUEST_ID,
+        correlation_id="correlation-123",
+        created_at=CREATED_AT,
+    )
+
+    assert event.item["correlationId"] == "correlation-123"

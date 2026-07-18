@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import time
 import uuid
 from concurrent.futures import (
@@ -24,6 +25,17 @@ from core.outbox import (
     OUTBOX_STATUS_FAILED_PERMANENT,
     OUTBOX_STATUS_PENDING,
 )
+from core.region_routing import RoutingAction
+from core.regional_transport import (
+    DeliveryStatus,
+    RegionalDeliveryRequest,
+    RegionalTransport,
+)
+from core.work_placement import (
+    OwnershipCandidate,
+    OwnershipSource,
+    WorkPlacementService,
+)
 
 
 DEFAULT_DISPATCH_LEASE_SECONDS = 300
@@ -33,6 +45,7 @@ DEFAULT_MAX_DELIVERY_ATTEMPTS = 20
 DEFAULT_DELIVERED_RETENTION_SECONDS = 30 * 24 * 60 * 60
 MAX_ERROR_MESSAGE_LENGTH = 2000
 MAX_QUERY_PAGES_PER_STATUS = 10
+logger = logging.getLogger(__name__)
 
 RETRY_DELAY_SECONDS_BY_ATTEMPT = {
     1: 60,
@@ -80,6 +93,154 @@ def retry_delay_seconds(delivery_attempts: int) -> int:
     return RETRY_DELAY_SECONDS_BY_ATTEMPT.get(
         normalized_attempts,
         MAX_RETRY_DELAY_SECONDS,
+    )
+
+
+def build_outbox_message(
+    item: dict[str, Any],
+) -> dict[str, Any]:
+    payload = item.get("payload")
+
+    if not isinstance(
+        payload,
+        dict,
+    ):
+        raise ValueError(
+            "outbox payload must be "
+            "a dictionary"
+        )
+
+    return json_compatible(
+        {
+            **payload,
+            "outboxEventId": (
+                item["eventId"]
+            ),
+            "eventType": (
+                item["eventType"]
+            ),
+            "eventVersion": (
+                item["eventVersion"]
+            ),
+            "requestId": item.get(
+                "createdByRequestId",
+                payload.get("requestId", ""),
+            ),
+            "correlationId": item.get(
+                "correlationId",
+                payload.get(
+                    "correlationId",
+                    item.get("createdByRequestId", ""),
+                ),
+            ),
+            "submittedAt": item.get(
+                "createdAt",
+                "",
+            ),
+            "sourceRegion": item.get(
+                "createdRegion",
+                payload.get("sourceRegion", ""),
+            ),
+            "ownerRegion": item.get(
+                "ownerRegion",
+                payload.get("ownerRegion", ""),
+            ),
+            "sourceDeploymentId": item.get(
+                "createdByDeploymentId",
+                payload.get("sourceDeploymentId", ""),
+            ),
+        }
+    )
+
+
+def outbox_delivery_diagnostic(
+    *,
+    item: dict[str, Any],
+    placement_action: str,
+    current_region: str = "",
+    placement_reason: str = "",
+    delivery_status: str = "",
+    delivery_reason: str = "",
+    delivery_message_id: str | None = None,
+) -> dict[str, Any]:
+    payload = item.get("payload")
+    safe_payload = (
+        payload
+        if isinstance(payload, dict)
+        else {}
+    )
+
+    delivery_result = (
+        "SUCCESS"
+        if delivery_status == DeliveryStatus.DELIVERED.value
+        else "NOOP"
+        if delivery_status == DeliveryStatus.NOOP_LOCAL.value
+        else "FAILURE"
+        if delivery_status
+        else "UNKNOWN"
+    )
+
+    return {
+        "level": "INFO",
+        "service": "resume-analysis",
+        "component": "outbox-publisher",
+        "operation": "regional-delivery",
+        "result": delivery_result,
+        "message": "Outbox regional delivery decision",
+        "outboxEventId": str(
+            item.get("eventId") or ""
+        ),
+        "eventType": str(
+            item.get("eventType") or ""
+        ),
+        "requestId": str(
+            item.get("createdByRequestId")
+            or safe_payload.get("requestId")
+            or ""
+        ),
+        "correlationId": str(
+            item.get("correlationId")
+            or safe_payload.get("correlationId")
+            or item.get("createdByRequestId")
+            or ""
+        ),
+        "createdRegion": str(
+            item.get("createdRegion")
+            or safe_payload.get("sourceRegion")
+            or ""
+        ),
+        "sourceRegion": str(
+            item.get("createdRegion")
+            or safe_payload.get("sourceRegion")
+            or ""
+        ),
+        "ownerRegion": str(
+            item.get("ownerRegion")
+            or safe_payload.get("ownerRegion")
+            or ""
+        ),
+        "currentRegion": current_region,
+        "deliveryAttempts": int(
+            item.get("deliveryAttempts", 0)
+        ),
+        "placementAction": placement_action,
+        "placementReason": placement_reason,
+        "deliveryType": "processing_queue",
+        "deliveryStatus": delivery_status,
+        "deliveryMessageId": delivery_message_id or "",
+        "transportMessageId": delivery_message_id or "",
+        "deliveryReason": delivery_reason,
+    }
+
+
+def log_outbox_delivery_diagnostic(
+    diagnostic: dict[str, Any],
+) -> None:
+    logger.info(
+        json.dumps(
+            diagnostic,
+            separators=(",", ":"),
+        )
     )
 
 
@@ -713,51 +874,7 @@ class SqsEventPublisher:
         self,
         item: dict[str, Any],
     ) -> str:
-        payload = item.get("payload")
-
-        if not isinstance(
-            payload,
-            dict,
-        ):
-            raise ValueError(
-                "outbox payload must be "
-                "a dictionary"
-            )
-
-        message = json_compatible(
-            {
-                **payload,
-                "outboxEventId": (
-                    item["eventId"]
-                ),
-                "eventType": (
-                    item["eventType"]
-                ),
-                "eventVersion": (
-                    item["eventVersion"]
-                ),
-                "requestId": item.get(
-                    "createdByRequestId",
-                    "",
-                ),
-                "submittedAt": item.get(
-                    "createdAt",
-                    "",
-                ),
-                "sourceRegion": item.get(
-                    "createdRegion",
-                    payload.get("sourceRegion", ""),
-                ),
-                "ownerRegion": item.get(
-                    "ownerRegion",
-                    payload.get("ownerRegion", ""),
-                ),
-                "sourceDeploymentId": item.get(
-                    "createdByDeploymentId",
-                    payload.get("sourceDeploymentId", ""),
-                ),
-            }
-        )
+        message = build_outbox_message(item)
 
         response = self._client.send_message(
             QueueUrl=self._queue_url,
@@ -780,6 +897,193 @@ class SqsEventPublisher:
         return message_id
 
 
+class PlacementAwareEventPublisher:
+    def __init__(
+        self,
+        *,
+        local_publisher: SqsEventPublisher,
+        regional_transport: RegionalTransport,
+        placement_service: WorkPlacementService,
+    ) -> None:
+        self._local_publisher = local_publisher
+        self._regional_transport = regional_transport
+        self._placement_service = placement_service
+
+    def publish(
+        self,
+        item: dict[str, Any],
+    ) -> str:
+        payload = item.get("payload")
+        owner_region = item.get("ownerRegion")
+
+        if not owner_region and isinstance(payload, dict):
+            owner_region = payload.get("ownerRegion")
+
+        placement = self._placement_service.evaluate(
+            OwnershipCandidate(
+                owner_region=(
+                    str(owner_region or "").strip()
+                    or None
+                ),
+                source=OwnershipSource.MESSAGE_METADATA,
+                default_source=(
+                    OwnershipSource.LEGACY_UNSPECIFIED
+                ),
+                reason="outbox event ownership metadata",
+            )
+        )
+
+        if placement.routing_decision is None:
+            log_outbox_delivery_diagnostic(
+                outbox_delivery_diagnostic(
+                    item=item,
+                    placement_action=(
+                        placement.ownership.status.value
+                    ),
+                    placement_reason=(
+                        placement.ownership.reason
+                    ),
+                    delivery_status=(
+                        DeliveryStatus.INVALID_PLACEMENT.value
+                    ),
+                    delivery_reason=(
+                        placement.ownership.status.value
+                    ),
+                )
+            )
+            raise RuntimeError(
+                "regional placement is "
+                f"{placement.ownership.status.value}"
+            )
+
+        if (
+            placement.routing_decision.action
+            == RoutingAction.EXECUTE_LOCAL
+        ):
+            try:
+                message_id = self._local_publisher.publish(item)
+            except Exception as error:
+                log_outbox_delivery_diagnostic(
+                    outbox_delivery_diagnostic(
+                        item=item,
+                        placement_action=(
+                            placement.routing_decision.action.value
+                        ),
+                        current_region=(
+                            placement.routing_decision.current_region
+                        ),
+                        placement_reason=(
+                            placement.routing_decision.reason
+                        ),
+                        delivery_status=(
+                            DeliveryStatus.DELIVERY_FAILED.value
+                        ),
+                        delivery_reason=type(error).__name__,
+                    )
+                )
+                raise
+
+            log_outbox_delivery_diagnostic(
+                outbox_delivery_diagnostic(
+                    item=item,
+                    placement_action=(
+                        placement.routing_decision.action.value
+                    ),
+                    current_region=(
+                        placement.routing_decision.current_region
+                    ),
+                    placement_reason=(
+                        placement.routing_decision.reason
+                    ),
+                    delivery_status=(
+                        DeliveryStatus.DELIVERED.value
+                    ),
+                    delivery_message_id=message_id,
+                )
+            )
+
+            return message_id
+
+        if (
+            placement.routing_decision.action
+            != RoutingAction.NON_LOCAL_REGION
+        ):
+            log_outbox_delivery_diagnostic(
+                outbox_delivery_diagnostic(
+                    item=item,
+                    placement_action=(
+                        placement.routing_decision.action.value
+                    ),
+                    current_region=(
+                        placement.routing_decision.current_region
+                    ),
+                    placement_reason=(
+                        placement.routing_decision.reason
+                    ),
+                    delivery_status=(
+                        DeliveryStatus.INVALID_PLACEMENT.value
+                    ),
+                    delivery_reason=(
+                        placement.routing_decision.action.value
+                    ),
+                )
+            )
+            raise RuntimeError(
+                "regional placement is "
+                f"{placement.routing_decision.action.value}"
+            )
+
+        message = build_outbox_message(item)
+        result = self._regional_transport.deliver(
+            RegionalDeliveryRequest(
+                current_region=(
+                    placement.routing_decision.current_region
+                ),
+                owner_region=(
+                    placement.routing_decision.owner_region
+                    or ""
+                ),
+                payload=message,
+                request_id=str(
+                    message.get("requestId")
+                    or message.get("outboxEventId")
+                    or ""
+                ),
+                delivery_type="processing_queue",
+                correlation_id=str(
+                    message.get("correlationId") or ""
+                ) or None,
+            )
+        )
+
+        log_outbox_delivery_diagnostic(
+            outbox_delivery_diagnostic(
+                item=item,
+                placement_action=(
+                    placement.routing_decision.action.value
+                ),
+                current_region=(
+                    placement.routing_decision.current_region
+                ),
+                placement_reason=(
+                    placement.routing_decision.reason
+                ),
+                delivery_status=result.status.value,
+                delivery_reason=result.reason,
+                delivery_message_id=result.message_id,
+            )
+        )
+
+        if result.status != DeliveryStatus.DELIVERED:
+            raise RuntimeError(
+                "regional delivery "
+                f"{result.status.value}: {result.reason}"
+            )
+
+        assert result.message_id is not None
+        return result.message_id
+
+
 class OutboxPublisher:
     """
     Coordinate discovery, serial claims, and parallel delivery.
@@ -793,7 +1097,7 @@ class OutboxPublisher:
         self,
         *,
         repository: DynamoDbOutboxRepository,
-        event_publisher: SqsEventPublisher,
+        event_publisher: Any,
         batch_size: int = DEFAULT_BATCH_SIZE,
         max_workers: int = DEFAULT_MAX_WORKERS,
         max_delivery_attempts: int = DEFAULT_MAX_DELIVERY_ATTEMPTS,

@@ -102,6 +102,23 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.regional_transport.processing_queue_names_by_region["us-east-1"]
+      == "ai-resume-coach-dev-use1-processing"
+      &&
+      output.regional_foundations.east.regional_transport.processing_queue_names_by_region["us-west-2"]
+      == "ai-resume-coach-dev-usw2-processing"
+      &&
+      output.regional_foundations.west.regional_transport.processing_queue_names_by_region["us-east-1"]
+      == "ai-resume-coach-dev-use1-processing"
+      &&
+      output.regional_foundations.west.regional_transport.processing_queue_names_by_region["us-west-2"]
+      == "ai-resume-coach-dev-usw2-processing"
+    )
+    error_message = "Regional transport must expose active processing queue names to both outbox publishers."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.outbox_publisher_schedule.state
       == "DISABLED"
       &&

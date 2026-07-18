@@ -52,6 +52,22 @@ Introduces transport-neutral ownership resolution and placement evaluation.
 New idempotency and outbox work records carry `ownerRegion`, and outbox-to-SQS
 serialization preserves it. Transports still do not act on non-local placement.
 
+### MR-009A3: Cross-Region Transport Foundation
+
+Question answered:
+
+> If this runtime is not the owner, how can asynchronous work be delivered to
+> the owner region?
+
+Introduces a domain-neutral regional delivery contract and SQS implementation
+at the transactional outbox publisher boundary. Local placement still publishes
+to the local `processing_queue`. Non-local placement makes one SQS delivery
+attempt to the owning region's configured `processing_queue`.
+
+No handler acts on placement, and this slice does not introduce failover,
+transport retry, replay, queue draining, Route 53 changes, CloudFront changes,
+or regional health policy.
+
 ### MR-009B: Correlation and Traceability
 
 Question answered:
@@ -71,11 +87,14 @@ HTTP request
 
 Potential identifiers:
 
-- request ID
-- correlation ID
-- idempotency key where safe
-- work identifier
-- work type
+- `requestId`: originating API command identifier
+- `correlationId`: operational grouping identifier, validated from
+  `X-Correlation-Id` or falling back to `requestId`
+- durable work identifier
+- `outboxEventId`
+- SQS `transportMessageId`
+- Lambda `runtimeInvocationId`
+- owner and source region metadata
 
 Constraints:
 
@@ -83,6 +102,7 @@ Constraints:
 - do not expose user-sensitive values in logs
 - reuse existing identifiers before inventing new ones
 - avoid coupling tracing to one AWS region
+- do not introduce distributed tracing, failover, or transport retry
 
 ### MR-009C: Operational Diagnostics
 
@@ -98,8 +118,18 @@ Clarify and test:
 - safe public metadata
 - dependency-free liveness
 - readiness semantics, if an existing route supports them
+- passive regional-health classification:
+  `HEALTHY`, `DEGRADED`, `UNAVAILABLE`, `UNKNOWN`
+- explicit distinction between liveness, readiness, timestamped observations,
+  and aggregate regional-health interpretation
+- bounded health reason codes and freshness semantics
+- symmetric, cost-gated application-region alarms for API, processing, outbox,
+  transport, persistence, and configuration evidence
+- witness-region health semantics limited to the accepted MRSC witness role
 
 Do not create unrestricted diagnostic endpoints that expose configuration or infrastructure internals.
+Do not use regional health for failover, routing, ownership reassignment,
+transport retry, queue draining, or replay in this slice.
 
 ### MR-009D: Runtime Validation
 

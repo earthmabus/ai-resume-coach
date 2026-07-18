@@ -32,6 +32,7 @@ class IdempotencyReservation:
     disposition: str
     resource_id: str
     owner_region: str | None = None
+    correlation_id: str | None = None
     status_code: int | None = None
     response_body: dict[str, Any] | None = None
 
@@ -167,6 +168,7 @@ def reserve_request(
     request_id: str,
     region: str,
     owner_region: str | None = None,
+    correlation_id: str | None = None,
     retention_days: int = 30,
 ) -> IdempotencyReservation:
     pk, sk = idempotency_keys(
@@ -183,6 +185,10 @@ def reserve_request(
         str(owner_region or "").strip()
         or region
     )
+    normalized_correlation_id = (
+        str(correlation_id or "").strip()
+        or request_id
+    )
 
     item = {
         "pk": pk,
@@ -196,6 +202,7 @@ def reserve_request(
         "resourceId": resource_id,
         "createdByRequestId": request_id,
         "updatedByRequestId": request_id,
+        "correlationId": normalized_correlation_id,
         "createdRegion": region,
         "ownerRegion": normalized_owner_region,
         "createdByDeploymentId": deployment_id,
@@ -214,6 +221,7 @@ def reserve_request(
             disposition=DISPOSITION_RESERVED,
             resource_id=resource_id,
             owner_region=normalized_owner_region,
+            correlation_id=normalized_correlation_id,
         )
 
     existing = _read_existing(
@@ -232,12 +240,21 @@ def reserve_request(
         ).strip()
         or None
     )
+    existing_correlation_id = (
+        str(
+            existing.get("correlationId")
+            or existing.get("createdByRequestId")
+            or ""
+        ).strip()
+        or None
+    )
 
     if existing_status == STATUS_COMPLETED:
         return IdempotencyReservation(
             disposition=DISPOSITION_REPLAY_COMPLETED,
             resource_id=existing_resource_id,
             owner_region=existing_owner_region,
+            correlation_id=existing_correlation_id,
             status_code=int(existing["responseStatusCode"]),
             response_body=existing.get("responseBody") or {},
         )
@@ -256,6 +273,7 @@ def reserve_request(
                 disposition=DISPOSITION_RESERVED,
                 resource_id=existing_resource_id,
                 owner_region=existing_owner_region,
+                correlation_id=existing_correlation_id,
             )
 
         existing = _read_existing(
@@ -276,6 +294,14 @@ def reserve_request(
                     ).strip()
                     or None
                 ),
+                correlation_id=(
+                    str(
+                        existing.get("correlationId")
+                        or existing.get("createdByRequestId")
+                        or ""
+                    ).strip()
+                    or None
+                ),
                 status_code=int(existing["responseStatusCode"]),
                 response_body=existing.get("responseBody") or {},
             )
@@ -284,6 +310,7 @@ def reserve_request(
         disposition=DISPOSITION_REPLAY_IN_PROGRESS,
         resource_id=existing_resource_id,
         owner_region=existing_owner_region,
+        correlation_id=existing_correlation_id,
         status_code=int(existing.get("responseStatusCode", 202)),
         response_body=existing.get("responseBody"),
     )

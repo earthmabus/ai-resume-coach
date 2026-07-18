@@ -228,6 +228,7 @@ def match_job_description(event):
         request_hash=request_hash,
         resource_id=proposed_match_id,
         request_id=context.request_id,
+        correlation_id=context.correlation_id,
         region=context.region,
     )
 
@@ -247,6 +248,10 @@ def match_job_description(event):
             },
         )
 
+    effective_correlation_id = (
+        reservation.correlation_id
+        or context.correlation_id
+    )
     match_id = reservation.resource_id
 
     tailoring_id = stable_child_id(
@@ -304,6 +309,7 @@ def match_job_description(event):
                 "updatedAt": created_at,
                 "createdByRequestId": context.request_id,
                 "updatedByRequestId": context.request_id,
+                "correlationId": effective_correlation_id,
                 "createdByRequestHash": request_hash,
                 "createdRegion": context.region,
                 "createdByDeploymentId": context.deployment_id,
@@ -383,6 +389,7 @@ def match_job_description(event):
             "updatedAt": created_at,
             "createdByRequestId": context.request_id,
             "updatedByRequestId": context.request_id,
+            "correlationId": effective_correlation_id,
             "createdByRequestHash": request_hash,
             "createdRegion": context.region,
                 "createdByDeploymentId": context.deployment_id,
@@ -440,6 +447,7 @@ def match_job_description(event):
             "updatedAt": created_at,
             "createdByRequestId": context.request_id,
             "updatedByRequestId": context.request_id,
+            "correlationId": effective_correlation_id,
             "createdByRequestHash": request_hash,
             "createdRegion": context.region,
                 "createdByDeploymentId": context.deployment_id,
@@ -489,6 +497,7 @@ def match_job_description(event):
                 created_region=context.region,
                 created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
+                correlation_id=effective_correlation_id,
                 created_at=created_at,
             )
 

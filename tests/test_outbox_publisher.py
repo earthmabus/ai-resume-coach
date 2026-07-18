@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from decimal import Decimal
 from datetime import datetime, timezone
 from types import SimpleNamespace
@@ -20,9 +21,22 @@ from core.outbox_publisher import (
     DynamoDbOutboxRepository,
     OutboxPublisher,
     DEFAULT_DELIVERED_RETENTION_SECONDS,
+    PlacementAwareEventPublisher,
     PublishResult,
     SqsEventPublisher,
     retry_delay_seconds,
+)
+from core.region_routing import (
+    RegionRoutingService,
+    RegionTopology,
+)
+from core.regional_transport import (
+    DeliveryStatus,
+    RegionalDeliveryResult,
+)
+from core.work_placement import (
+    WorkOwnershipResolver,
+    WorkPlacementService,
 )
 
 NOW = datetime(2026, 7, 15, 20, 0, tzinfo=timezone.utc)
@@ -51,6 +65,7 @@ def event_item(status=OUTBOX_STATUS_PENDING) -> dict:
         "createdRegion": "us-east-1",
         "ownerRegion": "us-east-1",
         "createdByRequestId": "request-123",
+        "correlationId": "correlation-123",
         "deliveryAttempts": 0,
         "version": 1,
         "gsi1pk": f"OUTBOX_STATUS#{status}",
@@ -77,6 +92,31 @@ def make_repository(table: MagicMock) -> DynamoDbOutboxRepository:
         lease_seconds=300,
         now=lambda: NOW,
         epoch_seconds=lambda: NOW_EPOCH,
+    )
+
+
+def placement_service(
+    current_region: str = "us-east-1",
+) -> WorkPlacementService:
+    routing_service = RegionRoutingService(
+        RegionTopology(
+            current_region=current_region,
+            primary_region="us-east-1",
+            secondary_regions=("us-west-2",),
+            site_name=(
+                "east"
+                if current_region == "us-east-1"
+                else "west"
+            ),
+            region_role="active",
+        )
+    )
+
+    return WorkPlacementService(
+        ownership_resolver=WorkOwnershipResolver(
+            routing_service.topology
+        ),
+        routing_service=routing_service,
     )
 
 
@@ -243,6 +283,7 @@ def test_sqs_publisher_preserves_worker_payload_and_adds_trace_metadata():
     assert message["outboxEventId"] == EVENT_ID
     assert message["eventType"] == "RESUME_ANALYSIS_REQUESTED"
     assert message["requestId"] == "request-123"
+    assert message["correlationId"] == "correlation-123"
     assert message["ownerRegion"] == "us-east-1"
 
 
@@ -260,6 +301,236 @@ def test_sqs_publisher_requires_message_id():
         match="SQS did not return a MessageId",
     ):
         publisher.publish(event_item())
+
+
+def test_placement_aware_publisher_uses_local_queue_for_local_work():
+    local_publisher = MagicMock()
+    local_publisher.publish.return_value = "local-message"
+    regional_transport = MagicMock()
+
+    publisher = PlacementAwareEventPublisher(
+        local_publisher=local_publisher,
+        regional_transport=regional_transport,
+        placement_service=placement_service("us-east-1"),
+    )
+
+    message_id = publisher.publish(event_item())
+
+    assert message_id == "local-message"
+    local_publisher.publish.assert_called_once()
+    regional_transport.deliver.assert_not_called()
+
+
+def test_placement_aware_publisher_logs_local_delivery_without_payload(
+    caplog,
+):
+    local_publisher = MagicMock()
+    local_publisher.publish.return_value = "local-message"
+
+    item = event_item()
+    item["payload"] = {
+        **item["payload"],
+        "correlationId": "correlation-123",
+    }
+
+    publisher = PlacementAwareEventPublisher(
+        local_publisher=local_publisher,
+        regional_transport=MagicMock(),
+        placement_service=placement_service("us-east-1"),
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="core.outbox_publisher",
+    ):
+        publisher.publish(item)
+
+    diagnostic = json.loads(
+        caplog.records[-1].message
+    )
+
+    assert diagnostic["outboxEventId"] == EVENT_ID
+    assert diagnostic["component"] == "outbox-publisher"
+    assert diagnostic["operation"] == "regional-delivery"
+    assert diagnostic["result"] == "SUCCESS"
+    assert diagnostic["requestId"] == "request-123"
+    assert diagnostic["correlationId"] == "correlation-123"
+    assert diagnostic["createdRegion"] == "us-east-1"
+    assert diagnostic["sourceRegion"] == "us-east-1"
+    assert diagnostic["currentRegion"] == "us-east-1"
+    assert diagnostic["ownerRegion"] == "us-east-1"
+    assert diagnostic["placementAction"] == "EXECUTE_LOCAL"
+    assert diagnostic["deliveryStatus"] == "DELIVERED"
+    assert diagnostic["deliveryMessageId"] == "local-message"
+    assert "userId" not in diagnostic
+
+
+def test_placement_aware_publisher_delivers_non_local_work_once():
+    local_publisher = MagicMock()
+    regional_transport = MagicMock()
+    regional_transport.deliver.return_value = RegionalDeliveryResult(
+        status=DeliveryStatus.DELIVERED,
+        current_region="us-east-1",
+        owner_region="us-west-2",
+        delivery_type="processing_queue",
+        message_id="remote-message",
+        reason="delivered",
+    )
+
+    item = {
+        **event_item(),
+        "ownerRegion": "us-west-2",
+    }
+
+    publisher = PlacementAwareEventPublisher(
+        local_publisher=local_publisher,
+        regional_transport=regional_transport,
+        placement_service=placement_service("us-east-1"),
+    )
+
+    message_id = publisher.publish(item)
+
+    assert message_id == "remote-message"
+    local_publisher.publish.assert_not_called()
+    regional_transport.deliver.assert_called_once()
+
+    request = regional_transport.deliver.call_args.args[0]
+    assert request.current_region == "us-east-1"
+    assert request.owner_region == "us-west-2"
+    assert request.delivery_type == "processing_queue"
+    assert request.request_id == "request-123"
+    assert request.payload["outboxEventId"] == EVENT_ID
+    assert request.payload["correlationId"] == "correlation-123"
+    assert request.payload["ownerRegion"] == "us-west-2"
+
+
+def test_placement_aware_publisher_logs_remote_delivery_result(
+    caplog,
+):
+    regional_transport = MagicMock()
+    regional_transport.deliver.return_value = RegionalDeliveryResult(
+        status=DeliveryStatus.DELIVERED,
+        current_region="us-east-1",
+        owner_region="us-west-2",
+        delivery_type="processing_queue",
+        message_id="remote-message",
+        reason="delivered to owner region queue",
+    )
+
+    publisher = PlacementAwareEventPublisher(
+        local_publisher=MagicMock(),
+        regional_transport=regional_transport,
+        placement_service=placement_service("us-east-1"),
+    )
+
+    with caplog.at_level(
+        logging.INFO,
+        logger="core.outbox_publisher",
+    ):
+        publisher.publish(
+            {
+                **event_item(),
+                "ownerRegion": "us-west-2",
+            }
+        )
+
+    diagnostic = json.loads(
+        caplog.records[-1].message
+    )
+
+    assert diagnostic["outboxEventId"] == EVENT_ID
+    assert diagnostic["component"] == "outbox-publisher"
+    assert diagnostic["operation"] == "regional-delivery"
+    assert diagnostic["result"] == "SUCCESS"
+    assert diagnostic["requestId"] == "request-123"
+    assert diagnostic["createdRegion"] == "us-east-1"
+    assert diagnostic["sourceRegion"] == "us-east-1"
+    assert diagnostic["currentRegion"] == "us-east-1"
+    assert diagnostic["ownerRegion"] == "us-west-2"
+    assert diagnostic["placementAction"] == "NON_LOCAL_REGION"
+    assert diagnostic["deliveryType"] == "processing_queue"
+    assert diagnostic["deliveryStatus"] == "DELIVERED"
+    assert diagnostic["deliveryMessageId"] == "remote-message"
+    assert diagnostic["transportMessageId"] == "remote-message"
+    assert "analysisId" not in diagnostic
+    assert "userId" not in diagnostic
+
+
+def test_outbox_message_uses_request_id_for_legacy_correlation():
+    item = event_item()
+    item.pop("correlationId")
+    client = MagicMock()
+    client.send_message.return_value = {"MessageId": "message-123"}
+
+    publisher = SqsEventPublisher(
+        client=client,
+        queue_url="https://example.com/queue",
+    )
+
+    publisher.publish(item)
+
+    message = json.loads(
+        client.send_message.call_args.kwargs["MessageBody"]
+    )
+
+    assert message["requestId"] == "request-123"
+    assert message["correlationId"] == "request-123"
+
+
+def test_placement_aware_publisher_rejects_invalid_placement():
+    publisher = PlacementAwareEventPublisher(
+        local_publisher=MagicMock(),
+        regional_transport=MagicMock(),
+        placement_service=placement_service("us-east-1"),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="regional placement is INVALID",
+    ):
+        publisher.publish(
+            {
+                **event_item(),
+                "ownerRegion": "eu-central-1",
+            }
+        )
+
+
+@pytest.mark.parametrize(
+    "status",
+    [
+        DeliveryStatus.UNSUPPORTED_REGION,
+        DeliveryStatus.DELIVERY_FAILED,
+    ],
+)
+def test_placement_aware_publisher_reports_transport_failure(
+    status,
+):
+    regional_transport = MagicMock()
+    regional_transport.deliver.return_value = RegionalDeliveryResult(
+        status=status,
+        current_region="us-east-1",
+        owner_region="us-west-2",
+        delivery_type="processing_queue",
+        reason="not delivered",
+    )
+
+    publisher = PlacementAwareEventPublisher(
+        local_publisher=MagicMock(),
+        regional_transport=regional_transport,
+        placement_service=placement_service("us-east-1"),
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match=f"regional delivery {status.value}",
+    ):
+        publisher.publish(
+            {
+                **event_item(),
+                "ownerRegion": "us-west-2",
+            }
+        )
 
 
 def test_outbox_publisher_marks_success_delivered():

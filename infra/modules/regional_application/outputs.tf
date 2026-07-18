@@ -59,6 +59,12 @@ output "outbox_publisher_schedule" {
   }
 }
 
+output "regional_transport" {
+  value = {
+    processing_queue_names_by_region = var.regional_transport.processing_queue_names_by_region
+  }
+}
+
 output "execution_roles" {
   value = {
     api              = aws_iam_role.api.arn
@@ -182,6 +188,8 @@ output "observability" {
             aws_cloudwatch_metric_alarm.processing_queue_depth[0].alarm_name,
             aws_cloudwatch_metric_alarm.processing_dlq_messages[0].alarm_name,
             aws_cloudwatch_metric_alarm.dynamodb_throttles[0].alarm_name,
+            aws_cloudwatch_metric_alarm.worker_record_failures[0].alarm_name,
+            aws_cloudwatch_metric_alarm.outbox_publish_failures[0].alarm_name,
           ],
           [
             for alarm in aws_cloudwatch_metric_alarm.lambda_errors :

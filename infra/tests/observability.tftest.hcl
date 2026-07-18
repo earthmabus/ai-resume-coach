@@ -138,23 +138,48 @@ run "dashboard_and_alarm_contracts_cover_both_regions" {
       contains(output.observability.dashboard.regional_sites, "west")
       &&
       output.observability.dashboard.includes_business_metric_namespace
+      &&
+      output.observability.dashboard.includes_worker_outbox_failures
+      &&
+      output.observability.dashboard.includes_lambda_throttles
     )
-    error_message = "The operations dashboard must represent both active sites and reserve a business-metric namespace."
+    error_message = "The operations dashboard must represent both active sites, reserve the business metric namespace, and expose key failure and throttle signals."
   }
 
   assert {
     condition = (
       output.observability.alarms.enabled
       &&
-      length(output.observability.alarms.names) == 18
+      length(output.observability.alarms.names) == 22
       &&
       contains(output.observability.alarms.categories, "API_AVAILABILITY")
       &&
       contains(output.observability.alarms.categories, "DLQ")
       &&
       contains(output.observability.alarms.categories, "DYNAMODB_THROTTLING")
+      &&
+      contains(output.observability.alarms.categories, "WORKER_RECORD_FAILURES")
+      &&
+      contains(output.observability.alarms.categories, "OUTBOX_PUBLISH_FAILURES")
     )
-    error_message = "The curated alarm set must contain nine alarms per active Region and cover the approved operational categories."
+    error_message = "The curated alarm set must contain eleven alarms per active Region and cover the approved operational categories."
+  }
+
+  assert {
+    condition = (
+      output.observability.alarms.missing_data_treatment.native_error_and_backlog_metrics == "notBreaching"
+      &&
+      output.observability.alarms.missing_data_treatment.application_failure_metrics == "notBreaching"
+      &&
+      contains(output.observability.alarms.bounded_dimensions, "FunctionName")
+      &&
+      !contains(output.observability.alarms.bounded_dimensions, "requestId")
+      &&
+      !contains(output.observability.alarms.bounded_dimensions, "correlationId")
+      &&
+      !contains(output.observability.alarms.bounded_dimensions, "outboxEventId")
+    )
+    error_message = "Operational alarms must document intentional missing-data handling and avoid high-cardinality dimensions."
   }
 }
 

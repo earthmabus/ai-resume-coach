@@ -162,9 +162,49 @@ resource "aws_cloudwatch_dashboard" "platform_operations" {
         }
       },
       {
-        type   = "log"
+        type   = "metric"
         x      = 0
         y      = 20
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Throttles"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 60
+          metrics = [
+            ["AWS/Lambda", "Throttles", "FunctionName", module.east.compute.api.name, { label = "East API" }],
+            [".", ".", ".", module.east.compute.worker.name, { label = "East worker" }],
+            [".", ".", ".", module.east.compute.outbox_publisher.name, { label = "East outbox publisher" }],
+            ["AWS/Lambda", "Throttles", "FunctionName", module.west.compute.api.name, { label = "West API", region = local.sites.west.region }],
+            [".", ".", ".", module.west.compute.worker.name, { label = "West worker", region = local.sites.west.region }],
+            [".", ".", ".", module.west.compute.outbox_publisher.name, { label = "West outbox publisher", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 20
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Worker and Outbox Failure Metrics"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 300
+          metrics = [
+            [var.telemetry_metric_namespace, "WorkerRecordFailures", "FunctionName", module.east.compute.worker.name, { label = "East worker record failures" }],
+            [".", "OutboxPublishFailures", ".", module.east.compute.outbox_publisher.name, { label = "East outbox publish failures" }],
+            [var.telemetry_metric_namespace, "WorkerRecordFailures", "FunctionName", module.west.compute.worker.name, { label = "West worker record failures", region = local.sites.west.region }],
+            [".", "OutboxPublishFailures", ".", module.west.compute.outbox_publisher.name, { label = "West outbox publish failures", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 26
         width  = 24
         height = 6
         properties = {

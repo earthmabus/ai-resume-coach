@@ -127,33 +127,48 @@ Do not introduce a logging framework simply to satisfy a task. First inspect cur
 
 Configuration describes deployment/runtime facts. Request context describes facts that vary per request. Preserve this distinction.
 
-## Next Multi-Site Objective
+## Current Multi-Site Application Direction
 
-Before returning to product engineering, finish multi-site operational readiness.
+MR-009A, MR-009A1, MR-009A2, ARR-001, MR-009A3, ORR-001, ENG-001,
+MR-009B, ARR-002, and MR-009C have established the application-side
+active-active foundation:
 
-The first likely implementation slice is runtime identity:
+- runtime identity remains diagnostic metadata
+- regional topology and routing configuration are centralized
+- work ownership is separate from runtime identity
+- placement evaluation is transport-neutral
+- newly created idempotency and outbox work records carry `ownerRegion`
+- outbox-to-SQS serialization preserves `ownerRegion`
+- the transactional outbox publisher is the first cross-region transport
+  boundary for asynchronous work
+- end-to-end correlation uses explicit `requestId`, `correlationId`,
+  `workId`, `outboxEventId`, `transportMessageId`, and
+  `runtimeInvocationId` meanings
+- regional health classification is passive diagnostic state with
+  `HEALTHY`, `DEGRADED`, `UNAVAILABLE`, and `UNKNOWN` statuses
+- regional health separates liveness, readiness, timestamped observations,
+  freshness, bounded reason codes, and aggregate operator interpretation
+- active application regions use symmetric health semantics; the `us-east-2`
+  witness remains limited to its DynamoDB MRSC witness responsibility
 
-- region
-- logical site
-- environment
-- deployment ID
-- application version
-- Lambda function name where available
+MR-009A3 introduces one SQS delivery attempt from the outbox publisher to the
+owning region's configured `processing_queue` when placement is non-local.
+Local placement continues to publish to the local regional queue.
 
-Runtime identity should be:
+MR-009B standardizes traceability without distributed tracing infrastructure.
+Request context validates `X-Correlation-Id` and falls back to the API Gateway
+request ID. Idempotency, work, outbox, queue messages, publisher diagnostics,
+and worker diagnostics preserve that correlation where available. Legacy
+compatible records and messages without `correlationId` remain usable.
 
-- derived from centralized configuration
-- available consistently to API and worker code
-- included in safe operational diagnostics and structured log context
-- dependency-free
-- deterministic in unit tests
-- diagnostic only
+Handlers must not act on non-local placement. The current foundation does not
+implement HTTP forwarding, worker requeueing, failover, health-based routing,
+traffic shifting, queue draining, replay, or transport retry.
 
-It must not:
+Regional health must not be used to reassign ownership, change placement,
+route traffic, retry transport, drain queues, replay work, or trigger failover
+until a later accepted decision explicitly introduces that behavior.
 
-- make authorization decisions
-- determine tenancy
-- drive routing
-- expose sensitive infrastructure values
-
-The exact implementation has not yet been chosen. Inspect existing health, API handler, worker handler, configuration, tests, and Terraform environment blocks before proposing changes.
+MR-009C does not persist aggregate health state. Request-time readiness exposes
+safe local observations, while sustained regional degradation is evaluated
+through cost-gated CloudWatch alarms, structured logs, metrics, and runbooks.

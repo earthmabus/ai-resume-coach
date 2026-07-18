@@ -248,6 +248,53 @@ def test_configured_metric_namespace_uses_defaults(
     )
 
 
+def test_configured_regional_processing_queue_names_parses_json(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "REGIONAL_PROCESSING_QUEUE_NAMES",
+        json.dumps(
+            {
+                "us-east-1": "east-processing",
+                "us-west-2": "west-processing",
+                " ": "ignored",
+                "us-east-2": "",
+            }
+        ),
+    )
+
+    assert (
+        outbox_publisher_handler.configured_regional_processing_queue_names()
+        == {
+            "us-east-1": "east-processing",
+            "us-west-2": "west-processing",
+        }
+    )
+
+
+@pytest.mark.parametrize(
+    "configured_value",
+    [
+        "[\"east-processing\"]",
+        "{not-json",
+    ],
+)
+def test_configured_regional_processing_queue_names_requires_json_object(
+    monkeypatch,
+    configured_value,
+):
+    monkeypatch.setenv(
+        "REGIONAL_PROCESSING_QUEUE_NAMES",
+        configured_value,
+    )
+
+    with pytest.raises(
+        RuntimeError,
+        match="REGIONAL_PROCESSING_QUEUE_NAMES",
+    ):
+        outbox_publisher_handler.configured_regional_processing_queue_names()
+
+
 def test_configured_function_name_uses_lambda_environment(
     monkeypatch,
 ):

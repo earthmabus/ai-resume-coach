@@ -18,6 +18,7 @@ from features import resume_analysis
 
 USER_ID = "user-123"
 REQUEST_ID = "request-123"
+CORRELATION_ID = "correlation-123"
 REQUEST_HASH = "request-hash-123"
 ANALYSIS_ID = "analysis-123"
 IDEMPOTENCY_KEY = (
@@ -30,7 +31,10 @@ def make_event(
     idempotency_key=IDEMPOTENCY_KEY,
     body=None,
 ):
-    headers = {"Content-Type": "application/json"}
+    headers = {
+        "Content-Type": "application/json",
+        "X-Correlation-Id": CORRELATION_ID,
+    }
 
     if idempotency_key is not None:
         headers["Idempotency-Key"] = idempotency_key
@@ -160,6 +164,11 @@ def test_first_request_runs_analysis_once(dependencies):
     assert response["statusCode"] == 200
     assert response_body(response)["analysisId"] == ANALYSIS_ID
     dependencies.analyze_and_save.assert_called_once()
+    assert (
+        dependencies.analyze_and_save
+        .call_args.kwargs["correlation_id"]
+        == CORRELATION_ID
+    )
     dependencies.complete.assert_called_once()
 
 

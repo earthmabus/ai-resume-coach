@@ -5,6 +5,7 @@ import logging
 import os
 import time
 import uuid
+from dataclasses import dataclass
 from datetime import datetime, timezone
 from decimal import Decimal
 from typing import Any
@@ -38,6 +39,82 @@ STATUS_RESULT_READY = "RESULT_READY_PENDING_CHILD_DISPATCH"
 DEFAULT_LEASE_SECONDS = int(
     os.getenv("WORKER_PROCESSING_LEASE_SECONDS", "300")
 )
+
+
+@dataclass(frozen=True)
+class WorkerMessageContext:
+    request_id: str
+    correlation_id: str
+    work_id: str
+    outbox_event_id: str
+    transport_message_id: str
+    runtime_invocation_id: str
+    current_region: str
+    owner_region: str
+    source_region: str
+    event_type: str
+    job_type: str
+
+    def as_log_fields(self) -> dict[str, str]:
+        return {
+            "service": "resume-analysis",
+            "component": "worker",
+            "requestId": self.request_id,
+            "correlationId": self.correlation_id,
+            "workId": self.work_id,
+            "outboxEventId": self.outbox_event_id,
+            "transportMessageId": self.transport_message_id,
+            "runtimeInvocationId": self.runtime_invocation_id,
+            "currentRegion": self.current_region,
+            "ownerRegion": self.owner_region,
+            "sourceRegion": self.source_region,
+            "eventType": self.event_type,
+            "jobType": self.job_type,
+            "deploymentId": DEPLOYMENT_ID,
+        }
+
+
+def work_id_from_body(body: dict[str, Any]) -> str:
+    return str(
+        body.get("jobId")
+        or body.get("analysisId")
+        or body.get("matchId")
+        or body.get("tailoringId")
+        or body.get("interviewPrepId")
+        or ""
+    )
+
+
+def build_worker_message_context(
+    *,
+    record: dict[str, Any],
+    body: dict[str, Any],
+    runtime_invocation_id: str | None = None,
+) -> WorkerMessageContext:
+    request_id = str(
+        body.get("requestId")
+        or body.get("createdByRequestId")
+        or ""
+    )
+    correlation_id = str(
+        body.get("correlationId")
+        or request_id
+        or ""
+    )
+
+    return WorkerMessageContext(
+        request_id=request_id,
+        correlation_id=correlation_id,
+        work_id=work_id_from_body(body),
+        outbox_event_id=str(body.get("outboxEventId") or ""),
+        transport_message_id=str(record.get("messageId") or ""),
+        runtime_invocation_id=str(runtime_invocation_id or ""),
+        current_region=AWS_REGION,
+        owner_region=str(body.get("ownerRegion") or ""),
+        source_region=str(body.get("sourceRegion") or ""),
+        event_type=str(body.get("eventType") or ""),
+        job_type=str(body.get("jobType") or "resumeAnalysis"),
+    )
 
 
 def utc_now() -> str:
@@ -744,6 +821,27 @@ def dispatch_job_match_children(
 ):
     match_id = match_item["matchId"]
     user_id = match_item["userId"]
+    request_id = str(
+        match_item.get("createdByRequestId") or ""
+    )
+    correlation_id = str(
+        match_item.get("correlationId")
+        or request_id
+        or ""
+    )
+    owner_region = str(
+        match_item.get("ownerRegion")
+        or match_item.get("createdRegion")
+        or AWS_REGION
+    )
+    source_region = str(
+        match_item.get("createdRegion")
+        or AWS_REGION
+    )
+    source_deployment_id = str(
+        match_item.get("createdByDeploymentId")
+        or DEPLOYMENT_ID
+    )
 
     tailoring_id = str(
         match_item.get("tailoringId") or ""
@@ -774,13 +872,14 @@ def dispatch_job_match_children(
                 "tailoringId": tailoring_id,
                 "matchId": match_id,
                 "userId": user_id,
+                "requestId": request_id,
+                "correlationId": correlation_id,
+                "ownerRegion": owner_region,
                 "analysisProvider": (
                     tailoring_item.get("provider")
                 ),
-                "sourceRegion": os.getenv(
-                    "AWS_REGION",
-                    "unknown",
-                ),
+                "sourceRegion": source_region,
+                "sourceDeploymentId": source_deployment_id,
                 "submittedAt": utc_now(),
             },
         )
@@ -814,13 +913,14 @@ def dispatch_job_match_children(
                 "interviewPrepId": interview_prep_id,
                 "matchId": match_id,
                 "userId": user_id,
+                "requestId": request_id,
+                "correlationId": correlation_id,
+                "ownerRegion": owner_region,
                 "analysisProvider": (
                     interview_item.get("provider")
                 ),
-                "sourceRegion": os.getenv(
-                    "AWS_REGION",
-                    "unknown",
-                ),
+                "sourceRegion": source_region,
+                "sourceDeploymentId": source_deployment_id,
                 "submittedAt": utc_now(),
             },
         )
@@ -1190,19 +1290,36 @@ def process_interview_preparation(
     )
 
 
-def process_record(record: dict):
+def process_record(
+    record: dict,
+    *,
+    runtime_invocation_id: str | None = None,
+):
     body = json.loads(record["body"])
+    message_context = build_worker_message_context(
+        record=record,
+        body=body,
+        runtime_invocation_id=runtime_invocation_id,
+    )
     identity = derive_job_identity(body)
 
     claim = claim_job(identity)
 
     if claim["disposition"] == "SKIP":
         logger.info(
-            "Skipping duplicate or already-processed job: "
-            "jobType=%s recordId=%s status=%s",
-            identity["jobType"],
-            identity["recordId"],
-            claim["item"].get("status"),
+            json.dumps(
+                {
+                    **message_context.as_log_fields(),
+                    "operation": "worker-process",
+                    "result": "SKIPPED",
+                    "message": (
+                        "Skipping duplicate or already-processed job"
+                    ),
+                    "recordId": identity["recordId"],
+                    "priorStatus": claim["item"].get("status"),
+                },
+                separators=(",", ":"),
+            )
         )
         return
 
@@ -1211,12 +1328,18 @@ def process_record(record: dict):
     prior_status = claim["priorStatus"]
 
     logger.info(
-        "Claimed worker job: "
-        "jobType=%s recordId=%s attemptId=%s priorStatus=%s",
-        identity["jobType"],
-        identity["recordId"],
-        attempt_id,
-        prior_status,
+        json.dumps(
+            {
+                **message_context.as_log_fields(),
+                "operation": "worker-claim",
+                "result": "CLAIMED",
+                "message": "Claimed worker job",
+                "recordId": identity["recordId"],
+                "processingAttemptId": attempt_id,
+                "priorStatus": prior_status,
+            },
+            separators=(",", ":"),
+        )
     )
 
     try:
@@ -1253,11 +1376,17 @@ def process_record(record: dict):
             )
 
         logger.info(
-            "Completed worker job: "
-            "jobType=%s recordId=%s attemptId=%s",
-            identity["jobType"],
-            identity["recordId"],
-            attempt_id,
+            json.dumps(
+                {
+                    **message_context.as_log_fields(),
+                    "operation": "worker-process",
+                    "result": "SUCCESS",
+                    "message": "Completed worker job",
+                    "recordId": identity["recordId"],
+                    "processingAttemptId": attempt_id,
+                },
+                separators=(",", ":"),
+            )
         )
 
     except Exception as error:
@@ -1266,6 +1395,20 @@ def process_record(record: dict):
             attempt_id=attempt_id,
             error_message=str(error),
         )
+        logger.error(
+            json.dumps(
+                {
+                    **message_context.as_log_fields(),
+                    "operation": "worker-process",
+                    "result": "FAILURE",
+                    "message": "Worker job failed",
+                    "recordId": identity["recordId"],
+                    "processingAttemptId": attempt_id,
+                    "errorType": type(error).__name__,
+                },
+                separators=(",", ":"),
+            )
+        )
         raise
 
 
@@ -1273,6 +1416,7 @@ def emit_worker_failure_metric(
     *,
     record: dict,
     message_id: str | None,
+    runtime_invocation_id: str | None = None,
 ):
     """
     Emit a CloudWatch Embedded Metric Format record.
@@ -1295,8 +1439,29 @@ def emit_worker_failure_metric(
             or body.get("interviewPrepId")
             or "unknown"
         )
+        request_id = str(
+            body.get("requestId")
+            or body.get("createdByRequestId")
+            or ""
+        )
+        correlation_id = str(
+            body.get("correlationId")
+            or request_id
+            or ""
+        )
+        outbox_event_id = str(
+            body.get("outboxEventId") or ""
+        )
+        owner_region = str(body.get("ownerRegion") or "")
+        source_region = str(body.get("sourceRegion") or "")
+        event_type = str(body.get("eventType") or "")
     except (TypeError, ValueError, json.JSONDecodeError):
-        pass
+        request_id = ""
+        correlation_id = ""
+        outbox_event_id = ""
+        owner_region = ""
+        source_region = ""
+        event_type = ""
 
     metric_payload = {
         "_aws": {
@@ -1327,21 +1492,40 @@ def emit_worker_failure_metric(
         "MessageId": message_id or "unknown",
         "JobType": job_type,
         "RecordId": record_id,
+        "RequestId": request_id,
+        "CorrelationId": correlation_id,
+        "OutboxEventId": outbox_event_id,
+        "OwnerRegion": owner_region,
+        "SourceRegion": source_region,
+        "CurrentRegion": AWS_REGION,
+        "EventType": event_type,
+        "RuntimeInvocationId": runtime_invocation_id or "",
     }
 
     logger.error(json.dumps(metric_payload))
 
 
 def lambda_handler(event, context):
+    runtime_invocation_id = getattr(
+        context,
+        "aws_request_id",
+        None,
+    )
     logger.info(
         json.dumps(
             {
+                "service": "resume-analysis",
+                "component": "worker",
+                "operation": "worker-invocation",
+                "result": "STARTED",
                 "message": "Worker invocation started",
                 "region": AWS_REGION,
+                "currentRegion": AWS_REGION,
                 "deploymentId": DEPLOYMENT_ID,
                 "environment": ENVIRONMENT,
                 "recordCount": len(event.get("Records", [])),
-                "awsRequestId": getattr(context, "aws_request_id", None),
+                "runtimeInvocationId": runtime_invocation_id,
+                "awsRequestId": runtime_invocation_id,
             },
             separators=(",", ":"),
         )
@@ -1358,7 +1542,10 @@ def lambda_handler(event, context):
         message_id = record.get("messageId")
 
         try:
-            process_record(record)
+            process_record(
+                record,
+                runtime_invocation_id=runtime_invocation_id,
+            )
 
         except Exception:
             logger.exception(
@@ -1369,6 +1556,7 @@ def lambda_handler(event, context):
             emit_worker_failure_metric(
                 record=record,
                 message_id=message_id,
+                runtime_invocation_id=runtime_invocation_id,
             )
 
             if message_id:

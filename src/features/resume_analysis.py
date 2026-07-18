@@ -60,6 +60,7 @@ def analyze_and_save_resume(
     request_id,
     request_hash,
     region,
+    correlation_id=None,
     resume_text,
     source_type,
     target_career,
@@ -113,6 +114,10 @@ def analyze_and_save_resume(
             "updatedAt": created_at,
             "createdByRequestId": request_id,
             "updatedByRequestId": request_id,
+            "correlationId": (
+                str(correlation_id or "").strip()
+                or request_id
+            ),
             "createdByRequestHash": request_hash,
             "createdRegion": region,
             "createdByDeploymentId": get_config().deployment_id,
@@ -333,6 +338,7 @@ def analyze_resume(event):
         request_hash=request_hash,
         resource_id=proposed_analysis_id,
         request_id=context.request_id,
+        correlation_id=context.correlation_id,
         region=context.region,
     )
 
@@ -352,6 +358,10 @@ def analyze_resume(event):
             },
         )
 
+    effective_correlation_id = (
+        reservation.correlation_id
+        or context.correlation_id
+    )
     analysis_id = reservation.resource_id
 
     try:
@@ -361,6 +371,7 @@ def analyze_resume(event):
             request_id=context.request_id,
             request_hash=request_hash,
             region=context.region,
+            correlation_id=effective_correlation_id,
             resume_text=resume_text,
             source_type="text",
             requested_provider=requested_provider,
@@ -525,6 +536,7 @@ def create_resume_upload_url(event):
         request_hash=request_hash,
         resource_id=proposed_upload_id,
         request_id=context.request_id,
+        correlation_id=context.correlation_id,
         region=context.region,
     )
 
@@ -706,6 +718,7 @@ def analyze_uploaded_resume(event):
         request_hash=request_hash,
         resource_id=proposed_analysis_id,
         request_id=context.request_id,
+        correlation_id=context.correlation_id,
         region=context.region,
     )
 
@@ -725,6 +738,10 @@ def analyze_uploaded_resume(event):
             },
         )
 
+    effective_correlation_id = (
+        reservation.correlation_id
+        or context.correlation_id
+    )
     analysis_id = reservation.resource_id
 
     try:
@@ -793,6 +810,7 @@ def analyze_uploaded_resume(event):
                 "updatedAt": created_at,
                 "createdByRequestId": context.request_id,
                 "updatedByRequestId": context.request_id,
+                "correlationId": effective_correlation_id,
                 "createdByRequestHash": request_hash,
                 "createdRegion": context.region,
                 "createdByDeploymentId": context.deployment_id,
@@ -846,6 +864,7 @@ def analyze_uploaded_resume(event):
                 created_region=context.region,
                 created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
+                correlation_id=effective_correlation_id,
                 created_at=created_at,
             )
 

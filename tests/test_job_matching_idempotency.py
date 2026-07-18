@@ -19,6 +19,7 @@ from features import job_matching
 IDEMPOTENCY_KEY = "12345678-1234-1234-1234-123456789012"
 USER_ID = "user-123"
 REQUEST_ID = "request-123"
+CORRELATION_ID = "correlation-123"
 REQUEST_HASH = "request-hash-123"
 
 ANALYSIS_ID = "analysis-123"
@@ -41,6 +42,7 @@ def make_event(
 ) -> dict:
     headers = {
         "Content-Type": "application/json",
+        "X-Correlation-Id": CORRELATION_ID,
     }
 
     if idempotency_key is not None:
@@ -306,16 +308,52 @@ def test_first_request_creates_match_and_children(
 
     assert match_item["status"] == "QUEUED_PENDING_DISPATCH"
     assert match_item["version"] == 1
+    assert match_item["correlationId"] == CORRELATION_ID
     assert tailoring_item["status"] == "waiting"
+    assert tailoring_item["correlationId"] == CORRELATION_ID
     assert interview_item["status"] == "waiting"
+    assert interview_item["correlationId"] == CORRELATION_ID
 
     assert outbox_item["eventType"] == "JOB_MATCH_REQUESTED"
     assert outbox_item["aggregateId"] == MATCH_ID
     assert outbox_item["status"] == "PENDING"
+    assert outbox_item["correlationId"] == CORRELATION_ID
+    assert outbox_item["payload"]["requestId"] == REQUEST_ID
+    assert outbox_item["payload"]["correlationId"] == CORRELATION_ID
 
     completion = dependencies.complete_request.call_args.kwargs
     assert completion["response_body"]["status"] == (
         "QUEUED_PENDING_DISPATCH"
+    )
+
+
+def test_retry_preserves_original_correlation_on_created_work(
+    dependencies,
+):
+    dependencies.reserve_request.return_value = IdempotencyReservation(
+        disposition=DISPOSITION_RESERVED,
+        resource_id=MATCH_ID,
+        correlation_id="original-correlation",
+    )
+
+    response = job_matching.match_job_description(make_event())
+
+    assert response["statusCode"] == 202
+
+    transaction = (
+        dependencies.put_items_and_outbox_if_absent.call_args.kwargs
+    )
+    match_item = next(
+        item for item in transaction["items"]
+        if item["recordType"] == "jobMatch"
+    )
+    outbox_item = transaction["outbox_item"]
+
+    assert match_item["correlationId"] == "original-correlation"
+    assert outbox_item["correlationId"] == "original-correlation"
+    assert (
+        outbox_item["payload"]["correlationId"]
+        == "original-correlation"
     )
 
 

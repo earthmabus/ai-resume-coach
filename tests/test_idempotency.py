@@ -153,11 +153,13 @@ def test_first_request_is_reserved(mock_put_item_if_absent):
         request_hash=REQUEST_HASH,
         resource_id=RESOURCE_ID,
         request_id=REQUEST_ID,
+        correlation_id="correlation-123",
         region=REGION,
     )
 
     assert reservation.disposition == DISPOSITION_RESERVED
     assert reservation.resource_id == RESOURCE_ID
+    assert reservation.correlation_id == "correlation-123"
 
     stored_item = mock_put_item_if_absent.call_args.args[0]
 
@@ -167,6 +169,7 @@ def test_first_request_is_reserved(mock_put_item_if_absent):
     assert stored_item["version"] == 1
     assert stored_item["createdRegion"] == REGION
     assert stored_item["ownerRegion"] == REGION
+    assert stored_item["correlationId"] == "correlation-123"
     assert stored_item["lastUpdatedRegion"] == REGION
     assert stored_item["idempotencyKeyHash"] != IDEMPOTENCY_KEY
     assert IDEMPOTENCY_KEY not in stored_item.values()
@@ -184,6 +187,7 @@ def test_completed_request_replays_stored_response(
         "resourceId": RESOURCE_ID,
         "status": STATUS_COMPLETED,
         "ownerRegion": "us-west-2",
+        "correlationId": "original-correlation",
         "responseStatusCode": 202,
         "responseBody": {
             "analysisId": RESOURCE_ID,
@@ -198,12 +202,14 @@ def test_completed_request_replays_stored_response(
         request_hash=REQUEST_HASH,
         resource_id="different-proposed-id",
         request_id=REQUEST_ID,
+        correlation_id="retry-correlation",
         region=REGION,
     )
 
     assert reservation.disposition == DISPOSITION_REPLAY_COMPLETED
     assert reservation.resource_id == RESOURCE_ID
     assert reservation.owner_region == "us-west-2"
+    assert reservation.correlation_id == "original-correlation"
     assert reservation.status_code == 202
     assert reservation.response_body == {
         "analysisId": RESOURCE_ID,
@@ -247,6 +253,7 @@ def test_in_progress_request_returns_same_resource(
         "resourceId": RESOURCE_ID,
         "status": STATUS_IN_PROGRESS,
         "ownerRegion": "us-west-2",
+        "correlationId": "original-correlation",
     }
 
     reservation = reserve_request(
@@ -262,6 +269,7 @@ def test_in_progress_request_returns_same_resource(
     assert reservation.disposition == DISPOSITION_REPLAY_IN_PROGRESS
     assert reservation.resource_id == RESOURCE_ID
     assert reservation.owner_region == "us-west-2"
+    assert reservation.correlation_id == "original-correlation"
     assert reservation.status_code == 202
 
 
@@ -304,6 +312,7 @@ def test_failed_retryable_request_can_be_reacquired(
         "resourceId": RESOURCE_ID,
         "status": STATUS_FAILED_RETRYABLE,
         "ownerRegion": "us-west-2",
+        "correlationId": "original-correlation",
     }
 
     reservation = reserve_request(
@@ -319,6 +328,7 @@ def test_failed_retryable_request_can_be_reacquired(
     assert reservation.disposition == DISPOSITION_RESERVED
     assert reservation.resource_id == RESOURCE_ID
     assert reservation.owner_region == "us-west-2"
+    assert reservation.correlation_id == "original-correlation"
     mock_table.update_item.assert_called_once()
     call = mock_table.update_item.call_args.kwargs
     assert "ownerRegion" not in call["UpdateExpression"]

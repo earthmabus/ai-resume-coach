@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 from unittest.mock import MagicMock
 
 import pytest
@@ -41,6 +42,28 @@ def resume_message() -> dict:
     }
 
 
+def traced_resume_message() -> dict:
+    return {
+        "messageId": MESSAGE_ID,
+        "body": json.dumps(
+            {
+                "schemaVersion": 1,
+                "eventType": "RESUME_ANALYSIS_REQUESTED",
+                "jobType": "resumeAnalysis",
+                "jobId": ANALYSIS_ID,
+                "analysisId": ANALYSIS_ID,
+                "userId": USER_ID,
+                "requestId": "request-123",
+                "correlationId": "correlation-123",
+                "outboxEventId": "outbox-123",
+                "ownerRegion": "us-east-1",
+                "sourceRegion": "us-west-2",
+                "sourceDeploymentId": "deployment-west",
+            }
+        ),
+    }
+
+
 def resume_item(status="processing") -> dict:
     return {
         "pk": f"USER#{USER_ID}",
@@ -57,6 +80,41 @@ def resume_item(status="processing") -> dict:
         },
         "provider": "rule-based",
     }
+
+
+def test_worker_message_context_normalizes_safe_identifiers():
+    record = traced_resume_message()
+    body = json.loads(record["body"])
+
+    context = worker.build_worker_message_context(
+        record=record,
+        body=body,
+        runtime_invocation_id="lambda-request-123",
+    )
+
+    assert context.request_id == "request-123"
+    assert context.correlation_id == "correlation-123"
+    assert context.work_id == ANALYSIS_ID
+    assert context.outbox_event_id == "outbox-123"
+    assert context.transport_message_id == MESSAGE_ID
+    assert context.runtime_invocation_id == "lambda-request-123"
+    assert context.owner_region == "us-east-1"
+    assert context.source_region == "us-west-2"
+    assert context.event_type == "RESUME_ANALYSIS_REQUESTED"
+
+
+def test_worker_context_uses_request_id_for_legacy_correlation():
+    record = resume_message()
+    body = json.loads(record["body"])
+    body["requestId"] = "request-legacy"
+
+    context = worker.build_worker_message_context(
+        record=record,
+        body=body,
+    )
+
+    assert context.request_id == "request-legacy"
+    assert context.correlation_id == "request-legacy"
 
 
 def test_completed_duplicate_is_skipped(monkeypatch):
@@ -105,6 +163,45 @@ def test_active_claim_duplicate_is_skipped(monkeypatch):
 
     assert response == {"batchItemFailures": []}
     table.update_item.assert_not_called()
+
+
+def test_duplicate_skip_log_contains_safe_correlation_fields(
+    monkeypatch,
+    caplog,
+):
+    item = resume_item("completed")
+    table = MagicMock()
+    table.get_item.return_value = {"Item": item}
+
+    monkeypatch.setattr(worker, "table", table)
+
+    record = traced_resume_message()
+    with caplog.at_level(logging.INFO):
+        worker.process_record(
+            record,
+            runtime_invocation_id="lambda-request-123",
+        )
+
+    log_payloads = [
+        json.loads(record.message)
+        for record in caplog.records
+        if record.message.startswith("{")
+    ]
+
+    diagnostic = next(
+        payload for payload in log_payloads
+        if payload.get("result") == "SKIPPED"
+    )
+
+    assert diagnostic["requestId"] == "request-123"
+    assert diagnostic["correlationId"] == "correlation-123"
+    assert diagnostic["workId"] == ANALYSIS_ID
+    assert diagnostic["outboxEventId"] == "outbox-123"
+    assert diagnostic["transportMessageId"] == MESSAGE_ID
+    assert diagnostic["runtimeInvocationId"] == "lambda-request-123"
+    assert diagnostic["ownerRegion"] == "us-east-1"
+    assert diagnostic["sourceRegion"] == "us-west-2"
+    assert "resumeText" not in diagnostic
 
 
 def test_first_delivery_claims_before_provider(
@@ -178,6 +275,7 @@ def test_first_delivery_claims_before_provider(
         ][":workerProcessing"]
         == worker.STATUS_WORKER_PROCESSING
     )
+    assert "runtimeInvocationId" not in first_update["UpdateExpression"]
 
 
 def test_claim_race_skips_second_worker(
@@ -244,7 +342,7 @@ def test_failure_returns_only_failed_message(
         ),
     }
 
-    def process_record(record):
+    def process_record(record, *, runtime_invocation_id=None):
         if record["messageId"] == "failed-message":
             raise RuntimeError("Provider failed")
 
@@ -349,6 +447,12 @@ def test_failed_record_emits_worker_failure_metric(
                 "jobType": "resumeAnalysis",
                 "analysisId": "analysis-123",
                 "userId": "user-123",
+                "requestId": "request-123",
+                "correlationId": "correlation-123",
+                "outboxEventId": "outbox-123",
+                "ownerRegion": "us-east-1",
+                "sourceRegion": "us-west-2",
+                "resumeText": "sensitive resume content",
             }
         ),
     }
@@ -392,3 +496,11 @@ def test_failed_record_emits_worker_failure_metric(
     assert metric["MessageId"] == "failed-message"
     assert metric["JobType"] == "resumeAnalysis"
     assert metric["RecordId"] == "analysis-123"
+    assert metric["RequestId"] == "request-123"
+    assert metric["CorrelationId"] == "correlation-123"
+    assert metric["OutboxEventId"] == "outbox-123"
+    assert metric["OwnerRegion"] == "us-east-1"
+    assert metric["SourceRegion"] == "us-west-2"
+    assert "sensitive resume content" not in metric_messages[0]
+    dimensions = metric["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
+    assert dimensions == [["FunctionName"]]

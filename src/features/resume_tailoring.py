@@ -153,6 +153,7 @@ def tailor_resume(event):
         request_hash=request_hash,
         resource_id=tailoring_id,
         request_id=context.request_id,
+        correlation_id=context.correlation_id,
         region=context.region,
     )
 
@@ -172,6 +173,11 @@ def tailor_resume(event):
                 "status": "processing",
             },
         )
+
+    effective_correlation_id = (
+        reservation.correlation_id
+        or context.correlation_id
+    )
 
     try:
         tailoring_item = get_tailoring_for_match(
@@ -220,6 +226,7 @@ def tailor_resume(event):
                 created_region=context.region,
                 created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
+                correlation_id=effective_correlation_id,
                 created_at=queued_at,
             )
 
@@ -234,8 +241,10 @@ def tailor_resume(event):
                     "analysisVersion = :analysisVersion, "
                     "updatedAt = :updatedAt, "
                     "updatedByRequestId = :requestId, "
+                    "correlationId = if_not_exists("
+                    "correlationId, :correlationId), "
                     "lastUpdatedRegion = :region, "
-"lastUpdatedByDeploymentId = :deploymentId, "
+                    "lastUpdatedByDeploymentId = :deploymentId, "
                     "#version = if_not_exists(#version, :zero) + :one"
                 ),
                 condition_expression=(
@@ -256,8 +265,9 @@ def tailor_resume(event):
                     ),
                     ":updatedAt": queued_at,
                     ":requestId": context.request_id,
+                    ":correlationId": effective_correlation_id,
                     ":region": context.region,
-                ":deploymentId": context.deployment_id,
+                    ":deploymentId": context.deployment_id,
                     ":userId": user_id,
                     ":matchId": match_id,
                     ":zero": 0,

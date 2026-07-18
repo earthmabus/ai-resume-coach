@@ -210,3 +210,59 @@ resource "aws_cloudwatch_metric_alarm" "dynamodb_throttles" {
 
   tags = local.alarm_tags
 }
+
+resource "aws_cloudwatch_metric_alarm" "worker_record_failures" {
+  count = var.observability.operational_alarms_enabled ? 1 : 0
+
+  alarm_name        = "${local.name_prefix}-worker-record-failures"
+  alarm_description = "The worker reported sustained per-record processing failures."
+
+  namespace   = var.observability.metric_namespace
+  metric_name = "WorkerRecordFailures"
+  statistic   = "Sum"
+  period      = 300
+
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.worker.function_name
+  }
+
+  alarm_actions = var.observability.alarm_actions
+  ok_actions    = var.observability.alarm_actions
+
+  tags = local.alarm_tags
+}
+
+resource "aws_cloudwatch_metric_alarm" "outbox_publish_failures" {
+  count = var.observability.operational_alarms_enabled ? 1 : 0
+
+  alarm_name        = "${local.name_prefix}-outbox-publish-failures"
+  alarm_description = "The outbox publisher reported sustained dispatch failures, including local or regional SQS delivery failures."
+
+  namespace   = var.observability.metric_namespace
+  metric_name = "OutboxPublishFailures"
+  statistic   = "Sum"
+  period      = 300
+
+  evaluation_periods  = 2
+  datapoints_to_alarm = 2
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    FunctionName = aws_lambda_function.outbox_publisher.function_name
+  }
+
+  alarm_actions = var.observability.alarm_actions
+  ok_actions    = var.observability.alarm_actions
+
+  tags = local.alarm_tags
+}
