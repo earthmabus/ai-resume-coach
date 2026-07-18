@@ -61,6 +61,29 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.compute.api.handler
+      == "handler.lambda_handler"
+      &&
+      output.regional_foundations.west.compute.api.handler
+      == "handler.lambda_handler"
+      &&
+      output.regional_foundations.east.compute.worker.handler
+      == "handler.lambda_handler"
+      &&
+      output.regional_foundations.west.compute.worker.handler
+      == "handler.lambda_handler"
+      &&
+      output.regional_foundations.east.compute.outbox_publisher.handler
+      == "handler.handler"
+      &&
+      output.regional_foundations.west.compute.outbox_publisher.handler
+      == "handler.handler"
+    )
+    error_message = "Regional Lambda handlers must match their packaged module entrypoints."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.compute.api.dependency_layer_count == 1
       &&
       output.regional_foundations.west.compute.api.dependency_layer_count == 1

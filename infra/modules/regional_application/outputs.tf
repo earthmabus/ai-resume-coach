@@ -93,6 +93,7 @@ output "compute" {
       name                   = aws_lambda_function.api.function_name
       runtime                = aws_lambda_function.api.runtime
       architecture           = aws_lambda_function.api.architectures[0]
+      handler                = aws_lambda_function.api.handler
       memory_mb              = aws_lambda_function.api.memory_size
       timeout                = aws_lambda_function.api.timeout
       log_group              = aws_cloudwatch_log_group.api.name
@@ -105,6 +106,7 @@ output "compute" {
       name                   = aws_lambda_function.worker.function_name
       runtime                = aws_lambda_function.worker.runtime
       architecture           = aws_lambda_function.worker.architectures[0]
+      handler                = aws_lambda_function.worker.handler
       memory_mb              = aws_lambda_function.worker.memory_size
       timeout                = aws_lambda_function.worker.timeout
       log_group              = aws_cloudwatch_log_group.worker.name
@@ -117,6 +119,7 @@ output "compute" {
       name                   = aws_lambda_function.outbox_publisher.function_name
       runtime                = aws_lambda_function.outbox_publisher.runtime
       architecture           = aws_lambda_function.outbox_publisher.architectures[0]
+      handler                = aws_lambda_function.outbox_publisher.handler
       memory_mb              = aws_lambda_function.outbox_publisher.memory_size
       timeout                = aws_lambda_function.outbox_publisher.timeout
       log_group              = aws_cloudwatch_log_group.outbox_publisher.name

@@ -149,7 +149,7 @@ resource "aws_lambda_function" "outbox_publisher" {
   role          = aws_iam_role.outbox_publisher.arn
   runtime       = var.compute.runtime
   architectures = [var.compute.architecture]
-  handler       = "handler.lambda_handler"
+  handler       = "handler.handler"
 
   filename         = var.packages.outbox_publisher.filename
   source_code_hash = var.packages.outbox_publisher.source_code_hash
