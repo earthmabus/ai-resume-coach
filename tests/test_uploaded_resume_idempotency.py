@@ -117,6 +117,11 @@ def dependencies(monkeypatch, target_career):
     request_fingerprint = MagicMock(return_value=REQUEST_HASH)
     get_target_career = MagicMock(return_value=target_career)
 
+    monkeypatch.setattr(
+        resume_analysis,
+        "document_bucket",
+        "test-bucket",
+    )
     monkeypatch.setattr(resume_analysis, "table", table)
     monkeypatch.setattr(
         resume_analysis,
