@@ -16,6 +16,10 @@ from core.outbox import (
     OUTBOX_STATUS_FAILED_RETRYABLE,
     OUTBOX_STATUS_PENDING,
 )
+from core.dynamodb_contract import (
+    GSI1_INDEX_NAME,
+    GSI1_PARTITION_KEY,
+)
 from core.outbox_publisher import (
     ClaimResult,
     DynamoDbOutboxRepository,
@@ -92,6 +96,23 @@ def make_repository(table: MagicMock) -> DynamoDbOutboxRepository:
         lease_seconds=300,
         now=lambda: NOW,
         epoch_seconds=lambda: NOW_EPOCH,
+    )
+
+
+def test_repository_queries_sparse_gsi1_status_index():
+    table = MagicMock()
+    table.query.return_value = {"Items": []}
+    repository = make_repository(table)
+
+    assert repository.list_dispatchable(limit=10) == []
+
+    first_query = table.query.call_args_list[0].kwargs
+    assert first_query["IndexName"] == GSI1_INDEX_NAME
+    assert (
+        first_query["KeyConditionExpression"]
+        .get_expression()["values"][0]
+        .name
+        == GSI1_PARTITION_KEY
     )
 
 

@@ -452,6 +452,23 @@ Before retrying synthetic business work, verify:
 - publisher failure alarms remain `OK`;
 - Terraform reports no drift with the same explicit schedule setting.
 
+MR-009D3C observation update: deployment ID `3cdb262` corrected the publisher
+handler setting and proved that EventBridge invokes both regional publishers,
+but each empty scheduled invocation failed before querying any outbox records
+successfully because the deployed table does not have the repository-required
+`gsi1` index. The schedule was disabled again with
+`enable_outbox_publisher_schedule=false` to stop recurring failures. MR-009D3B
+must not restart until the DynamoDB table/index contract is explicitly
+remediated and empty publisher cycles complete with zero counts.
+
+MR-009D3D prerequisite update: the accepted remediation is to add sparse
+`gsi1` with string keys `gsi1pk` and `gsi1sk`, projection `ALL`, using an
+in-place DynamoDB table update. Phase 1 keeps
+`enable_outbox_publisher_schedule=false` until the index reaches `ACTIVE`.
+Phase 2 sets `enable_outbox_publisher_schedule=true` and observes normal empty
+EventBridge-triggered publisher cycles. No synthetic business work is created in
+MR-009D3D.
+
 ## Decision Criteria
 
 Use one final decision:

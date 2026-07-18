@@ -19,6 +19,8 @@ from providers.factory import get_analysis_provider
 AWS_REGION = os.getenv("AWS_REGION", "unknown")
 DEPLOYMENT_ID = os.getenv("DEPLOYMENT_ID", "unknown")
 ENVIRONMENT = os.getenv("ENVIRONMENT", "unknown")
+GSI1_INDEX_NAME = "gsi1"
+GSI1_PARTITION_KEY = "gsi1pk"
 
 
 dynamodb = boto3.resource("dynamodb")
@@ -191,8 +193,8 @@ def get_entity_by_id(
     perform a strongly consistent base-table read instead.
     """
     response = table.query(
-        IndexName="gsi1",
-        KeyConditionExpression=Key("gsi1pk").eq(
+        IndexName=GSI1_INDEX_NAME,
+        KeyConditionExpression=Key(GSI1_PARTITION_KEY).eq(
             entity_gsi_pk(entity_id)
         ),
     )

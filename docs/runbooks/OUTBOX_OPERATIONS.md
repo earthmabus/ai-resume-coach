@@ -35,6 +35,19 @@ before SQS delivery. If east and west schedules run at the same time, both may
 observe the same record, but only one conditional claim can succeed for a
 given dispatch attempt.
 
+Operational prerequisite: the application table must expose the sparse
+`gsi1` index with `gsi1pk` as the hash key and `gsi1sk` as the range key.
+Without that index, scheduled publisher invocations fail before any empty or
+non-empty outbox cycle can complete. MR-009D3C verified this failure mode in
+development and left the schedules disabled until the table/index contract is
+remediated.
+
+The accepted `gsi1` projection is `ALL`. This lets the publisher query
+dispatchable events without scanning the table or performing follow-up reads
+before conditional claim and delivery. Terminal outbox records must not remain
+in dispatchable status partitions; delivered and permanently failed records
+remove `gsi1pk` and `gsi1sk`.
+
 Empty scheduled invocations are expected to complete quietly and emit bounded
 structured counts:
 

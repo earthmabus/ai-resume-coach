@@ -8,6 +8,10 @@ from boto3.dynamodb.types import TypeSerializer
 from botocore.exceptions import ClientError
 
 from core.config import get_config
+from core.dynamodb_contract import (
+    GSI1_INDEX_NAME,
+    GSI1_PARTITION_KEY,
+)
 from core.keys import entity_gsi_pk
 
 
@@ -276,8 +280,8 @@ def get_entity_by_id(
     """
 
     response = table.query(
-        IndexName="gsi1",
-        KeyConditionExpression=Key("gsi1pk").eq(
+        IndexName=GSI1_INDEX_NAME,
+        KeyConditionExpression=Key(GSI1_PARTITION_KEY).eq(
             entity_gsi_pk(entity_id)
         ),
     )

@@ -180,6 +180,20 @@ default, is dev-only until a later production decision, and enables both
 regional EventBridge schedules when explicitly selected. MR-009D3C must prove
 empty scheduled publisher invocations before MR-009D3B is retried.
 
+MR-009D3C is not complete. Deployment ID `3cdb262` proves the EventBridge
+schedule reaches both regional publisher Lambdas and the handler wiring is
+correct, but the publisher cannot complete an empty cycle because the deployed
+MRSC table lacks the `gsi1` index required by the accepted outbox status query.
+Both schedules were disabled again through Terraform after the failed
+observation window. The next remediation must align the DynamoDB table/index
+contract with the repository code before MR-009D3B can restart.
+
+MR-009D3D aligns that table/index contract. It adds sparse `gsi1`
+(`gsi1pk`/`gsi1sk`, projection `ALL`) without replacing the table, replica, or
+witness, then re-enables development publisher schedules only after the index is
+active and proves empty scheduled cycles. MR-009D3B remains the next runtime
+validation attempt after this prerequisite passes.
+
 ## MR-010 — Failover and Recovery Validation
 
 Scenarios:

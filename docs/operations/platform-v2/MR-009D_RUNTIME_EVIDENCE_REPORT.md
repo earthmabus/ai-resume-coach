@@ -468,61 +468,218 @@ outbox publisher can run through an accepted normal trigger, or the repository
 defines a different accepted non-replay, non-manual dispatch mechanism for
 runtime validation.
 
+## MR-009D3C Outbox Publisher Trigger Attempt
+
+Validation window:
+
+- UTC observation window: 2026-07-18 18:46 to 19:16.
+- Starting deployment ID: `ef79140`.
+- Implementation deployment ID: `fdcc0a4`.
+- Handler repair deployment ID: `3cdb262`.
+- Environment: development.
+- Active regions: `us-east-1`, `us-west-2`.
+- Witness region: `us-east-2`.
+- AWS profile used: `mpopsaws-ai-resume-coach-mike`.
+
+Repository changes:
+
+- Added explicit Terraform variable `enable_outbox_publisher_schedule`, default
+  `false`.
+- Restricted schedule enablement to development until a later production
+  decision.
+- Passed the setting to both regional application modules.
+- Updated Terraform tests to prove default-disabled behavior,
+  development-enabled behavior, matching schedule expressions, EventBridge
+  targets, Lambda invoke permissions, and no witness schedule.
+- Corrected the outbox publisher Lambda handler from
+  `handler.lambda_handler` to `handler.handler`.
+- Added Terraform output/test coverage for regional Lambda handler strings.
+- Added decision record
+  `docs/architecture/decisions/MS-010_OUTBOX_PUBLISHER_SCHEDULE_ACTIVATION.md`.
+
+Publisher contract assessment:
+
+- Normal trigger is EventBridge schedule -> same-region outbox-publisher
+  Lambda -> DynamoDB `Query` for dispatchable outbox records -> conditional
+  claim -> SQS send to local or owner-region processing queue -> conditional
+  delivered/failure update.
+- The publisher uses `Query` on `gsi1`, not table scan.
+- Duplicate dispatch is guarded by conditional status/version/lease claim
+  before SQS delivery.
+- IAM allows scoped table/index reads and updates plus active-region SQS
+  send/get-url; no SQS receive/delete or DynamoDB scan permission is required.
+- Witness has no schedule, API, queue, DLQ, worker, or publisher runtime.
+
+Validation before deployment:
+
+- `python -m compileall src tests tools`: passed.
+- `pytest -q tests`: 295 passed.
+- Focused publisher/package tests: 41 passed.
+- `python tools/build_pdf_dependency_layer.py`: passed after network approval
+  for pinned dependency retrieval.
+- `python tools/build_lambda_packages.py`: passed.
+- `python tools/validate_lambda_artifacts.py`: passed.
+- `terraform fmt -recursive -check`: passed.
+- `terraform validate`: passed.
+- Terraform tests:
+  - `tests/observability.tftest.hcl`: 5 passed.
+  - `tests/regional_compute.tftest.hcl`: 3 passed.
+  - `tests/regional_api_gateway.tftest.hcl`: 4 passed.
+  - `tests/resume_analysis_mrsc.tftest.hcl`: 2 passed.
+  - `tests/regional_foundation.tftest.hcl`: 1 passed.
+- `./tools/validate_platform_v2_foundation.sh`: 32 passed, 0 failed.
+- `git diff --check`: passed.
+
+Plan and apply evidence:
+
+- Plan for `fdcc0a4` with
+  `enable_outbox_publisher_schedule=true`: 0 added, 11 changed, 0 destroyed.
+  Changes were limited to EventBridge schedule enablement and deployment ID
+  propagation.
+- Apply for `fdcc0a4`: 0 added, 11 changed, 0 destroyed.
+- Scheduled observation proved both EventBridge rules were `ENABLED` and both
+  publishers received scheduled invocations. The first observation failed
+  before application code because Terraform pointed the Lambda to
+  `handler.lambda_handler`.
+- Commit `3cdb262 fix: correct outbox publisher runtime handler` corrected the
+  Lambda handler to `handler.handler`.
+- Plan for `3cdb262` with
+  `enable_outbox_publisher_schedule=true`: 0 added, 9 changed, 0 destroyed.
+  Changes were limited to two publisher handler updates plus deployment ID
+  propagation.
+- Apply for `3cdb262`: 0 added, 9 changed, 0 destroyed.
+- Post-apply no-drift plan with
+  `enable_outbox_publisher_schedule=true`: exit code 0, no changes.
+
+Scheduled invocation evidence:
+
+| Region | Rule state during observation | Handler | Deployment ID | Result |
+| --- | --- | --- | --- | --- |
+| `us-east-1` | `ENABLED`, `rate(1 minute)` | `handler.handler` | `3cdb262` | EventBridge invoked publisher; application logged start; DynamoDB query failed because `gsi1` is absent |
+| `us-west-2` | `ENABLED`, `rate(1 minute)` | `handler.handler` | `3cdb262` | EventBridge invoked publisher; application logged start; DynamoDB query failed because `gsi1` is absent |
+
+Blocking table/index finding:
+
+- Repository code writes and queries `gsi1pk`/`gsi1sk` for entity lookup and
+  outbox status dispatch.
+- `core.outbox_publisher.DynamoDbOutboxRepository.list_dispatchable()` queries
+  `IndexName="gsi1"` for `OUTBOX_STATUS#PENDING`,
+  `OUTBOX_STATUS#FAILED_RETRYABLE`, and `OUTBOX_STATUS#DISPATCHING`.
+- Terraform table definition declares only base attributes `pk` and `sk` and
+  no `global_secondary_index`.
+- Deployed scheduled invocations failed with the bounded DynamoDB validation
+  error that the table does not have the specified index `gsi1`.
+- Empty-outbox success counts were not observed because the query failed
+  before the publisher could report `examined=0`, `published=0`, and
+  `failed=0`.
+
+Safety response:
+
+- No synthetic principal was created.
+- No PDF was created or uploaded.
+- No target-career, analysis, idempotency, outbox, result, or queue work was
+  created.
+- No DynamoDB business item was read or written.
+- No queue message was manually sent, received, deleted, purged, or redriven.
+- No Lambda was manually invoked.
+- Both schedules were disabled again through Terraform after the missing-index
+  blocker was captured.
+- Safety disable plan: 0 added, 2 changed, 0 destroyed.
+- Safety disable apply: 0 added, 2 changed, 0 destroyed.
+- Final no-drift plan with
+  `enable_outbox_publisher_schedule=false`: exit code 0, no changes.
+
+Post-observation state:
+
+| Region | Final schedule state | Queue visible | Queue in flight | Queue delayed | DLQ visible | Health |
+| --- | --- | ---: | ---: | ---: | ---: | --- |
+| `us-east-1` | `DISABLED` | 0 | 0 | 0 | 0 | live 200, ready 200 |
+| `us-west-2` | `DISABLED` | 0 | 0 | 0 | 0 | live 200, ready 200 |
+
+Alarm state:
+
+- Outbox publish-failure alarms remained `OK` because no outbox event reached
+  publisher delivery logic.
+- DLQ alarms remained `OK`.
+- Processing queues remained empty.
+- Publisher Lambda error alarms entered `ALARM` from the observed missing-index
+  failures and were still in `ALARM` at the final check. This is an expected
+  consequence of the failed MR-009D3C observation, not a successful validation
+  result.
+
+MR-009D3C decision:
+
+MR-009D3C is blocked. It proved the normal EventBridge trigger can reach both
+regional publisher Lambdas, and it corrected the publisher handler entrypoint,
+but it did not prove successful empty scheduled publisher execution. The next
+authorized remediation must align the DynamoDB `gsi1` table/index contract
+with repository code before MR-009D3B synthetic runtime validation can restart.
+
 ## 30. Documentation Created or Updated
 
 Created:
 
 - `docs/operations/platform-v2/MR-009D_RUNTIME_EVIDENCE_REPORT.md`
+- `docs/architecture/decisions/MS-010_OUTBOX_PUBLISHER_SCHEDULE_ACTIVATION.md`
 
 Updated:
 
 - `docs/engineering/MULTI_SITE_COMPLETION_PLAN.md`
+- `docs/engineering/CODEX_WORKING_CONTEXT.md`
 - `docs/operations/platform-v2/MR-009D_RUNTIME_VALIDATION_PLAN.md`
 - `docs/operations/platform-v2/MR-009D_DEPLOYMENT_REPORT.md`
+- `docs/runbooks/OUTBOX_OPERATIONS.md`
 
 ## 31. Final Repository Validation
 
-Final validation was limited to documentation-safe checks because MR-009D3 did
-not pass and no code or Terraform source was intentionally changed.
+Final validation for the implementation commits completed before deployment.
+The final documentation-only edit was checked with `git diff --check`.
 
 Completed:
 
-- `git diff --check`: passed before documentation edits.
-- Terraform no-drift plan with explicit development variables: passed,
-  exit code 0, no changes.
-
-Not run after documentation edits:
-
-- full Python tests
-- Lambda package rebuild and artifact validation
-- Terraform static validation and focused Terraform tests
-- platform foundation validation
+- `python -m compileall src tests tools`: passed.
+- `pytest -q tests`: 295 passed.
+- `python tools/build_pdf_dependency_layer.py`: passed.
+- `python tools/build_lambda_packages.py`: passed.
+- `python tools/validate_lambda_artifacts.py`: passed.
+- `terraform fmt -recursive -check`: passed.
+- `terraform validate`: passed.
+- Required Terraform tests listed in the MR-009D3C section: passed.
+- `./tools/validate_platform_v2_foundation.sh`: 32 passed, 0 failed.
+- `git diff --check`: passed.
+- Final Terraform no-drift plan with
+  `enable_outbox_publisher_schedule=false`: exit code 0, no changes.
 
 ## 32. Commit Created, if Applicable
 
-No commit was created because MR-009D runtime validation is not complete.
+Two local commits were created for MR-009D3C. A completion commit was not
+created because the trigger proof is blocked.
 
 ## 33. Commit Hash and Subject
 
-Not applicable.
+- `fdcc0a4 feat: enable controlled outbox publisher scheduling`
+- `3cdb262 fix: correct outbox publisher runtime handler`
 
 ## 34. Repository Status
 
-MR-009D documentation remains modified/untracked locally. Generated build
-artifacts remain untracked and must not be committed as MR-009D evidence.
+MR-009D documentation is modified locally with this blocked evidence update.
+Generated `build/` artifacts remain untracked and must not be committed.
 
 ## 35. MR-009D Completion Assessment
 
 MR-009D is not complete. The deployment prerequisite is still healthy, but
 synthetic asynchronous runtime behavior was not proven. MR-009D3A corrected
 route reachability and placement testability; MR-009D3B then confirmed that
-the normal outbox publisher trigger remains disabled by repository-owned
-Terraform and Terraform tests, so no synthetic business work was created.
+the normal outbox publisher trigger remained disabled. MR-009D3C made the
+trigger configurable and proved EventBridge reachability, but successful
+publisher execution is blocked by the missing deployed `gsi1` table index.
+No synthetic business work was created.
 
 Required missing evidence:
 
 - synthetic business work accepted by both active regional APIs.
-- normal outbox publisher invocation through an accepted runtime trigger.
+- successful empty scheduled outbox publisher invocation through the accepted
+  runtime trigger.
 - local outbox, queue, worker, and final-state evidence in both regions.
 - cross-region owner-region transport and worker evidence.
 - runtime idempotency same-payload and conflict behavior.
@@ -535,7 +692,7 @@ corrected route contract and approved development validation override to prove
 local and cross-region asynchronous processing, idempotency, correlation,
 monitoring, cleanup, and witness boundaries in the deployed development
 runtime. A prerequisite remediation is now required to make the outbox
-publisher operational through an accepted normal trigger without introducing
+publisher's DynamoDB `gsi1` query contract operational without introducing
 replay, retry, failover, traffic shifting, or manual queue delivery behavior.
 
 MR-010 still requires a failover/recovery decision record and failure-mode
@@ -545,24 +702,95 @@ review before implementation.
 
 RUNTIME VALIDATION NOT COMPLETE
 
+## MR-009D3D DynamoDB GSI Contract Alignment
+
+MR-009D3D is the prerequisite remediation for the missing deployed `gsi1`
+index found during MR-009D3C. No synthetic business work is created in this
+slice.
+
+Accepted `gsi1` contract:
+
+- index name: `gsi1`;
+- partition key: `gsi1pk`, string;
+- sort key: `gsi1sk`, string;
+- projection: `ALL`;
+- sparse by design.
+
+Usage inventory:
+
+- `core.keys.base_keys()` writes entity lookup keys for domain records that
+  require by-entity access.
+- `core.storage.get_entity_by_id()` queries `gsi1` for display and fallback
+  entity lookup.
+- worker fallback lookup queries `gsi1` for legacy queue messages without base
+  keys.
+- `core.outbox.build_outbox_event()` writes dispatchable outbox records under
+  status partitions such as `OUTBOX_STATUS#PENDING`.
+- `core.outbox_publisher.DynamoDbOutboxRepository.list_dispatchable()` queries
+  `gsi1` for pending, retryable, and stale dispatching records. It does not
+  scan the table.
+- idempotency and base-key-only profile records intentionally omit the index
+  attributes.
+
+Projection decision: `ALL` is required by the current access pattern because
+entity lookup returns the indexed item directly and publisher dispatch needs
+complete event, ownership, payload, version, request, correlation, lease, and
+timestamp fields without a follow-up read.
+
+Hot-partition assessment: outbox status partitions such as
+`OUTBOX_STATUS#PENDING` are acceptable for development validation and current
+low-volume operation. Before high-volume production schedule activation, this
+key shape should be reassessed for sustained publisher throughput.
+
+Implementation validation completed before deployment planning:
+
+- `python -m compileall src tests tools`: passed.
+- `pytest -q tests`: 299 passed.
+- Focused GSI/outbox/publisher/idempotency tests: 134 passed.
+- Lambda package builds and artifact validation: passed.
+- Required Terraform tests for observability, regional compute, regional
+  foundation, regional API Gateway, and MRSC table contract: passed.
+- `./tools/validate_platform_v2_foundation.sh`: 32 passed, 0 failed.
+- `git diff --check`: passed.
+
+Phase 1 plan must use `enable_outbox_publisher_schedule=false` and must show an
+in-place table update only for the GSI contract, deployment-ID propagation, and
+safe outputs. It must not replace or destroy the table, west replica, witness,
+queues, DLQs, API Gateway, Cognito, buckets, or other durable resources.
+
+Phase 2 must run only after table status and `gsi1` status are `ACTIVE`, with
+the west replica and witness still `ACTIVE`. It then enables the active-region
+publisher schedules and observes empty EventBridge-triggered cycles with zero
+examined, claimed, published, failed, skipped, and permanently failed records.
+
+MR-009D remains open until MR-009D3D verifies the index and empty publisher
+cycles, and MR-009D3B later proves the full synthetic local and cross-region
+workflow.
+
 ## Required Confirmations
 
 - Only AWS profile `mpopsaws-ai-resume-coach-mike` was used.
 - The target remained development.
 - No profile, role, workspace, backend, or default region changed.
-- No Terraform apply occurred.
-- No infrastructure or application deployment occurred.
+- Terraform apply occurred only for the reviewed MR-009D3C development plans:
+  schedule enablement, publisher handler repair, and safety schedule disable.
+- Infrastructure/application deployment occurred only for the reviewed
+  MR-009D3C development plans.
 - No Terraform import occurred.
 - No Terraform state was manually edited.
+- No durable data resource was replaced or destroyed.
 - No production or staging resource was accessed.
 - Only synthetic non-sensitive data was planned.
-- No real resume, job, user, or customer data was used.
+- No real resume, applicant, employer, job, user, or customer data was used.
 - No unrelated DynamoDB item was read.
 - No table scan occurred.
+- No direct DynamoDB business write occurred.
+- No DynamoDB business item was read or written.
 - No arbitrary SQS message was received or deleted.
 - No SQS message was manually sent.
 - No queue was purged.
 - No DLQ was redriven.
+- No Lambda was manually invoked.
 - No ownership record was manually changed.
 - No outbox record was manually changed.
 - No processing state was manually reset.
@@ -577,6 +805,7 @@ RUNTIME VALIDATION NOT COMPLETE
 - Health state did not become routing authority.
 - Witness responsibilities remained unchanged.
 - No workload was sent to the witness.
+- No publisher schedule exists in the witness.
 - No secret, password, or token was recorded.
 - No temporary token files were created.
 - No synthetic Cognito principal was created.

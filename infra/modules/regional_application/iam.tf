@@ -47,6 +47,13 @@ locals {
     local.api_runtime_data_actions,
   ))
 
+  outbox_publisher_runtime_data_actions = sort([
+    "dynamodb:GetItem",
+    "dynamodb:Query",
+    "dynamodb:TransactWriteItems",
+    "dynamodb:UpdateItem",
+  ])
+
   api_runtime_policy = jsonencode({
     Version = "2012-10-17"
     Statement = [
@@ -193,14 +200,9 @@ resource "aws_iam_role_policy" "outbox_publisher_runtime" {
         Resource = var.regional_transport.processing_queue_arns
       },
       {
-        Sid    = "ResumeAnalysisOutboxDataAccess"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:GetItem",
-          "dynamodb:Query",
-          "dynamodb:TransactWriteItems",
-          "dynamodb:UpdateItem",
-        ]
+        Sid      = "ResumeAnalysisOutboxDataAccess"
+        Effect   = "Allow"
+        Action   = local.outbox_publisher_runtime_data_actions
         Resource = local.resume_analysis_table_resources
       },
     ]

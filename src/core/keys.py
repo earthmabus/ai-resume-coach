@@ -1,3 +1,9 @@
+from core.dynamodb_contract import (
+    GSI1_PARTITION_KEY,
+    GSI1_SORT_KEY,
+)
+
+
 def user_pk(user_id):
     return f"USER#{user_id}"
 
@@ -38,8 +44,8 @@ def base_keys(pk, sk, entity_id, record_type):
     return {
         "pk": pk,
         "sk": sk,
-        "gsi1pk": entity_gsi_pk(entity_id),
-        "gsi1sk": record_type,
+        GSI1_PARTITION_KEY: entity_gsi_pk(entity_id),
+        GSI1_SORT_KEY: record_type,
     }
 
 

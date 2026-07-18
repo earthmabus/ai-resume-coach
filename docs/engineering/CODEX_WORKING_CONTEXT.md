@@ -196,3 +196,20 @@ enablement is rejected until a later production activation decision. The
 publisher safety model is a bounded GSI query plus conditional claim before
 delivery, so concurrent regional schedules do not rely on timing jitter for
 duplicate-dispatch protection.
+
+MR-009D3C deployed the explicit schedule control and corrected the publisher
+Lambda handler wiring at deployment ID `3cdb262`. EventBridge then reached the
+publisher application code in both active regions, but empty scheduled cycles
+failed because the deployed DynamoDB MRSC table does not define the `gsi1`
+index used by `core.outbox_publisher`, `core.storage`, and worker entity
+lookups. The schedules were disabled again through Terraform to stop recurring
+publisher errors. MR-009D remains open until repository authority adds and
+validates the sparse `gsi1` table/index contract or otherwise changes the
+accepted query model. Do not retry MR-009D3B synthetic work while this blocker
+is present.
+
+MR-009D3D is the active remediation. The accepted table contract is sparse
+`gsi1` with string keys `gsi1pk`/`gsi1sk` and `ALL` projection. Apply it in two
+phases: first add the index with schedules disabled and wait for `ACTIVE`, then
+enable development schedules and prove empty publisher cycles. Do not create
+synthetic business work in MR-009D3D.

@@ -29,6 +29,20 @@ the authorized remediation to make those schedules explicitly configurable,
 keep them disabled by default, and enable them for the development validation
 deployment only.
 
+MR-009D3C deployed schedule control and the publisher handler correction at
+deployment ID `3cdb262`. EventBridge invoked both active-region publishers,
+but the empty scheduled invocations failed because the deployed DynamoDB table
+does not include the `gsi1` index used by the repository outbox status query.
+Both schedules were disabled again through Terraform after the failure was
+captured. MR-009D runtime validation remains blocked until the table/index
+contract is remediated.
+
+MR-009D3D remediates this prerequisite by adding the repository-required sparse
+`gsi1` index (`gsi1pk`/`gsi1sk`, projection `ALL`) in place. The deployment is
+performed in two phases: add the index with publisher schedules disabled, wait
+for `gsi1` to become `ACTIVE`, then enable development schedules and verify
+empty publisher cycles without creating synthetic business records.
+
 ## Scope
 
 Original milestone commit targeted:

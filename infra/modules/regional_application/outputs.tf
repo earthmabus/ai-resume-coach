@@ -125,6 +125,11 @@ output "compute" {
       log_group              = aws_cloudwatch_log_group.outbox_publisher.name
       schedule               = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
       dependency_layer_count = length(coalesce(aws_lambda_function.outbox_publisher.layers, []))
+      runtime_policy_actions = local.outbox_publisher_runtime_data_actions
+      runtime_policy_resources = [
+        "table",
+        "table/index/*",
+      ]
     }
   }
 }

@@ -17,6 +17,11 @@ from typing import Any, Callable
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
+from core.dynamodb_contract import (
+    GSI1_INDEX_NAME,
+    GSI1_PARTITION_KEY,
+    GSI1_SORT_KEY,
+)
 from core.keys import outbox_status_pk
 from core.outbox import (
     OUTBOX_STATUS_DELIVERED,
@@ -374,9 +379,9 @@ class DynamoDbOutboxRepository:
 
         while len(results) < limit:
             parameters: dict[str, Any] = {
-                "IndexName": "gsi1",
+                "IndexName": GSI1_INDEX_NAME,
                 "KeyConditionExpression": (
-                    Key("gsi1pk").eq(
+                    Key(GSI1_PARTITION_KEY).eq(
                         outbox_status_pk(status)
                     )
                 ),
@@ -548,7 +553,7 @@ class DynamoDbOutboxRepository:
                 },
                 UpdateExpression=(
                     "SET #status = :dispatching, "
-                    "gsi1pk = :dispatchingPk, "
+                    f"{GSI1_PARTITION_KEY} = :dispatchingPk, "
                     "dispatchAttemptId = :attemptId, "
                     "dispatchStartedAt = :now, "
                     "dispatchLeaseExpiresAt = "
@@ -624,7 +629,7 @@ class DynamoDbOutboxRepository:
                 "#version = if_not_exists("
                 "#version, :zero"
                 ") + :one "
-                "REMOVE gsi1pk, gsi1sk, "
+                f"REMOVE {GSI1_PARTITION_KEY}, {GSI1_SORT_KEY}, "
                 "dispatchAttemptId, "
                 "dispatchStartedAt, "
                 "dispatchLeaseExpiresAt, "
@@ -699,7 +704,7 @@ class DynamoDbOutboxRepository:
                 UpdateExpression=(
                     "SET #status = "
                     ":failedRetryable, "
-                    "gsi1pk = "
+                    f"{GSI1_PARTITION_KEY} = "
                     ":failedRetryablePk, "
                     "nextDeliveryAttemptAt = "
                     ":nextAttemptAt, "
@@ -790,11 +795,11 @@ class DynamoDbOutboxRepository:
                     "updatedAt = :now, "
                     "updatedByRequestId = :attemptId, "
                     "lastUpdatedRegion = :region, "
-"lastUpdatedByDeploymentId = :deploymentId, "
+                    "lastUpdatedByDeploymentId = :deploymentId, "
                     "#version = if_not_exists("
                     "#version, :zero"
                     ") + :one "
-                    "REMOVE gsi1pk, gsi1sk, "
+                    f"REMOVE {GSI1_PARTITION_KEY}, {GSI1_SORT_KEY}, "
                     "dispatchAttemptId, "
                     "dispatchStartedAt, "
                     "dispatchLeaseExpiresAt, "

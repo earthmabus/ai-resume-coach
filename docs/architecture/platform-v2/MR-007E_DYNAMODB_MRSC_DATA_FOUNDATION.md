@@ -38,6 +38,29 @@ Each regional execution role receives access to the regional table ARN and its
 indexes. The API, worker, and outbox publisher receive only the DynamoDB actions
 required by their current responsibilities.
 
+## Sparse `gsi1` contract
+
+The table exposes one sparse global secondary index used by the current
+single-table runtime query model:
+
+- index name: `gsi1`
+- partition key: `gsi1pk`, string
+- sort key: `gsi1sk`, string
+- projection: `ALL`
+
+Only items that require indexed access populate both attributes. Domain entity
+records use `ENTITY#<entityId>` for by-entity lookup. Dispatchable outbox records
+use status partitions such as `OUTBOX_STATUS#PENDING`, with `gsi1sk` ordered by
+creation timestamp and event ID. Terminal outbox states remove the dispatch GSI
+keys. Base-key-only records, including idempotency records, intentionally omit
+the attributes.
+
+`ALL` projection is accepted because entity lookup paths return the indexed item
+directly, and the outbox publisher needs complete event payload, ownership,
+version, request, correlation, and dispatch fields without follow-up reads. The
+outbox status partition is acceptable for the current development validation
+scale and must be revisited before high-volume production scheduling.
+
 ## Outbox schedule
 
 The table, publisher permissions, real outbox-publisher package, and

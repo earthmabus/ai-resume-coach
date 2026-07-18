@@ -133,6 +133,14 @@ output "resume_analysis_data" {
     billing_mode       = aws_dynamodb_table.resume_analysis.billing_mode
     pitr_enabled       = true
     deletion_protected = var.dynamodb_deletion_protection_enabled
+    global_secondary_indexes = {
+      gsi1 = {
+        name            = "gsi1"
+        hash_key        = "gsi1pk"
+        range_key       = "gsi1sk"
+        projection_type = "ALL"
+      }
+    }
   }
 }
 

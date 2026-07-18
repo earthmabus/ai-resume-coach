@@ -36,13 +36,53 @@ run "resume_analysis_system_of_record_uses_mrsc_with_witness" {
 
   assert {
     condition = (
-      length(aws_dynamodb_table.resume_analysis.attribute) == 2
+      length(aws_dynamodb_table.resume_analysis.attribute) == 4
       &&
       contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "pk")
       &&
       contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "sk")
+      &&
+      contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "gsi1pk")
+      &&
+      contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "gsi1sk")
     )
-    error_message = "The application table must declare pk and sk string attributes."
+    error_message = "The application table must declare pk/sk and gsi1 key string attributes."
+  }
+
+  assert {
+    condition = alltrue([
+      for attribute in aws_dynamodb_table.resume_analysis.attribute :
+      attribute.type == "S"
+    ])
+    error_message = "All DynamoDB key attributes must be strings."
+  }
+
+  assert {
+    condition = (
+      length(aws_dynamodb_table.resume_analysis.global_secondary_index) == 1
+      &&
+      one(aws_dynamodb_table.resume_analysis.global_secondary_index).name == "gsi1"
+      &&
+      one(aws_dynamodb_table.resume_analysis.global_secondary_index).hash_key == "gsi1pk"
+      &&
+      one(aws_dynamodb_table.resume_analysis.global_secondary_index).range_key == "gsi1sk"
+      &&
+      one(aws_dynamodb_table.resume_analysis.global_secondary_index).projection_type == "ALL"
+    )
+    error_message = "The application table must expose the sparse gsi1 index required by repository query paths."
+  }
+
+  assert {
+    condition = (
+      output.resume_analysis_data.global_secondary_indexes.gsi1.name == "gsi1"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi1.hash_key == "gsi1pk"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi1.range_key == "gsi1sk"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi1.projection_type == "ALL"
+    )
+    error_message = "The exported Resume Analysis data contract must include gsi1."
   }
 
   assert {

@@ -164,6 +164,41 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      contains(
+        output.regional_foundations.east.compute.outbox_publisher.runtime_policy_actions,
+        "dynamodb:Query",
+      )
+      &&
+      contains(
+        output.regional_foundations.west.compute.outbox_publisher.runtime_policy_actions,
+        "dynamodb:Query",
+      )
+      &&
+      !contains(
+        output.regional_foundations.east.compute.outbox_publisher.runtime_policy_actions,
+        "dynamodb:Scan",
+      )
+      &&
+      !contains(
+        output.regional_foundations.west.compute.outbox_publisher.runtime_policy_actions,
+        "dynamodb:Scan",
+      )
+      &&
+      contains(
+        output.regional_foundations.east.compute.outbox_publisher.runtime_policy_resources,
+        "table/index/*",
+      )
+      &&
+      contains(
+        output.regional_foundations.west.compute.outbox_publisher.runtime_policy_resources,
+        "table/index/*",
+      )
+    )
+    error_message = "Publisher IAM must cover table indexes for Query without granting Scan."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.routing.current_region == "us-east-1"
       &&
       output.regional_foundations.east.routing.primary_region == "us-east-1"

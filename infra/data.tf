@@ -20,6 +20,23 @@ resource "aws_dynamodb_table" "resume_analysis" {
     type = "S"
   }
 
+  attribute {
+    name = "gsi1pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi1sk"
+    type = "S"
+  }
+
+  global_secondary_index {
+    name            = "gsi1"
+    hash_key        = "gsi1pk"
+    range_key       = "gsi1sk"
+    projection_type = "ALL"
+  }
+
   point_in_time_recovery {
     enabled                 = true
     recovery_period_in_days = var.dynamodb_pitr_recovery_period_days

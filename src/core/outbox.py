@@ -7,6 +7,10 @@ from datetime import datetime, timezone
 from typing import Any, Mapping
 
 from core.config import get_config
+from core.dynamodb_contract import (
+    GSI1_PARTITION_KEY,
+    GSI1_SORT_KEY,
+)
 from core.keys import (
     outbox_pk,
     outbox_sk,
@@ -198,10 +202,10 @@ def build_outbox_event(
         #
         # These attributes should be removed when the event reaches
         # DELIVERED so delivered events no longer appear in the GSI.
-        "gsi1pk": outbox_status_pk(
+        GSI1_PARTITION_KEY: outbox_status_pk(
             OUTBOX_STATUS_PENDING
         ),
-        "gsi1sk": outbox_status_sk(
+        GSI1_SORT_KEY: outbox_status_sk(
             created_at=timestamp,
             event_id=event_id,
         ),
