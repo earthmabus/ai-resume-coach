@@ -16,6 +16,60 @@ locals {
     var.resume_analysis.table_arn,
     "${var.resume_analysis.table_arn}/index/*",
   ]
+
+  api_runtime_document_actions = sort([
+    "s3:DeleteObject",
+    "s3:GetObject",
+    "s3:PutObject",
+  ])
+
+  api_runtime_submission_actions = sort([
+    "sqs:GetQueueAttributes",
+    "sqs:SendMessage",
+  ])
+
+  api_runtime_data_actions = sort([
+    "dynamodb:BatchGetItem",
+    "dynamodb:BatchWriteItem",
+    "dynamodb:DeleteItem",
+    "dynamodb:DescribeTable",
+    "dynamodb:GetItem",
+    "dynamodb:PutItem",
+    "dynamodb:Query",
+    "dynamodb:TransactGetItems",
+    "dynamodb:TransactWriteItems",
+    "dynamodb:UpdateItem",
+  ])
+
+  api_runtime_policy_actions = sort(concat(
+    local.api_runtime_document_actions,
+    local.api_runtime_submission_actions,
+    local.api_runtime_data_actions,
+  ))
+
+  api_runtime_policy = jsonencode({
+    Version = "2012-10-17"
+    Statement = [
+      {
+        Sid      = "DocumentObjectAccess"
+        Effect   = "Allow"
+        Action   = local.api_runtime_document_actions
+        Resource = "${aws_s3_bucket.documents.arn}/*"
+      },
+      {
+        Sid      = "SubmitResumeAnalysisWork"
+        Effect   = "Allow"
+        Action   = local.api_runtime_submission_actions
+        Resource = aws_sqs_queue.processing.arn
+      },
+      {
+        Sid      = "ResumeAnalysisDataAccess"
+        Effect   = "Allow"
+        Action   = local.api_runtime_data_actions
+        Resource = local.resume_analysis_table_resources
+      },
+    ]
+  })
 }
 
 resource "aws_iam_role" "api" {
@@ -73,43 +127,7 @@ resource "aws_iam_role_policy" "api_runtime" {
   name = "${local.name_prefix}-api-runtime"
   role = aws_iam_role.api.id
 
-  policy = jsonencode({
-    Version = "2012-10-17"
-    Statement = [
-      {
-        Sid    = "DocumentObjectAccess"
-        Effect = "Allow"
-        Action = [
-          "s3:GetObject",
-          "s3:PutObject",
-          "s3:DeleteObject",
-        ]
-        Resource = "${aws_s3_bucket.documents.arn}/*"
-      },
-      {
-        Sid      = "SubmitResumeAnalysisWork"
-        Effect   = "Allow"
-        Action   = ["sqs:SendMessage"]
-        Resource = aws_sqs_queue.processing.arn
-      },
-      {
-        Sid    = "ResumeAnalysisDataAccess"
-        Effect = "Allow"
-        Action = [
-          "dynamodb:BatchGetItem",
-          "dynamodb:BatchWriteItem",
-          "dynamodb:DeleteItem",
-          "dynamodb:GetItem",
-          "dynamodb:PutItem",
-          "dynamodb:Query",
-          "dynamodb:TransactGetItems",
-          "dynamodb:TransactWriteItems",
-          "dynamodb:UpdateItem",
-        ]
-        Resource = local.resume_analysis_table_resources
-      },
-    ]
-  })
+  policy = local.api_runtime_policy
 }
 
 resource "aws_iam_role_policy" "worker_runtime" {

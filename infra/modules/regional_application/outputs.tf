@@ -89,6 +89,7 @@ output "compute" {
       log_group              = aws_cloudwatch_log_group.api.name
       dependency_layer_count = length(coalesce(aws_lambda_function.api.layers, []))
       dependency_layers      = coalesce(aws_lambda_function.api.layers, [])
+      runtime_policy_actions = local.api_runtime_policy_actions
     }
 
     worker = {

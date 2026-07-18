@@ -116,6 +116,31 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      contains(
+        output.regional_foundations.east.compute.api.runtime_policy_actions,
+        "dynamodb:DescribeTable",
+      )
+      &&
+      contains(
+        output.regional_foundations.west.compute.api.runtime_policy_actions,
+        "dynamodb:DescribeTable",
+      )
+      &&
+      contains(
+        output.regional_foundations.east.compute.api.runtime_policy_actions,
+        "sqs:GetQueueAttributes",
+      )
+      &&
+      contains(
+        output.regional_foundations.west.compute.api.runtime_policy_actions,
+        "sqs:GetQueueAttributes",
+      )
+    )
+    error_message = "API runtime roles must include only the read-only dependency checks required by /health/ready."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.routing.current_region == "us-east-1"
       &&
       output.regional_foundations.east.routing.primary_region == "us-east-1"
