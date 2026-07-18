@@ -13,6 +13,10 @@ class RoutingAction(str, Enum):
     UNKNOWN = "UNKNOWN"
 
 
+def normalize_region(value: str | None) -> str:
+    return str(value or "").strip()
+
+
 @dataclass(frozen=True)
 class RegionTopology:
     current_region: str
@@ -21,11 +25,63 @@ class RegionTopology:
     site_name: str
     region_role: str
 
+    def __post_init__(self) -> None:
+        current_region = normalize_region(self.current_region)
+        primary_region = normalize_region(self.primary_region)
+        secondary_regions = tuple(
+            dict.fromkeys(
+                normalize_region(region)
+                for region in self.secondary_regions
+                if normalize_region(region)
+            )
+        )
+
+        if not current_region:
+            raise ValueError("current_region must not be blank")
+
+        if not primary_region:
+            raise ValueError("primary_region must not be blank")
+
+        configured_regions = (
+            primary_region,
+            *secondary_regions,
+        )
+
+        if current_region not in configured_regions:
+            raise ValueError(
+                "current_region must be part of the configured topology"
+            )
+
+        object.__setattr__(
+            self,
+            "current_region",
+            current_region,
+        )
+        object.__setattr__(
+            self,
+            "primary_region",
+            primary_region,
+        )
+        object.__setattr__(
+            self,
+            "secondary_regions",
+            secondary_regions,
+        )
+        object.__setattr__(
+            self,
+            "site_name",
+            str(self.site_name or "").strip() or "unknown",
+        )
+        object.__setattr__(
+            self,
+            "region_role",
+            str(self.region_role or "").strip() or "unknown",
+        )
+
     @property
     def configured_regions(self) -> tuple[str, ...]:
         regions = (
             self.primary_region,
-            self.current_region,
             *self.secondary_regions,
         )
 
@@ -52,12 +108,16 @@ class RoutingDecision:
     action: RoutingAction
     current_region: str
     owner_region: str | None = None
-    target_region: str | None = None
+    placement_region: str | None = None
     reason: str = ""
 
     @property
     def execute_locally(self) -> bool:
         return self.action == RoutingAction.EXECUTE_LOCAL
+
+    @property
+    def target_region(self) -> str | None:
+        return self.placement_region
 
     @classmethod
     def execute_local(
@@ -71,7 +131,7 @@ class RoutingDecision:
             action=RoutingAction.EXECUTE_LOCAL,
             current_region=current_region,
             owner_region=owner_region,
-            target_region=current_region,
+            placement_region=current_region,
             reason=reason,
         )
 
@@ -81,14 +141,14 @@ class RoutingDecision:
         *,
         current_region: str,
         owner_region: str,
-        target_region: str,
+        placement_region: str,
         reason: str = "request owner is another configured region",
     ) -> "RoutingDecision":
         return cls(
             action=RoutingAction.NON_LOCAL_REGION,
             current_region=current_region,
             owner_region=owner_region,
-            target_region=target_region,
+            placement_region=placement_region,
             reason=reason,
         )
 
@@ -148,11 +208,9 @@ class RegionRoutingService:
         request: RoutingRequest | None = None,
     ) -> RoutingDecision:
         routing_request = request or RoutingRequest()
-        owner_region = (
-            routing_request.owner_region.strip()
-            if routing_request.owner_region
-            else None
-        )
+        owner_region = normalize_region(
+            routing_request.owner_region
+        ) or None
 
         if owner_region is None:
             return RoutingDecision.execute_local(
@@ -171,7 +229,7 @@ class RegionRoutingService:
             return RoutingDecision.non_local_region(
                 current_region=self._topology.current_region,
                 owner_region=owner_region,
-                target_region=owner_region,
+                placement_region=owner_region,
             )
 
         return RoutingDecision.reject(

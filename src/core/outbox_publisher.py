@@ -748,6 +748,10 @@ class SqsEventPublisher:
                     "createdRegion",
                     payload.get("sourceRegion", ""),
                 ),
+                "ownerRegion": item.get(
+                    "ownerRegion",
+                    payload.get("ownerRegion", ""),
+                ),
                 "sourceDeploymentId": item.get(
                     "createdByDeploymentId",
                     payload.get("sourceDeploymentId", ""),

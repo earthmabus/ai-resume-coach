@@ -48,6 +48,8 @@ def event_item(status=OUTBOX_STATUS_PENDING) -> dict:
         },
         "status": status,
         "createdAt": "2026-07-15T19:00:00+00:00",
+        "createdRegion": "us-east-1",
+        "ownerRegion": "us-east-1",
         "createdByRequestId": "request-123",
         "deliveryAttempts": 0,
         "version": 1,
@@ -241,6 +243,7 @@ def test_sqs_publisher_preserves_worker_payload_and_adds_trace_metadata():
     assert message["outboxEventId"] == EVENT_ID
     assert message["eventType"] == "RESUME_ANALYSIS_REQUESTED"
     assert message["requestId"] == "request-123"
+    assert message["ownerRegion"] == "us-east-1"
 
 
 def test_sqs_publisher_requires_message_id():

@@ -24,9 +24,11 @@ def _optional_list(name: str) -> tuple[str, ...]:
     raw_value = os.getenv(name, "")
 
     return tuple(
-        value.strip()
-        for value in raw_value.split(",")
-        if value.strip()
+        dict.fromkeys(
+            value.strip()
+            for value in raw_value.split(",")
+            if value.strip()
+        )
     )
 
 

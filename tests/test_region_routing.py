@@ -40,6 +40,7 @@ def test_default_routing_decision_executes_locally():
     assert decision.action == RoutingAction.EXECUTE_LOCAL
     assert decision.execute_locally
     assert decision.current_region == "us-east-1"
+    assert decision.placement_region == "us-east-1"
     assert decision.target_region == "us-east-1"
     assert decision.owner_region is None
 
@@ -52,7 +53,7 @@ def test_request_owned_by_current_region_executes_locally():
     assert decision.action == RoutingAction.EXECUTE_LOCAL
     assert decision.execute_locally
     assert decision.owner_region == "us-east-1"
-    assert decision.target_region == "us-east-1"
+    assert decision.placement_region == "us-east-1"
 
 
 def test_request_owned_by_configured_peer_returns_non_local_decision():
@@ -64,7 +65,7 @@ def test_request_owned_by_configured_peer_returns_non_local_decision():
     assert not decision.execute_locally
     assert decision.current_region == "us-east-1"
     assert decision.owner_region == "us-west-2"
-    assert decision.target_region == "us-west-2"
+    assert decision.placement_region == "us-west-2"
 
 
 def test_unknown_owner_region_is_rejected_without_forwarding():
@@ -76,7 +77,7 @@ def test_unknown_owner_region_is_rejected_without_forwarding():
     assert not decision.execute_locally
     assert decision.current_region == "us-east-1"
     assert decision.owner_region == "eu-central-1"
-    assert decision.target_region is None
+    assert decision.placement_region is None
 
 
 def test_topology_deduplicates_configured_regions_in_order():
@@ -97,6 +98,36 @@ def test_topology_deduplicates_configured_regions_in_order():
     )
 
 
+def test_topology_rejects_blank_current_region():
+    try:
+        RegionTopology(
+            current_region=" ",
+            primary_region="us-east-1",
+            secondary_regions=("us-west-2",),
+            site_name="east",
+            region_role="active",
+        )
+    except ValueError as error:
+        assert "current_region" in str(error)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
+def test_topology_rejects_current_region_outside_configured_topology():
+    try:
+        RegionTopology(
+            current_region="eu-central-1",
+            primary_region="us-east-1",
+            secondary_regions=("us-west-2",),
+            site_name="east",
+            region_role="active",
+        )
+    except ValueError as error:
+        assert "configured topology" in str(error)
+    else:
+        raise AssertionError("Expected ValueError")
+
+
 def test_unknown_decision_is_available_for_future_extensions():
     decision = RoutingDecision.unknown(
         current_region="us-east-1",
@@ -106,4 +137,4 @@ def test_unknown_decision_is_available_for_future_extensions():
 
     assert decision.action == RoutingAction.UNKNOWN
     assert not decision.execute_locally
-    assert decision.target_region is None
+    assert decision.placement_region is None

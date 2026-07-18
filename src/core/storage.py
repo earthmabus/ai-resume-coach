@@ -25,6 +25,25 @@ sqs = boto3.client("sqs")
 resume_analysis_queue_url = config.processing_queue_url
 
 
+def item_with_owner_region(
+    item: dict[str, Any],
+) -> dict[str, Any]:
+    if item.get("ownerRegion"):
+        return item
+
+    owner_region = str(
+        item.get("createdRegion") or ""
+    ).strip()
+
+    if not owner_region:
+        return item
+
+    return {
+        **item,
+        "ownerRegion": owner_region,
+    }
+
+
 def is_conditional_failure(error: ClientError) -> bool:
     return (
         error.response.get("Error", {}).get("Code")
@@ -75,7 +94,7 @@ def put_item_if_absent(item: dict[str, Any]) -> bool:
 
     try:
         table.put_item(
-            Item=item,
+            Item=item_with_owner_region(item),
             ConditionExpression=(
                 "attribute_not_exists(pk) AND attribute_not_exists(sk)"
             ),
@@ -102,6 +121,11 @@ def put_items_and_outbox_if_absent(
     if not items:
         raise ValueError("at least one business item is required")
 
+    normalized_items = [
+        item_with_owner_region(item)
+        for item in [*items, outbox_item]
+    ]
+
     transact_items = [
         {
             "Put": {
@@ -113,7 +137,7 @@ def put_items_and_outbox_if_absent(
                 ),
             }
         }
-        for item in [*items, outbox_item]
+        for item in normalized_items
     ]
 
     try:

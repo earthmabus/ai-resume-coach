@@ -112,6 +112,7 @@ def build_outbox_event(
     payload: Mapping[str, Any],
     created_region: str,
     request_id: str,
+    owner_region: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
@@ -129,6 +130,10 @@ def build_outbox_event(
     normalized_job_type = str(job_type or "").strip()
     normalized_region = str(created_region or "").strip()
     normalized_request_id = str(request_id or "").strip()
+    normalized_owner_region = (
+        str(owner_region or "").strip()
+        or normalized_region
+    )
     normalized_deployment_id = str(
         created_deployment_id
         or get_config().deployment_id
@@ -172,6 +177,7 @@ def build_outbox_event(
         "createdAt": timestamp,
         "updatedAt": timestamp,
         "createdRegion": normalized_region,
+        "ownerRegion": normalized_owner_region,
         "createdByDeploymentId": normalized_deployment_id,
         "lastUpdatedRegion": normalized_region,
         "lastUpdatedByDeploymentId": normalized_deployment_id,
@@ -208,9 +214,15 @@ def build_resume_analysis_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    owner_region: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
+    resolved_owner_region = (
+        str(owner_region or "").strip()
+        or created_region
+    )
+
     return build_outbox_event(
         event_type="RESUME_ANALYSIS_REQUESTED",
         aggregate_type="resumeAnalysis",
@@ -224,9 +236,11 @@ def build_resume_analysis_outbox_event(
             "userId": user_id,
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
+            "ownerRegion": resolved_owner_region,
         },
         created_region=created_region,
         request_id=request_id,
+        owner_region=resolved_owner_region,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
@@ -240,9 +254,15 @@ def build_job_match_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    owner_region: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
+    resolved_owner_region = (
+        str(owner_region or "").strip()
+        or created_region
+    )
+
     return build_outbox_event(
         event_type="JOB_MATCH_REQUESTED",
         aggregate_type="jobMatch",
@@ -257,9 +277,11 @@ def build_job_match_outbox_event(
             "userId": user_id,
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
+            "ownerRegion": resolved_owner_region,
         },
         created_region=created_region,
         request_id=request_id,
+        owner_region=resolved_owner_region,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
@@ -273,9 +295,15 @@ def build_resume_tailoring_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    owner_region: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
+    resolved_owner_region = (
+        str(owner_region or "").strip()
+        or created_region
+    )
+
     return build_outbox_event(
         event_type="RESUME_TAILORING_REQUESTED",
         aggregate_type="resumeTailoring",
@@ -290,9 +318,11 @@ def build_resume_tailoring_outbox_event(
             "userId": user_id,
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
+            "ownerRegion": resolved_owner_region,
         },
         created_region=created_region,
         request_id=request_id,
+        owner_region=resolved_owner_region,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )
@@ -306,9 +336,15 @@ def build_interview_preparation_outbox_event(
     analysis_provider: str,
     created_region: str,
     request_id: str,
+    owner_region: str | None = None,
     created_deployment_id: str | None = None,
     created_at: str | None = None,
 ) -> OutboxEvent:
+    resolved_owner_region = (
+        str(owner_region or "").strip()
+        or created_region
+    )
+
     return build_outbox_event(
         event_type="INTERVIEW_PREPARATION_REQUESTED",
         aggregate_type="interviewPreparation",
@@ -323,9 +359,11 @@ def build_interview_preparation_outbox_event(
             "userId": user_id,
             "analysisProvider": analysis_provider,
             "sourceRegion": created_region,
+            "ownerRegion": resolved_owner_region,
         },
         created_region=created_region,
         request_id=request_id,
+        owner_region=resolved_owner_region,
         created_deployment_id=created_deployment_id,
         created_at=created_at,
     )

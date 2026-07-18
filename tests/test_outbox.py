@@ -105,6 +105,7 @@ def test_build_outbox_event_creates_pending_item():
     assert item["createdAt"] == CREATED_AT
     assert item["updatedAt"] == CREATED_AT
     assert item["createdRegion"] == REGION
+    assert item["ownerRegion"] == REGION
     assert item["lastUpdatedRegion"] == REGION
     assert item["createdByRequestId"] == REQUEST_ID
     assert item["updatedByRequestId"] == REQUEST_ID
@@ -137,7 +138,25 @@ def test_resume_analysis_event_matches_worker_contract():
         "userId": USER_ID,
         "analysisProvider": "openai",
         "sourceRegion": REGION,
+        "ownerRegion": REGION,
     }
+
+
+def test_outbox_event_preserves_explicit_owner_region():
+    event = build_resume_analysis_outbox_event(
+        analysis_id="analysis-123",
+        user_id=USER_ID,
+        analysis_provider="openai",
+        created_region="us-east-1",
+        owner_region="us-west-2",
+        request_id=REQUEST_ID,
+        created_at=CREATED_AT,
+    )
+
+    assert event.item["createdRegion"] == "us-east-1"
+    assert event.item["ownerRegion"] == "us-west-2"
+    assert event.item["payload"]["sourceRegion"] == "us-east-1"
+    assert event.item["payload"]["ownerRegion"] == "us-west-2"
 
 
 def test_job_match_event_matches_worker_contract():
@@ -161,6 +180,7 @@ def test_job_match_event_matches_worker_contract():
     assert payload["userId"] == USER_ID
     assert payload["analysisProvider"] == "openai"
     assert payload["sourceRegion"] == REGION
+    assert payload["ownerRegion"] == REGION
 
 
 def test_tailoring_event_matches_worker_contract():
@@ -184,6 +204,7 @@ def test_tailoring_event_matches_worker_contract():
     assert payload["userId"] == USER_ID
     assert payload["analysisProvider"] == "openai"
     assert payload["sourceRegion"] == REGION
+    assert payload["ownerRegion"] == REGION
 
 
 def test_interview_event_matches_worker_contract():
@@ -207,6 +228,7 @@ def test_interview_event_matches_worker_contract():
     assert payload["userId"] == USER_ID
     assert payload["analysisProvider"] == "openai"
     assert payload["sourceRegion"] == REGION
+    assert payload["ownerRegion"] == REGION
 
 
 @pytest.mark.parametrize(

@@ -128,6 +128,23 @@ def test_log_level_is_normalized_to_uppercase(
     assert config.log_level == "WARNING"
 
 
+def test_secondary_regions_are_normalized_and_deduplicated(
+    monkeypatch,
+):
+    monkeypatch.setenv(
+        "SECONDARY_REGIONS",
+        " us-west-2,us-west-2, us-east-1, ",
+    )
+    reset_config_cache()
+
+    config = get_config()
+
+    assert config.secondary_regions == (
+        "us-west-2",
+        "us-east-1",
+    )
+
+
 def test_config_cache_can_be_reset(monkeypatch):
     first = get_config()
 

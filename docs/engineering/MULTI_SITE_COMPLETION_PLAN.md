@@ -33,6 +33,25 @@ Requirements:
 - focused Python and Terraform tests
 - no routing, auth, message-contract, or topology changes
 
+### MR-009A1: Regional Routing Foundation
+
+Question answered:
+
+> What configured regions can this runtime reason about?
+
+Introduces centralized regional topology and pure routing decisions without
+handler integration, forwarding, failover, or request rejection.
+
+### MR-009A2: Work Ownership and Placement
+
+Question answered:
+
+> Which region owns this unit of work, and is this runtime in that region?
+
+Introduces transport-neutral ownership resolution and placement evaluation.
+New idempotency and outbox work records carry `ownerRegion`, and outbox-to-SQS
+serialization preserves it. Transports still do not act on non-local placement.
+
 ### MR-009B: Correlation and Traceability
 
 Question answered:

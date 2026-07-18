@@ -31,6 +31,7 @@ DISPOSITION_REPLAY_IN_PROGRESS = "REPLAY_IN_PROGRESS"
 class IdempotencyReservation:
     disposition: str
     resource_id: str
+    owner_region: str | None = None
     status_code: int | None = None
     response_body: dict[str, Any] | None = None
 
@@ -165,6 +166,7 @@ def reserve_request(
     resource_id: str,
     request_id: str,
     region: str,
+    owner_region: str | None = None,
     retention_days: int = 30,
 ) -> IdempotencyReservation:
     pk, sk = idempotency_keys(
@@ -177,6 +179,10 @@ def reserve_request(
     now_iso = now.isoformat()
 
     deployment_id = get_config().deployment_id
+    normalized_owner_region = (
+        str(owner_region or "").strip()
+        or region
+    )
 
     item = {
         "pk": pk,
@@ -191,6 +197,7 @@ def reserve_request(
         "createdByRequestId": request_id,
         "updatedByRequestId": request_id,
         "createdRegion": region,
+        "ownerRegion": normalized_owner_region,
         "createdByDeploymentId": deployment_id,
         "lastUpdatedRegion": region,
         "lastUpdatedByDeploymentId": deployment_id,
@@ -206,6 +213,7 @@ def reserve_request(
         return IdempotencyReservation(
             disposition=DISPOSITION_RESERVED,
             resource_id=resource_id,
+            owner_region=normalized_owner_region,
         )
 
     existing = _read_existing(
@@ -216,11 +224,20 @@ def reserve_request(
 
     existing_resource_id = str(existing["resourceId"])
     existing_status = existing.get("status")
+    existing_owner_region = (
+        str(
+            existing.get("ownerRegion")
+            or existing.get("createdRegion")
+            or ""
+        ).strip()
+        or None
+    )
 
     if existing_status == STATUS_COMPLETED:
         return IdempotencyReservation(
             disposition=DISPOSITION_REPLAY_COMPLETED,
             resource_id=existing_resource_id,
+            owner_region=existing_owner_region,
             status_code=int(existing["responseStatusCode"]),
             response_body=existing.get("responseBody") or {},
         )
@@ -238,6 +255,7 @@ def reserve_request(
             return IdempotencyReservation(
                 disposition=DISPOSITION_RESERVED,
                 resource_id=existing_resource_id,
+                owner_region=existing_owner_region,
             )
 
         existing = _read_existing(
@@ -250,6 +268,14 @@ def reserve_request(
             return IdempotencyReservation(
                 disposition=DISPOSITION_REPLAY_COMPLETED,
                 resource_id=existing_resource_id,
+                owner_region=(
+                    str(
+                        existing.get("ownerRegion")
+                        or existing.get("createdRegion")
+                        or ""
+                    ).strip()
+                    or None
+                ),
                 status_code=int(existing["responseStatusCode"]),
                 response_body=existing.get("responseBody") or {},
             )
@@ -257,6 +283,7 @@ def reserve_request(
     return IdempotencyReservation(
         disposition=DISPOSITION_REPLAY_IN_PROGRESS,
         resource_id=existing_resource_id,
+        owner_region=existing_owner_region,
         status_code=int(existing.get("responseStatusCode", 202)),
         response_body=existing.get("responseBody"),
     )
