@@ -81,6 +81,27 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.routing.current_region == "us-east-1"
+      &&
+      output.regional_foundations.east.routing.primary_region == "us-east-1"
+      &&
+      length(output.regional_foundations.east.routing.secondary_regions) == 1
+      &&
+      contains(output.regional_foundations.east.routing.secondary_regions, "us-west-2")
+      &&
+      output.regional_foundations.west.routing.current_region == "us-west-2"
+      &&
+      output.regional_foundations.west.routing.primary_region == "us-east-1"
+      &&
+      length(output.regional_foundations.west.routing.secondary_regions) == 1
+      &&
+      contains(output.regional_foundations.west.routing.secondary_regions, "us-west-2")
+    )
+    error_message = "Regional routing configuration must identify current, primary, and secondary regions."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.outbox_publisher_schedule.state
       == "DISABLED"
       &&

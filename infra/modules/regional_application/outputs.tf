@@ -18,6 +18,16 @@ output "site_identity" {
   value = local.site_identity
 }
 
+output "routing" {
+  value = {
+    current_region    = var.region
+    primary_region    = var.routing.primary_region
+    secondary_regions = var.routing.secondary_regions
+    site_name         = var.site_name
+    region_role       = var.region_role
+  }
+}
+
 output "document_bucket" {
   value = {
     name = aws_s3_bucket.documents.bucket

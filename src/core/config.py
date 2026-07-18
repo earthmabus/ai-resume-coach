@@ -20,6 +20,16 @@ def _required(name: str) -> str:
     return value.strip()
 
 
+def _optional_list(name: str) -> tuple[str, ...]:
+    raw_value = os.getenv(name, "")
+
+    return tuple(
+        value.strip()
+        for value in raw_value.split(",")
+        if value.strip()
+    )
+
+
 @dataclass(frozen=True)
 class AppConfig:
     project_name: str
@@ -27,6 +37,10 @@ class AppConfig:
     app_version: str
     deployment_id: str
     aws_region: str
+    site_name: str
+    region_role: str
+    primary_region: str
+    secondary_regions: tuple[str, ...]
 
     table_name: str
     document_bucket: str
@@ -39,12 +53,21 @@ class AppConfig:
 
 @lru_cache(maxsize=1)
 def get_config() -> AppConfig:
+    aws_region = _required("AWS_REGION")
+
     return AppConfig(
         project_name=os.getenv("PROJECT_NAME", "ai-resume-coach"),
         environment=os.getenv("ENVIRONMENT", "dev"),
         app_version=os.getenv("APP_VERSION", "0.1.0"),
         deployment_id=os.getenv("DEPLOYMENT_ID", "local"),
-        aws_region=_required("AWS_REGION"),
+        aws_region=aws_region,
+        site_name=os.getenv("SITE_NAME", "local").strip() or "local",
+        region_role=os.getenv("REGION_ROLE", "active").strip() or "active",
+        primary_region=(
+            os.getenv("PRIMARY_REGION", aws_region).strip()
+            or aws_region
+        ),
+        secondary_regions=_optional_list("SECONDARY_REGIONS"),
         table_name=_required("RESUME_ANALYSIS_TABLE"),
         document_bucket=_required("DOCUMENT_BUCKET"),
         processing_queue_url=_required("RESUME_ANALYSIS_QUEUE_URL"),

@@ -41,6 +41,20 @@ variable "region_role" {
   }
 }
 
+variable "routing" {
+  description = "Regional routing awareness configuration."
+
+  type = object({
+    primary_region    = string
+    secondary_regions = list(string)
+  })
+
+  validation {
+    condition     = length(trimspace(var.routing.primary_region)) > 0
+    error_message = "routing.primary_region must not be empty."
+  }
+}
+
 variable "runtime" {
   description = "Application runtime identity and provider configuration."
 

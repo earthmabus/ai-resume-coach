@@ -96,6 +96,7 @@ output "regional_foundations" {
       outbox_publisher_schedule = module.east.outbox_publisher_schedule
       execution_roles           = module.east.execution_roles
       compute                   = module.east.compute
+      routing                   = module.east.routing
       resume_analysis           = module.east.resume_analysis_contract
       api_gateway               = module.east.api_gateway
     }
@@ -107,6 +108,7 @@ output "regional_foundations" {
       outbox_publisher_schedule = module.west.outbox_publisher_schedule
       execution_roles           = module.west.execution_roles
       compute                   = module.west.compute
+      routing                   = module.west.routing
       resume_analysis           = module.west.resume_analysis_contract
       api_gateway               = module.west.api_gateway
     }

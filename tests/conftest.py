@@ -30,6 +30,10 @@ TEST_ENVIRONMENT = {
     "DEPLOYMENT_ID": "test-deployment",
     "AWS_REGION": "us-east-1",
     "AWS_DEFAULT_REGION": "us-east-1",
+    "SITE_NAME": "east",
+    "REGION_ROLE": "active",
+    "PRIMARY_REGION": "us-east-1",
+    "SECONDARY_REGIONS": "us-west-2",
     "RESUME_ANALYSIS_TABLE": "test-table",
     "DOCUMENT_BUCKET": "test-bucket",
     "RESUME_ANALYSIS_QUEUE_URL": (

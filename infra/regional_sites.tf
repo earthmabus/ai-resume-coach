@@ -14,6 +14,11 @@ module "east" {
   region_code = local.sites.east.region_code
   region_role = local.sites.east.role
 
+  routing = {
+    primary_region    = local.sites.east.region
+    secondary_regions = [local.sites.west.region]
+  }
+
   identity = {
     user_pool_id = aws_cognito_user_pool.users.id
     client_id    = aws_cognito_user_pool_client.web.id
@@ -124,6 +129,11 @@ module "west" {
   region      = local.sites.west.region
   region_code = local.sites.west.region_code
   region_role = local.sites.west.role
+
+  routing = {
+    primary_region    = local.sites.east.region
+    secondary_regions = [local.sites.west.region]
+  }
 
   identity = {
     user_pool_id = aws_cognito_user_pool.users.id

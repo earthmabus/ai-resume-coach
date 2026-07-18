@@ -10,6 +10,8 @@ locals {
     AWS_REGION_NAME           = var.region
     SITE_NAME                 = var.site_name
     REGION_ROLE               = var.region_role
+    PRIMARY_REGION            = var.routing.primary_region
+    SECONDARY_REGIONS         = join(",", var.routing.secondary_regions)
     DOCUMENT_BUCKET           = aws_s3_bucket.documents.bucket
     RESUME_ANALYSIS_TABLE     = var.resume_analysis.table_name
     RESUME_ANALYSIS_QUEUE_URL = aws_sqs_queue.processing.url
