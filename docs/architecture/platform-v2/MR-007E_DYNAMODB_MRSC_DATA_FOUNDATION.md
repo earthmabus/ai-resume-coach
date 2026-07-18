@@ -40,16 +40,17 @@ required by their current responsibilities.
 
 ## Outbox schedule
 
-The table and publisher permissions now exist, but the EventBridge schedule
-remains disabled. The package in this foundation bundle is still a placeholder;
-the schedule should be enabled only after the real outbox-publisher code and
-end-to-end idempotency tests are installed.
+The table, publisher permissions, real outbox-publisher package, and
+idempotency/outbox tests now exist. EventBridge schedule activation is
+controlled by `enable_outbox_publisher_schedule`, which defaults to `false`.
+Development runtime validation may explicitly enable it after verifying
+publisher duplicate-dispatch safety and IAM scope.
 
 ## Deferred
 
 - API Gateway and Cognito authorizer
 - application source-package integration
-- outbox schedule activation
+- production outbox schedule activation decision
 - DynamoDB Streams
 - cross-Region S3 replication
 - CloudFront and Route 53 routing

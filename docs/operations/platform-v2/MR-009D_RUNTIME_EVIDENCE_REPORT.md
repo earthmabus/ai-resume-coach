@@ -365,6 +365,109 @@ return authorization responses rather than `404` for
 `POST /resume-upload-url` and `POST /analyze-uploaded-resume`, health remains
 green, the validation group/config is present, and Terraform reports no drift.
 
+## MR-009D3B Dispatch-Reachability Attempt
+
+Validation window:
+
+- UTC observation time: 2026-07-18 18:12.
+- Commit and deployment ID: `ef79140`.
+- Environment: development.
+- Active regions: `us-east-1`, `us-west-2`.
+- Witness region: `us-east-2`.
+- AWS profile used: `mpopsaws-ai-resume-coach-mike`.
+
+Repository and deployment gates:
+
+- `git status`: branch `main`, ahead of `origin/main` by 10 commits.
+- Latest commit: `ef79140 fix: align runtime validation reachability`.
+- Worktree: clean except untracked generated `build/`.
+- `git diff --check`: passed.
+- Terraform workspace: `default`.
+- Terraform state: populated.
+- Terraform outputs: active regional deployment IDs are both `ef79140`.
+- Synthetic placement override: enabled in development.
+- Synthetic placement group: `synthetic-runtime-validation`.
+- Selectable owner regions: `us-east-1`, `us-west-2`.
+- Witness owner region: excluded.
+- Sanitized Terraform no-drift plan with
+  `enable_synthetic_placement_override=true`: exit code 0, no changes.
+
+Health gate:
+
+| Region | Endpoint | HTTP | Latency | Result |
+| --- | --- | ---: | ---: | --- |
+| `us-east-1` | `/health/live` | 200 | 1.619s | alive, site `east`, role `active`, deployment `ef79140` |
+| `us-east-1` | `/health/ready` | 200 | 0.463s | `HEALTHY`, scope `readiness`, reason `ALL_REQUIRED_CHECKS_PASS` |
+| `us-west-2` | `/health/live` | 200 | 1.353s | alive, site `west`, role `active`, deployment `ef79140` |
+| `us-west-2` | `/health/ready` | 200 | 0.573s | `HEALTHY`, scope `readiness`, reason `ALL_REQUIRED_CHECKS_PASS` |
+
+Protected route probes without authentication:
+
+| Region | Route | HTTP | Result |
+| --- | --- | ---: | --- |
+| `us-east-1` | `POST /resume-upload-url` | 401 | authorization rejection, not `404` |
+| `us-east-1` | `POST /analyze-uploaded-resume` | 401 | authorization rejection, not `404` |
+| `us-west-2` | `POST /resume-upload-url` | 401 | authorization rejection, not `404` |
+| `us-west-2` | `POST /analyze-uploaded-resume` | 401 | authorization rejection, not `404` |
+
+Queue, worker, and alarm baseline:
+
+| Region | Queue visible | Queue in flight | Queue delayed | DLQ visible | Worker mapping | Last processing result | Alarms |
+| --- | ---: | ---: | ---: | ---: | --- | --- | --- |
+| `us-east-1` | 0 | 0 | 0 | 0 | `Enabled`, batch size 5 | none reported | 11 `OK` |
+| `us-west-2` | 0 | 0 | 0 | 0 | `Enabled`, batch size 5 | none reported | 11 `OK` |
+
+Blocking dispatch finding:
+
+- Both regional EventBridge outbox publisher schedules are deployed with
+  `rate(1 minute)` expressions but `DISABLED` state.
+- Terraform source sets
+  `aws_cloudwatch_event_rule.outbox_publisher_schedule.state = "DISABLED"`.
+- Terraform tests explicitly require both publisher schedules to remain
+  disabled and currently fail the configuration if they are enabled.
+- Repository authority therefore does not currently provide the normal
+  scheduled outbox publisher path required to dispatch newly created outbox
+  records to SQS.
+
+Execution decision:
+
+No synthetic business work was created. Creating target-career, upload,
+analysis, idempotency, and outbox records while the normal publisher trigger is
+disabled would be expected to leave work pending and would not prove the
+accepted asynchronous runtime path. Manual Lambda invocation, direct SQS send,
+outbox mutation, replay, or schedule enablement were not authorized for
+MR-009D3B and would not be valid substitute evidence under the MR-009D
+contract.
+
+Evidence not collected in MR-009D3B:
+
+- synthetic validation principal and JWT authentication evidence;
+- synthetic PDF upload evidence;
+- target-career setup;
+- east local flow;
+- west local flow;
+- east-to-west flow;
+- west-to-east flow;
+- runtime idempotency same-payload and conflict behavior;
+- witness-rejection and unauthorized-override runtime behavior;
+- synthetic DynamoDB point-read evidence;
+- outbox, transport, worker, and final durable-state evidence;
+- end-to-end correlation reconstruction.
+
+Cleanup:
+
+No synthetic principal, group membership change, token file, PDF, request
+payload, uploaded object, target-career record, analysis work item,
+idempotency record, outbox record, queue message, or result record was created.
+Temporary local health-response files were removed after recording the safe
+summary above.
+
+MR-009D remains open. MR-009D3B cannot proceed to business writes until a later
+authorized remediation aligns repository authority and deployed runtime so the
+outbox publisher can run through an accepted normal trigger, or the repository
+defines a different accepted non-replay, non-manual dispatch mechanism for
+runtime validation.
+
 ## 30. Documentation Created or Updated
 
 Created:
@@ -411,11 +514,15 @@ artifacts remain untracked and must not be committed as MR-009D evidence.
 ## 35. MR-009D Completion Assessment
 
 MR-009D is not complete. The deployment prerequisite is still healthy, but
-synthetic asynchronous runtime behavior was not proven.
+synthetic asynchronous runtime behavior was not proven. MR-009D3A corrected
+route reachability and placement testability; MR-009D3B then confirmed that
+the normal outbox publisher trigger remains disabled by repository-owned
+Terraform and Terraform tests, so no synthetic business work was created.
 
 Required missing evidence:
 
 - synthetic business work accepted by both active regional APIs.
+- normal outbox publisher invocation through an accepted runtime trigger.
 - local outbox, queue, worker, and final-state evidence in both regions.
 - cross-region owner-region transport and worker evidence.
 - runtime idempotency same-payload and conflict behavior.
@@ -427,7 +534,9 @@ Do not start MR-010. Before MR-009D can close, MR-009D3B must use the
 corrected route contract and approved development validation override to prove
 local and cross-region asynchronous processing, idempotency, correlation,
 monitoring, cleanup, and witness boundaries in the deployed development
-runtime.
+runtime. A prerequisite remediation is now required to make the outbox
+publisher operational through an accepted normal trigger without introducing
+replay, retry, failover, traffic shifting, or manual queue delivery behavior.
 
 MR-010 still requires a failover/recovery decision record and failure-mode
 review before implementation.
@@ -470,6 +579,9 @@ RUNTIME VALIDATION NOT COMPLETE
 - No workload was sent to the witness.
 - No secret, password, or token was recorded.
 - No temporary token files were created.
+- No synthetic Cognito principal was created.
+- No synthetic PDF was created or uploaded.
+- No synthetic business work was created.
 - Generated build artifacts were not committed.
 - MR-010 was not started.
 - Architecture posters were not regenerated.

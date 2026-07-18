@@ -172,3 +172,27 @@ until a later accepted decision explicitly introduces that behavior.
 MR-009C does not persist aggregate health state. Request-time readiness exposes
 safe local observations, while sustained regional degradation is evaluated
 through cost-gated CloudWatch alarms, structured logs, metrics, and runbooks.
+
+## MR-009D Runtime Validation Status
+
+MR-009D is still open. MR-009D3A deployed route-contract alignment and the
+development-only synthetic placement override at deployment ID `ef79140`.
+MR-009D3B then verified the pre-write runtime gates but did not create
+synthetic business work because the normal outbox publisher trigger is not
+operational: both regional EventBridge publisher schedules are deployed but
+disabled, and Terraform tests require them to remain disabled.
+
+Before attempting the end-to-end synthetic workflow again, repository
+authority must be updated through an accepted remediation that lets the outbox
+publisher run through a normal trigger or another explicitly approved
+validation dispatch mechanism. Do not use manual SQS sends, direct outbox
+mutation, replay, retry, failover, traffic shifting, or worker requeueing as
+substitute MR-009D evidence.
+
+MR-009D3C selects the normal EventBridge schedule as that trigger and controls
+it with `enable_outbox_publisher_schedule`. The flag defaults to `false`; the
+development runtime validation deployment sets it to `true`; non-development
+enablement is rejected until a later production activation decision. The
+publisher safety model is a bounded GSI query plus conditional claim before
+delivery, so concurrent regional schedules do not rely on timing jitter for
+duplicate-dispatch protection.

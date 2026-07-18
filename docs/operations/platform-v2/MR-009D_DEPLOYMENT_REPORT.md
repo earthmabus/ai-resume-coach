@@ -23,6 +23,12 @@ MR-009D deployment prerequisite is verified. Synthetic end-to-end runtime
 validation remains pending and must be performed as MR-009D3 with separate
 authorization.
 
+MR-009D3B found one remaining runtime-validation prerequisite blocker:
+regional outbox-publisher schedules existed but were disabled. MR-009D3C is
+the authorized remediation to make those schedules explicitly configurable,
+keep them disabled by default, and enable them for the development validation
+deployment only.
+
 ## Scope
 
 Original milestone commit targeted:

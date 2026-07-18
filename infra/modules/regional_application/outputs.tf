@@ -56,6 +56,15 @@ output "outbox_publisher_schedule" {
     name                = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
     schedule_expression = aws_cloudwatch_event_rule.outbox_publisher_schedule.schedule_expression
     state               = aws_cloudwatch_event_rule.outbox_publisher_schedule.state
+    enabled             = var.messaging.publisher_schedule_enabled
+    target_id           = aws_cloudwatch_event_target.outbox_publisher.target_id
+    target_function     = aws_lambda_function.outbox_publisher.function_name
+    permission_statement_id = (
+      aws_lambda_permission.eventbridge_outbox_publisher.statement_id
+    )
+    permission_principal = (
+      aws_lambda_permission.eventbridge_outbox_publisher.principal
+    )
   }
 }
 

@@ -159,6 +159,21 @@ variable "outbox_publisher_schedule_expression" {
   default     = "rate(1 minute)"
 }
 
+variable "enable_outbox_publisher_schedule" {
+  description = "Enable regional EventBridge schedules that invoke the outbox publishers."
+  type        = bool
+  default     = false
+
+  validation {
+    condition = (
+      !var.enable_outbox_publisher_schedule
+      ||
+      var.environment == "dev"
+    )
+    error_message = "Outbox publisher schedules can only be enabled in dev until a production activation decision exists."
+  }
+}
+
 variable "lambda_runtime" {
   description = "Python runtime used by regional application functions."
   type        = string

@@ -162,6 +162,24 @@ of a supported way to create remote-owned synthetic work for cross-region
 transport validation. MR-009D3B must still perform the actual end-to-end
 synthetic runtime validation after MR-009D3A is deployed and verified.
 
+MR-009D3B pre-write gates verified the `ef79140` development deployment,
+route/placement prerequisites, health, empty processing queues, enabled worker
+event-source mappings, `OK` alarm state, and Terraform no drift. It did not
+create synthetic business work because the normal outbox publisher trigger is
+not currently operational: both EventBridge publisher schedules are deployed
+but disabled, and Terraform tests explicitly require them to remain disabled.
+MR-009D remains open until an accepted remediation provides a normal publisher
+trigger or another repository-approved dispatch mechanism suitable for runtime
+validation without replay, retry, failover, manual queue sends, or outbox
+mutation.
+
+MR-009D3C is the authorized remediation to make the normal outbox publisher
+trigger operational for development validation. It introduces an explicit
+`enable_outbox_publisher_schedule` Terraform setting that remains disabled by
+default, is dev-only until a later production decision, and enables both
+regional EventBridge schedules when explicitly selected. MR-009D3C must prove
+empty scheduled publisher invocations before MR-009D3B is retried.
+
 ## MR-010 — Failover and Recovery Validation
 
 Scenarios:

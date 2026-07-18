@@ -36,9 +36,9 @@ resource "aws_sqs_queue" "processing" {
 
 resource "aws_cloudwatch_event_rule" "outbox_publisher_schedule" {
   name                = "${local.name_prefix}-outbox-publisher-schedule"
-  description         = "Reserved schedule for the regional outbox publisher."
+  description         = "Regional trigger for the transactional outbox publisher."
   schedule_expression = var.messaging.publisher_schedule
-  state               = "DISABLED"
+  state               = var.messaging.publisher_schedule_enabled ? "ENABLED" : "DISABLED"
 
   tags = merge(
     local.tags,

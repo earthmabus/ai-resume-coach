@@ -434,6 +434,23 @@ MR-009D3B entry criteria after MR-009D3A:
 - default ownership remains ingress-local when no validation header is used;
 - idempotency fingerprints include owner region for uploaded-resume analysis;
 - Terraform reports no drift.
+- the outbox publisher can run through an accepted normal trigger, or another
+  repository-approved validation dispatch mechanism exists that does not use
+  manual SQS sends, direct outbox mutation, replay, retry, failover, traffic
+  shifting, queue draining, or worker requeueing.
+
+MR-009D3C selects the normal EventBridge schedule as the accepted trigger.
+Before retrying synthetic business work, verify:
+
+- `enable_outbox_publisher_schedule=true` is explicitly set for the
+  development deployment;
+- east and west schedules are `ENABLED`;
+- both publishers have invoked through EventBridge with an empty outbox;
+- empty invocations report zero examined, claimed, published, failed, skipped,
+  and permanently failed records;
+- queues and DLQs remain empty;
+- publisher failure alarms remain `OK`;
+- Terraform reports no drift with the same explicit schedule setting.
 
 ## Decision Criteria
 

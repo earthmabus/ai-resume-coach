@@ -23,9 +23,10 @@ and messaging boundaries introduced by MR-007C.
 The worker event-source mapping is enabled because its regional processing
 queue exists and its permissions are complete.
 
-The outbox publisher function and EventBridge target exist, but the associated
-schedule remains disabled. The publisher cannot be operationally complete
-until the DynamoDB MRSC table and outbox permissions are introduced.
+The outbox publisher function and EventBridge target exist. The schedule was
+initially disabled while the DynamoDB MRSC table, outbox publisher code, and
+outbox permissions were still incomplete. Schedule activation is now controlled
+by `enable_outbox_publisher_schedule`, which defaults to `false`.
 
 The API Lambda exists but is not externally reachable because API Gateway is
 intentionally deferred.
@@ -49,5 +50,5 @@ intentionally deferred.
 - Workers consume only their regional queues.
 - Worker event-source mappings support partial-batch failures.
 - EventBridge can invoke each regional outbox publisher.
-- Outbox schedules remain disabled.
+- Outbox schedules remain disabled unless explicitly enabled by configuration.
 - APIs remain private until API Gateway is added.

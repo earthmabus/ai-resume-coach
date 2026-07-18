@@ -184,7 +184,98 @@ run "regional_compute_is_symmetric" {
       &&
       output.regional_foundations.west.outbox_publisher_schedule.state
       == "DISABLED"
+      &&
+      !output.regional_foundations.east.outbox_publisher_schedule.enabled
+      &&
+      !output.regional_foundations.west.outbox_publisher_schedule.enabled
     )
-    error_message = "Outbox publisher schedules must remain disabled until DynamoDB outbox access exists."
+    error_message = "Outbox publisher schedules must be disabled by default."
   }
+}
+
+run "regional_outbox_publisher_schedules_can_be_enabled_for_dev" {
+  command = plan
+
+  variables {
+    enable_outbox_publisher_schedule = true
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.outbox_publisher_schedule.state
+      == "ENABLED"
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.state
+      == "ENABLED"
+      &&
+      output.regional_foundations.east.outbox_publisher_schedule.enabled
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.enabled
+    )
+    error_message = "Outbox publisher schedules should be explicitly enableable for dev validation."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.outbox_publisher_schedule.schedule_expression
+      == output.regional_foundations.west.outbox_publisher_schedule.schedule_expression
+      &&
+      output.regional_foundations.east.outbox_publisher_schedule.schedule_expression
+      == "rate(1 minute)"
+    )
+    error_message = "Regional outbox publisher schedules must keep the same configured expression."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.outbox_publisher_schedule.target_id
+      == "regional-outbox-publisher"
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.target_id
+      == "regional-outbox-publisher"
+    )
+    error_message = "Each regional outbox schedule must expose the expected target id."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.outbox_publisher_schedule.target_function
+      == output.regional_foundations.east.compute.outbox_publisher.name
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.target_function
+      == output.regional_foundations.west.compute.outbox_publisher.name
+    )
+    error_message = "Each regional outbox schedule must target the local publisher Lambda."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.outbox_publisher_schedule.permission_statement_id
+      == "AllowEventBridgeOutboxPublisher"
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.permission_statement_id
+      == "AllowEventBridgeOutboxPublisher"
+      &&
+      output.regional_foundations.east.outbox_publisher_schedule.permission_principal
+      == "events.amazonaws.com"
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.permission_principal
+      == "events.amazonaws.com"
+    )
+    error_message = "Publisher invoke permissions must allow EventBridge invocation with the expected statement."
+  }
+}
+
+run "regional_outbox_publisher_schedule_enablement_is_dev_only" {
+  command = plan
+
+  variables {
+    environment                         = "prod"
+    enable_outbox_publisher_schedule    = true
+    enable_observability_dashboard      = false
+    enable_synthetic_placement_override = false
+    production_readiness_enforced       = false
+  }
+
+  expect_failures = [var.enable_outbox_publisher_schedule]
 }

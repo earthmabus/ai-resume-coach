@@ -15,6 +15,41 @@ Delivered events receive an `expiresAt` timestamp and are removed automatically 
 - Maximum delivery attempts: 20
 - Delivered retention: 30 days
 - Maximum retry backoff: 30 minutes
+- Publisher schedule expression: `rate(1 minute)` when explicitly enabled
+
+## Scheduled publisher trigger
+
+The normal outbox dispatch trigger is the regional EventBridge schedule for the
+same-region outbox-publisher Lambda. Schedule activation is controlled by
+Terraform variable `enable_outbox_publisher_schedule`, which defaults to
+`false`. MR-009D development runtime validation enables it explicitly; other
+environments remain disabled until a later activation decision.
+
+Each active region has one local rule, target, and Lambda invoke permission.
+The witness region has no publisher schedule.
+
+The publisher queries the sparse outbox status GSI for `PENDING`,
+eligible `FAILED_RETRYABLE`, and stale `DISPATCHING` records. It does not scan
+the table. A conditional claim moves a dispatchable item to `DISPATCHING`
+before SQS delivery. If east and west schedules run at the same time, both may
+observe the same record, but only one conditional claim can succeed for a
+given dispatch attempt.
+
+Empty scheduled invocations are expected to complete quietly and emit bounded
+structured counts:
+
+- `examined`
+- `claimed`
+- `published`
+- `failed`
+- `skipped`
+- `permanentlyFailed`
+
+Embedded metrics include `OutboxPublisherCycles`,
+`OutboxEventsExamined`, `OutboxEventsClaimed`,
+`OutboxEventsPublished`, `OutboxPublishFailures`,
+`OutboxClaimSkips`, and `OutboxPermanentFailures` with `FunctionName` as the
+only metric dimension.
 
 ## Investigate permanent failures
 

@@ -99,6 +99,7 @@ variable "messaging" {
     dlq_retention_seconds      = number
     max_receive_count          = number
     publisher_schedule         = string
+    publisher_schedule_enabled = bool
   })
 }
 

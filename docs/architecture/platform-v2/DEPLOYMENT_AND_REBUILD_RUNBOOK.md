@@ -52,6 +52,10 @@ terraform apply tfplan-platform-v2
 
 ## Validate
 
-Confirm shared edge/identity, re-register the test user, verify east and west health/version endpoints, invoke both workers and publishers, test PDF upload and processing in each Region, and finish with a no-change Terraform plan.
+Confirm shared edge/identity, re-register the test user, verify east and west
+health/version endpoints, enable explicitly authorized outbox publisher
+schedules only when required for the deployment stage, verify scheduled
+publisher invocation without manual Lambda invocation, test PDF upload and
+processing in each Region, and finish with a no-change Terraform plan.
 
 Forward correction is preferred after destructive rebuild begins. Restore Platform V1 only if Platform V2 cannot be completed within the accepted development window.

@@ -70,8 +70,12 @@ run "regional_storage_and_messaging_are_symmetric" {
       &&
       output.regional_foundations.west.outbox_publisher_schedule.state
       == "DISABLED"
+      &&
+      !output.regional_foundations.east.outbox_publisher_schedule.enabled
+      &&
+      !output.regional_foundations.west.outbox_publisher_schedule.enabled
     )
-    error_message = "Both outbox-publisher schedules must remain disabled."
+    error_message = "Both outbox-publisher schedules must be disabled by default."
   }
 
   assert {

@@ -43,6 +43,7 @@ module "east" {
     dlq_retention_seconds      = var.processing_dlq_message_retention_seconds
     max_receive_count          = var.processing_queue_max_receive_count
     publisher_schedule         = var.outbox_publisher_schedule_expression
+    publisher_schedule_enabled = var.enable_outbox_publisher_schedule
   }
 
   regional_transport = {
@@ -172,6 +173,7 @@ module "west" {
     dlq_retention_seconds      = var.processing_dlq_message_retention_seconds
     max_receive_count          = var.processing_queue_max_receive_count
     publisher_schedule         = var.outbox_publisher_schedule_expression
+    publisher_schedule_enabled = var.enable_outbox_publisher_schedule
   }
 
   regional_transport = {
