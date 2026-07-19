@@ -111,7 +111,7 @@ def dependencies(monkeypatch, target_career):
         )
     )
     extract_text = MagicMock(return_value="Resume text")
-    put_item_and_outbox_if_absent = MagicMock(return_value=True)
+    put_item_if_absent = MagicMock(return_value=True)
     complete_request = MagicMock()
     mark_request_retryable = MagicMock()
     request_fingerprint = MagicMock(return_value=REQUEST_HASH)
@@ -135,8 +135,8 @@ def dependencies(monkeypatch, target_career):
     )
     monkeypatch.setattr(
         resume_analysis,
-        "put_item_and_outbox_if_absent",
-        put_item_and_outbox_if_absent,
+        "put_item_if_absent",
+        put_item_if_absent,
     )
     monkeypatch.setattr(
         resume_analysis,
@@ -163,8 +163,8 @@ def dependencies(monkeypatch, target_career):
         table=table,
         reserve_request=reserve_request,
         extract_text=extract_text,
-        put_item_and_outbox_if_absent=(
-            put_item_and_outbox_if_absent
+        put_item_if_absent=(
+            put_item_if_absent
         ),
         complete_request=complete_request,
         mark_request_retryable=mark_request_retryable,
@@ -206,7 +206,7 @@ def test_invalid_document_bucket_returns_400(dependencies):
     dependencies.table.get_item.assert_not_called()
 
 
-def test_first_submission_creates_item_and_outbox_without_direct_dispatch(
+def test_first_submission_creates_dispatchable_analysis_without_direct_dispatch(
     dependencies,
 ):
     response = resume_analysis.analyze_uploaded_resume(make_event())
@@ -229,15 +229,11 @@ def test_first_submission_creates_item_and_outbox_without_direct_dispatch(
         "test-bucket",
         "users/user-123/resumes/resume.pdf",
     )
-    dependencies.put_item_and_outbox_if_absent.assert_called_once()
+    dependencies.put_item_if_absent.assert_called_once()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
-    transaction = (
-        dependencies.put_item_and_outbox_if_absent.call_args.kwargs
-    )
-    created_item = transaction["item"]
-    outbox_item = transaction["outbox_item"]
+    created_item = dependencies.put_item_if_absent.call_args.args[0]
 
     assert created_item["analysisId"] == ANALYSIS_ID
     assert created_item["status"] == "QUEUED_PENDING_DISPATCH"
@@ -248,17 +244,9 @@ def test_first_submission_creates_item_and_outbox_without_direct_dispatch(
     assert created_item["ownerRegion"] == "us-east-1"
     assert not created_item["syntheticPlacementOverrideUsed"]
 
-    assert outbox_item["recordType"] == "outboxEvent"
-    assert outbox_item["eventType"] == "RESUME_ANALYSIS_REQUESTED"
-    assert outbox_item["aggregateId"] == ANALYSIS_ID
-    assert outbox_item["status"] == "PENDING"
-    assert outbox_item["correlationId"] == CORRELATION_ID
-    assert outbox_item["createdRegion"] == "us-east-1"
-    assert outbox_item["ownerRegion"] == "us-east-1"
-    assert outbox_item["payload"]["requestId"] == REQUEST_ID
-    assert outbox_item["payload"]["correlationId"] == CORRELATION_ID
-    assert outbox_item["payload"]["sourceRegion"] == "us-east-1"
-    assert outbox_item["payload"]["ownerRegion"] == "us-east-1"
+    assert created_item["dispatchStatus"] == "PENDING"
+    assert created_item["dispatchAttempts"] == 0
+    assert created_item["nextDispatchAttemptAt"] == created_item["createdAt"]
 
     reserve_call = dependencies.reserve_request.call_args.kwargs
     assert reserve_call["region"] == "us-east-1"
@@ -308,19 +296,12 @@ def test_authorized_synthetic_placement_override_selects_peer_owner(
 
     assert response["statusCode"] == 202
 
-    transaction = (
-        dependencies.put_item_and_outbox_if_absent.call_args.kwargs
-    )
-    created_item = transaction["item"]
-    outbox_item = transaction["outbox_item"]
+    created_item = dependencies.put_item_if_absent.call_args.args[0]
 
     assert created_item["createdRegion"] == "us-east-1"
     assert created_item["ownerRegion"] == "us-west-2"
     assert created_item["syntheticPlacementOverrideUsed"]
-    assert outbox_item["createdRegion"] == "us-east-1"
-    assert outbox_item["ownerRegion"] == "us-west-2"
-    assert outbox_item["payload"]["sourceRegion"] == "us-east-1"
-    assert outbox_item["payload"]["ownerRegion"] == "us-west-2"
+    assert created_item["dispatchStatus"] == "PENDING"
 
     reserve_call = dependencies.reserve_request.call_args.kwargs
     assert reserve_call["owner_region"] == "us-west-2"
@@ -385,7 +366,7 @@ def test_synthetic_placement_override_rejections_create_no_work(
     dependencies.request_fingerprint.assert_not_called()
     dependencies.reserve_request.assert_not_called()
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
 
 
 def test_synthetic_placement_override_rejected_when_not_enabled(
@@ -444,7 +425,7 @@ def test_completed_replay_does_not_repeat_work(dependencies):
 
     dependencies.table.get_item.assert_not_called()
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
 
@@ -470,20 +451,20 @@ def test_in_progress_replay_returns_same_analysis_without_work(
 
     dependencies.table.get_item.assert_not_called()
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
     dependencies.complete_request.assert_not_called()
 
 
-def test_outbox_transaction_failure_marks_request_retryable(
+def test_analysis_write_failure_marks_request_retryable(
     dependencies,
 ):
-    dependencies.put_item_and_outbox_if_absent.side_effect = (
-        RuntimeError("DynamoDB transaction unavailable")
+    dependencies.put_item_if_absent.side_effect = (
+        RuntimeError("DynamoDB write unavailable")
     )
 
     with pytest.raises(
         RuntimeError,
-        match="DynamoDB transaction unavailable",
+        match="DynamoDB write unavailable",
     ):
         resume_analysis.analyze_uploaded_resume(make_event())
 
@@ -510,7 +491,7 @@ def test_empty_pdf_text_completes_deterministic_400_response(
     assert completion["status_code"] == 400
     assert completion["resource_id"] == ANALYSIS_ID
 
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
     dependencies.table.update_item.assert_not_called()
 
 
@@ -552,7 +533,7 @@ def test_existing_pending_item_from_same_request_can_continue(
     }
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
 
     # The outbox publisher is now the only dispatch path.
     dependencies.table.update_item.assert_not_called()
@@ -588,7 +569,7 @@ def test_existing_processing_item_does_not_repeat_dispatch(
     assert body["version"] == 2
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
@@ -621,7 +602,7 @@ def test_existing_completed_item_does_not_repeat_dispatch(
     assert body["version"] == 3
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
     dependencies.table.update_item.assert_not_called()
     dependencies.complete_request.assert_called_once()
 
@@ -647,6 +628,6 @@ def test_existing_item_from_different_request_is_rejected(
         resume_analysis.analyze_uploaded_resume(make_event())
 
     dependencies.extract_text.assert_not_called()
-    dependencies.put_item_and_outbox_if_absent.assert_not_called()
+    dependencies.put_item_if_absent.assert_not_called()
     dependencies.complete_request.assert_not_called()
     dependencies.mark_request_retryable.assert_called_once()

@@ -17,14 +17,12 @@ from core.config import get_config
 from core.auth import current_user_id, assert_item_owner
 from core.errors import ResourceConflictError
 from core.keys import base_keys, resume_sk, user_pk
-from core.outbox import build_resume_analysis_outbox_event
 from core.synthetic_placement import resolve_synthetic_owner_region
 from core.storage import (
     document_bucket,
     get_entity_by_id,
     s3,
     table,
-    put_item_and_outbox_if_absent,
     put_item_if_absent,
 )
 from core.idempotency import (
@@ -839,6 +837,9 @@ def analyze_uploaded_resume(event):
                 "version": 1,
                 "sourceType": "pdf",
                 "status": "QUEUED_PENDING_DISPATCH",
+                "dispatchStatus": "PENDING",
+                "dispatchAttempts": 0,
+                "nextDispatchAttemptAt": created_at,
                 "provider": requested_provider,
                 "model": os.getenv("OPENAI_MODEL", ""),
                 "analysisVersion": "pdf-extraction-v1",
@@ -877,22 +878,7 @@ def analyze_uploaded_resume(event):
                 "roleSpecificGaps": [],
             }
 
-            outbox_event = build_resume_analysis_outbox_event(
-                analysis_id=analysis_id,
-                user_id=user_id,
-                analysis_provider=requested_provider,
-                created_region=context.region,
-                created_deployment_id=context.deployment_id,
-                request_id=context.request_id,
-                correlation_id=effective_correlation_id,
-                created_at=created_at,
-                owner_region=owner_region,
-            )
-
-            created = put_item_and_outbox_if_absent(
-                item=item,
-                outbox_item=outbox_event.item,
-            )
+            created = put_item_if_absent(item)
 
             if not created:
                 existing = table.get_item(
