@@ -35,18 +35,17 @@ run "resume_analysis_system_of_record_uses_mrsc_with_witness" {
   }
 
   assert {
-    condition = (
-      length(aws_dynamodb_table.resume_analysis.attribute) == 4
-      &&
-      contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "pk")
-      &&
-      contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "sk")
-      &&
-      contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "gsi1pk")
-      &&
-      contains(aws_dynamodb_table.resume_analysis.attribute[*].name, "gsi1sk")
-    )
-    error_message = "The application table must declare pk/sk and gsi1 key string attributes."
+    condition = alltrue([
+      for required_name in [
+        "pk",
+        "sk",
+        "gsi1pk",
+        "gsi1sk",
+        "gsi2pk",
+        "gsi2sk",
+      ] : contains(aws_dynamodb_table.resume_analysis.attribute[*].name, required_name)
+    ])
+    error_message = "The application table must declare pk/sk plus gsi1 and gsi2 key attributes."
   }
 
   assert {
@@ -57,20 +56,14 @@ run "resume_analysis_system_of_record_uses_mrsc_with_witness" {
     error_message = "All DynamoDB key attributes must be strings."
   }
 
-  assert {
-    condition = (
-      length(aws_dynamodb_table.resume_analysis.global_secondary_index) == 1
-      &&
-      one(aws_dynamodb_table.resume_analysis.global_secondary_index).name == "gsi1"
-      &&
-      one(aws_dynamodb_table.resume_analysis.global_secondary_index).hash_key == "gsi1pk"
-      &&
-      one(aws_dynamodb_table.resume_analysis.global_secondary_index).range_key == "gsi1sk"
-      &&
-      one(aws_dynamodb_table.resume_analysis.global_secondary_index).projection_type == "ALL"
-    )
-    error_message = "The application table must expose the sparse gsi1 index required by repository query paths."
-  }
+  # AWS provider 6.55.0 exposes deprecated computed hash_key/range_key
+  # attributes alongside key_schema. Under command = plan, those computed values
+  # can mark the entire global_secondary_index set as unknown. Terraform 1.15.8
+  # then crashes while rendering that unknown assertion diagnostic.
+  #
+  # The concrete GSI key contract is validated by tests/test_dynamodb_contract.py
+  # against infra/data.tf. This Terraform test validates the exported, stable
+  # application-data contract below.
 
   assert {
     condition = (
@@ -81,8 +74,16 @@ run "resume_analysis_system_of_record_uses_mrsc_with_witness" {
       output.resume_analysis_data.global_secondary_indexes.gsi1.range_key == "gsi1sk"
       &&
       output.resume_analysis_data.global_secondary_indexes.gsi1.projection_type == "ALL"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi2.name == "gsi2"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi2.hash_key == "gsi2pk"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi2.range_key == "gsi2sk"
+      &&
+      output.resume_analysis_data.global_secondary_indexes.gsi2.projection_type == "ALL"
     )
-    error_message = "The exported Resume Analysis data contract must include gsi1."
+    error_message = "The exported Resume Analysis data contract must include gsi1 and gsi2."
   }
 
   assert {

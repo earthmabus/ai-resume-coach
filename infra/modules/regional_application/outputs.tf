@@ -43,6 +43,14 @@ output "processing_queue" {
   }
 }
 
+output "terminal_failure_dlq" {
+  value = {
+    name = aws_sqs_queue.terminal_failure.name
+    arn  = aws_sqs_queue.terminal_failure.arn
+    url  = aws_sqs_queue.terminal_failure.url
+  }
+}
+
 output "processing_dlq" {
   value = {
     name = aws_sqs_queue.processing_dlq.name

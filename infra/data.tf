@@ -7,6 +7,8 @@ resource "aws_dynamodb_table" "resume_analysis" {
 
   deletion_protection_enabled = var.dynamodb_deletion_protection_enabled
 
+  # The AWS provider currently supports key_schema for GSIs, but the
+  # table-level schema remains hash_key/range_key in provider v6.55.0.
   hash_key  = "pk"
   range_key = "sk"
 
@@ -30,10 +32,45 @@ resource "aws_dynamodb_table" "resume_analysis" {
     type = "S"
   }
 
+  attribute {
+    name = "gsi2pk"
+    type = "S"
+  }
+
+  attribute {
+    name = "gsi2sk"
+    type = "S"
+  }
+
   global_secondary_index {
-    name            = "gsi1"
-    hash_key        = "gsi1pk"
-    range_key       = "gsi1sk"
+    name = "gsi1"
+
+    key_schema {
+      attribute_name = "gsi1pk"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "gsi1sk"
+      key_type       = "RANGE"
+    }
+
+    projection_type = "ALL"
+  }
+
+  global_secondary_index {
+    name = "gsi2"
+
+    key_schema {
+      attribute_name = "gsi2pk"
+      key_type       = "HASH"
+    }
+
+    key_schema {
+      attribute_name = "gsi2sk"
+      key_type       = "RANGE"
+    }
+
     projection_type = "ALL"
   }
 

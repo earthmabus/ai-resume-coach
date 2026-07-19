@@ -763,9 +763,53 @@ the west replica and witness still `ACTIVE`. It then enables the active-region
 publisher schedules and observes empty EventBridge-triggered cycles with zero
 examined, claimed, published, failed, skipped, and permanently failed records.
 
-MR-009D remains open until MR-009D3D verifies the index and empty publisher
-cycles, and MR-009D3B later proves the full synthetic local and cross-region
-workflow.
+Observed MR-009D3D result on 2026-07-18:
+
+- Commit and deployment ID: `2b87e4d fix: align DynamoDB GSI contract`.
+- Phase 1 plan with `enable_outbox_publisher_schedule=false`: 0 added, 10
+  changed, 0 destroyed; no replacements. Meaningful changes were an in-place
+  DynamoDB table update to add `gsi1`, deployment-ID/package updates, and safe
+  output changes. Both publisher schedules remained `DISABLED`.
+- Phase 1 apply: 0 added, 10 changed, 0 destroyed.
+- Post-Phase 1 table evidence: table `ACTIVE`, `gsi1 ACTIVE`, key schema
+  `gsi1pk`/`gsi1sk`, projection `ALL`, index item count 0, table item count 0,
+  west replica `ACTIVE`, witness `ACTIVE`.
+- Phase 1 queues and DLQs: east and west processing queues and DLQs all
+  remained at 0 visible, 0 in-flight, and 0 delayed messages.
+- Phase 1 drift with schedules disabled: exit code 0, no changes.
+- Phase 2 plan with `enable_outbox_publisher_schedule=true`: 0 added, 2
+  changed, 0 destroyed; no replacements. Only the east and west EventBridge
+  publisher rules changed from `DISABLED` to `ENABLED`.
+- Phase 2 apply: 0 added, 2 changed, 0 destroyed.
+- East schedule state: `ENABLED`, `rate(1 minute)`.
+- West schedule state: `ENABLED`, `rate(1 minute)`.
+- Empty-cycle observation window started at `2026-07-18T20:24:58Z`.
+- East publisher scheduled completions observed at `20:25:23Z`,
+  `20:26:22Z`, and `20:27:21Z`; each reported `examined=0`, `claimed=0`,
+  `published=0`, `failed=0`, `skipped=0`, and `permanentlyFailed=0`.
+- West publisher scheduled completions observed at `20:25:53Z` and
+  `20:26:53Z`; each reported the same zero counts.
+- Publisher Lambda error log query during the observation window returned no
+  matching error events in either active region.
+- Native Lambda metrics showed publisher invocations in both active regions and
+  `Errors=0` for the observation window.
+- A simple custom metric lookup for `OutboxPublisherCycles` with only a
+  `Region` dimension returned no datapoints; structured logs and native Lambda
+  metrics were used as the authoritative empty-cycle evidence.
+- Publisher, outbox failure, DLQ, and DynamoDB throttle alarms inspected in
+  both active regions were `OK`.
+- East and west processing queues and DLQs remained at 0 visible, 0 in-flight,
+  and 0 delayed messages after the empty cycles.
+- Final health check: east and west `/health/live` returned HTTP 200; east and
+  west `/health/ready` returned HTTP 200 with `regionalHealth.status=HEALTHY`,
+  scope `readiness`, reason code `ALL_REQUIRED_CHECKS_PASS`, and deployment ID
+  `2b87e4d`.
+- Final Terraform no-drift plan with
+  `enable_outbox_publisher_schedule=true`: exit code 0, no changes.
+
+MR-009D3D verifies the index contract and empty scheduled publisher cycles.
+MR-009D remains open until MR-009D3B proves the full synthetic local and
+cross-region workflow.
 
 ## Required Confirmations
 

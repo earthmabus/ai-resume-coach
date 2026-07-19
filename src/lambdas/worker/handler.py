@@ -14,6 +14,9 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
+from core.retry_policy import decide_retry, receive_attempt
+from core.workflow_state import assert_transition
+from core.terminal_failure import TerminalFailureEnvelope
 from providers.factory import get_analysis_provider
 
 AWS_REGION = os.getenv("AWS_REGION", "unknown")
@@ -28,6 +31,7 @@ table = dynamodb.Table(os.getenv("RESUME_ANALYSIS_TABLE"))
 
 sqs = boto3.client("sqs")
 queue_url = os.getenv("RESUME_ANALYSIS_QUEUE_URL")
+terminal_failure_queue_url = os.getenv("TERMINAL_FAILURE_QUEUE_URL")
 
 logger = logging.getLogger()
 logger.setLevel(logging.INFO)
@@ -35,11 +39,16 @@ logger.setLevel(logging.INFO)
 
 STATUS_COMPLETED = "completed"
 STATUS_FAILED_RETRYABLE = "FAILED_RETRYABLE"
+STATUS_FAILED_PERMANENT = "FAILED_PERMANENT"
+STATUS_FAILED_RETRY_EXHAUSTED = "FAILED_RETRY_EXHAUSTED"
 STATUS_WORKER_PROCESSING = "WORKER_PROCESSING"
 STATUS_RESULT_READY = "RESULT_READY_PENDING_CHILD_DISPATCH"
 
 DEFAULT_LEASE_SECONDS = int(
     os.getenv("WORKER_PROCESSING_LEASE_SECONDS", "300")
+)
+DEFAULT_MAX_PROCESSING_ATTEMPTS = int(
+    os.getenv("WORKER_MAX_PROCESSING_ATTEMPTS", "5")
 )
 
 
@@ -388,6 +397,24 @@ def claim_job(identity: dict) -> dict:
             "priorStatus": current_status,
         }
 
+    if current_status in {
+        STATUS_FAILED_PERMANENT,
+        STATUS_FAILED_RETRY_EXHAUSTED,
+    }:
+        if not item.get("terminalFailurePublished", False):
+            return {
+                "disposition": "TERMINAL_FAILURE_PENDING",
+                "item": item,
+                "attemptId": None,
+                "priorStatus": current_status,
+            }
+        return {
+            "disposition": "SKIP",
+            "item": item,
+            "attemptId": None,
+            "priorStatus": current_status,
+        }
+
     if current_status == STATUS_WORKER_PROCESSING:
         lease_expires_at = int(
             item.get("processingLeaseExpiresAt", 0)
@@ -408,6 +435,8 @@ def claim_job(identity: dict) -> dict:
             f"{identity['recordType']} is not claimable "
             f"from status {current_status!r}"
         )
+
+    assert_transition(str(current_status or ""), STATUS_WORKER_PROCESSING)
 
     attempt_id = str(uuid.uuid4())
     claimed_at = utc_now()
@@ -498,6 +527,8 @@ def update_claimed_record(
     fields: dict[str, Any],
     remove_processing_metadata: bool = True,
 ) -> dict:
+    assert_transition(STATUS_WORKER_PROCESSING, status)
+
     names = {
         "#status": "status",
         "#version": "version",
@@ -570,14 +601,31 @@ def mark_claim_failed(
     key: dict,
     attempt_id: str,
     error_message: str,
+    failure_category: str = "TRANSIENT_INFRASTRUCTURE",
+    retryable: bool = True,
+    exhausted: bool = False,
+    processing_attempt: int = 1,
+    error_type: str = "Exception",
 ):
+    if exhausted:
+        status = STATUS_FAILED_RETRY_EXHAUSTED
+    elif retryable:
+        status = STATUS_FAILED_RETRYABLE
+    else:
+        status = STATUS_FAILED_PERMANENT
+
     try:
-        update_claimed_record(
+        return update_claimed_record(
             key=key,
             attempt_id=attempt_id,
-            status=STATUS_FAILED_RETRYABLE,
+            status=status,
             fields={
                 "errorMessage": error_message[:2000],
+                "errorType": error_type,
+                "failureCategory": failure_category,
+                "failureRetryable": retryable,
+                "processingAttempt": processing_attempt,
+                "processingAttemptsExhausted": exhausted,
                 "failedAt": utc_now(),
             },
         )
@@ -592,6 +640,70 @@ def mark_claim_failed(
 
         raise
 
+
+
+def publish_terminal_failure(
+    *,
+    identity: dict,
+    message_context: WorkerMessageContext,
+    item: dict,
+) -> str:
+    if not terminal_failure_queue_url:
+        raise RuntimeError("TERMINAL_FAILURE_QUEUE_URL is not configured")
+
+    failure_id = str(item.get("terminalFailureId") or uuid.uuid4())
+    envelope = TerminalFailureEnvelope(
+        failure_id=failure_id,
+        work_id=identity["recordId"],
+        job_type=identity["jobType"],
+        record_type=identity["recordType"],
+        status=str(item.get("status") or STATUS_FAILED_PERMANENT),
+        failure_category=str(item.get("failureCategory") or "PERMANENT"),
+        processing_attempt=int(item.get("processingAttempt", 1)),
+        max_processing_attempts=DEFAULT_MAX_PROCESSING_ATTEMPTS,
+        error_type=str(item.get("errorType") or "Exception"),
+        error_message=str(item.get("errorMessage") or "Workflow failed"),
+        request_id=message_context.request_id,
+        correlation_id=message_context.correlation_id,
+        outbox_event_id=message_context.outbox_event_id,
+        owner_region=message_context.owner_region,
+        source_region=message_context.source_region,
+        failed_region=AWS_REGION,
+        deployment_id=DEPLOYMENT_ID,
+        failed_at=str(item.get("failedAt") or utc_now()),
+    )
+    sqs.send_message(
+        QueueUrl=terminal_failure_queue_url,
+        MessageBody=envelope.to_json(),
+    )
+    return failure_id
+
+
+def mark_terminal_failure_published(*, key: dict, failure_id: str) -> None:
+    table.update_item(
+        Key=key,
+        UpdateExpression=(
+            "SET terminalFailurePublished = :published, "
+            "terminalFailureId = :failureId, "
+            "terminalFailurePublishedAt = :publishedAt, "
+            "updatedAt = :updatedAt"
+        ),
+        ConditionExpression=(
+            "#status IN (:permanent, :exhausted) "
+            "AND (attribute_not_exists(terminalFailurePublished) "
+            "OR terminalFailurePublished = :notPublished)"
+        ),
+        ExpressionAttributeNames={"#status": "status"},
+        ExpressionAttributeValues={
+            ":published": True,
+            ":notPublished": False,
+            ":failureId": failure_id,
+            ":publishedAt": utc_now(),
+            ":updatedAt": utc_now(),
+            ":permanent": STATUS_FAILED_PERMANENT,
+            ":exhausted": STATUS_FAILED_RETRY_EXHAUSTED,
+        },
+    )
 
 def process_resume_analysis(
     *,
@@ -1307,6 +1419,18 @@ def process_record(
 
     claim = claim_job(identity)
 
+    if claim["disposition"] == "TERMINAL_FAILURE_PENDING":
+        failure_id = publish_terminal_failure(
+            identity=identity,
+            message_context=message_context,
+            item=claim["item"],
+        )
+        mark_terminal_failure_published(
+            key=identity["key"],
+            failure_id=failure_id,
+        )
+        return
+
     if claim["disposition"] == "SKIP":
         logger.info(
             json.dumps(
@@ -1392,11 +1516,32 @@ def process_record(
         )
 
     except Exception as error:
-        mark_claim_failed(
+        processing_attempt = receive_attempt(record)
+        decision = decide_retry(
+            error,
+            attempt=processing_attempt,
+            max_attempts=DEFAULT_MAX_PROCESSING_ATTEMPTS,
+        )
+        failure_item = mark_claim_failed(
             key=identity["key"],
             attempt_id=attempt_id,
             error_message=str(error),
+            failure_category=decision.category.value,
+            retryable=decision.retryable,
+            exhausted=decision.exhausted,
+            processing_attempt=decision.attempt,
+            error_type=type(error).__name__,
         )
+        if decision.terminal and failure_item is not None:
+            failure_id = publish_terminal_failure(
+                identity=identity,
+                message_context=message_context,
+                item=failure_item,
+            )
+            mark_terminal_failure_published(
+                key=identity["key"],
+                failure_id=failure_id,
+            )
         logger.error(
             json.dumps(
                 {
@@ -1406,12 +1551,18 @@ def process_record(
                     "message": "Worker job failed",
                     "recordId": identity["recordId"],
                     "processingAttemptId": attempt_id,
+                    "processingAttempt": decision.attempt,
+                    "maxProcessingAttempts": decision.max_attempts,
+                    "failureCategory": decision.category.value,
+                    "failureRetryable": decision.retryable,
+                    "processingAttemptsExhausted": decision.exhausted,
                     "errorType": type(error).__name__,
                 },
                 separators=(",", ":"),
             )
         )
-        raise
+        if not decision.terminal:
+            raise
 
 
 def emit_worker_failure_metric(

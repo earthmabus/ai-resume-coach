@@ -48,6 +48,9 @@ before conditional claim and delivery. Terminal outbox records must not remain
 in dispatchable status partitions; delivered and permanently failed records
 remove `gsi1pk` and `gsi1sk`.
 
+MR-009D3D verified the development deployment with `gsi1 ACTIVE` and successful
+empty scheduled cycles in both active regions at deployment ID `2b87e4d`.
+
 Empty scheduled invocations are expected to complete quietly and emit bounded
 structured counts:
 

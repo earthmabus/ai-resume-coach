@@ -23,15 +23,30 @@ def test_gsi1_constants_match_table_terraform():
         REPOSITORY_ROOT / "infra" / "data.tf"
     ).read_text()
 
+    assert 'hash_key  = "pk"' in table_source
+    assert 'range_key = "sk"' in table_source
     assert f'name = "{GSI1_PARTITION_KEY}"' in table_source
     assert f'name = "{GSI1_SORT_KEY}"' in table_source
-    assert f'name            = "{GSI1_INDEX_NAME}"' in table_source
-    assert f'hash_key        = "{GSI1_PARTITION_KEY}"' in table_source
-    assert f'range_key       = "{GSI1_SORT_KEY}"' in table_source
+    assert f'name = "{GSI1_INDEX_NAME}"' in table_source
+    assert f'attribute_name = "{GSI1_PARTITION_KEY}"' in table_source
+    assert f'attribute_name = "{GSI1_SORT_KEY}"' in table_source
+    assert 'key_type       = "HASH"' in table_source
+    assert 'key_type       = "RANGE"' in table_source
     assert (
         f'projection_type = "{GSI1_PROJECTION_TYPE}"'
         in table_source
     )
+
+
+def test_all_global_secondary_indexes_use_key_schema():
+    table_source = (
+        REPOSITORY_ROOT / "infra" / "data.tf"
+    ).read_text()
+
+    gsi_source = table_source.split("global_secondary_index", 1)[1]
+    assert "hash_key" not in gsi_source
+    assert "range_key" not in gsi_source
+    assert gsi_source.count("key_schema {") == 4
 
 
 def test_entity_base_keys_populate_sparse_gsi_keys():

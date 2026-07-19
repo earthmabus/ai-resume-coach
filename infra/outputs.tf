@@ -94,6 +94,7 @@ output "regional_foundations" {
       document_bucket           = module.east.document_bucket
       processing_queue          = module.east.processing_queue
       processing_dlq            = module.east.processing_dlq
+      terminal_failure_dlq      = module.east.terminal_failure_dlq
       outbox_publisher_schedule = module.east.outbox_publisher_schedule
       execution_roles           = module.east.execution_roles
       compute                   = module.east.compute
@@ -108,6 +109,7 @@ output "regional_foundations" {
       document_bucket           = module.west.document_bucket
       processing_queue          = module.west.processing_queue
       processing_dlq            = module.west.processing_dlq
+      terminal_failure_dlq      = module.west.terminal_failure_dlq
       outbox_publisher_schedule = module.west.outbox_publisher_schedule
       execution_roles           = module.west.execution_roles
       compute                   = module.west.compute
@@ -138,6 +140,13 @@ output "resume_analysis_data" {
         name            = "gsi1"
         hash_key        = "gsi1pk"
         range_key       = "gsi1sk"
+        projection_type = "ALL"
+      }
+
+      gsi2 = {
+        name            = "gsi2"
+        hash_key        = "gsi2pk"
+        range_key       = "gsi2sk"
         projection_type = "ALL"
       }
     }

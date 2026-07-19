@@ -208,8 +208,10 @@ validates the sparse `gsi1` table/index contract or otherwise changes the
 accepted query model. Do not retry MR-009D3B synthetic work while this blocker
 is present.
 
-MR-009D3D is the active remediation. The accepted table contract is sparse
-`gsi1` with string keys `gsi1pk`/`gsi1sk` and `ALL` projection. Apply it in two
-phases: first add the index with schedules disabled and wait for `ACTIVE`, then
-enable development schedules and prove empty publisher cycles. Do not create
-synthetic business work in MR-009D3D.
+MR-009D3D completed the prerequisite remediation at deployment ID `2b87e4d`.
+The deployed table now has sparse `gsi1` with string keys `gsi1pk`/`gsi1sk`
+and `ALL` projection. The index was added with schedules disabled, reached
+`ACTIVE`, and the development schedules were then enabled. East and west
+publishers completed empty EventBridge-triggered cycles with zero counts and no
+errors. MR-009D remains open; the next slice is MR-009D3B synthetic
+end-to-end validation. Do not start MR-010.

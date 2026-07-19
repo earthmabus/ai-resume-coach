@@ -188,11 +188,11 @@ Both schedules were disabled again through Terraform after the failed
 observation window. The next remediation must align the DynamoDB table/index
 contract with the repository code before MR-009D3B can restart.
 
-MR-009D3D aligns that table/index contract. It adds sparse `gsi1`
-(`gsi1pk`/`gsi1sk`, projection `ALL`) without replacing the table, replica, or
-witness, then re-enables development publisher schedules only after the index is
-active and proves empty scheduled cycles. MR-009D3B remains the next runtime
-validation attempt after this prerequisite passes.
+MR-009D3D aligned that table/index contract at deployment ID `2b87e4d`. It
+added sparse `gsi1` (`gsi1pk`/`gsi1sk`, projection `ALL`) without replacing the
+table, replica, or witness, then re-enabled development publisher schedules
+after the index became active and proved empty scheduled cycles in both active
+regions. MR-009D3B is now the next runtime validation attempt.
 
 ## MR-010 — Failover and Recovery Validation
 

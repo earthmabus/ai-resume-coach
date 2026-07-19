@@ -19,6 +19,7 @@ locals {
     DOCUMENT_BUCKET                     = aws_s3_bucket.documents.bucket
     RESUME_ANALYSIS_TABLE               = var.resume_analysis.table_name
     RESUME_ANALYSIS_QUEUE_URL           = aws_sqs_queue.processing.url
+    TERMINAL_FAILURE_QUEUE_URL          = aws_sqs_queue.terminal_failure.url
     ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE = tostring(var.validation.enable_synthetic_placement_override)
     SYNTHETIC_PLACEMENT_OVERRIDE_GROUP  = var.validation.synthetic_placement_override_group
   }

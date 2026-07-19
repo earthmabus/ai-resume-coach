@@ -65,6 +65,22 @@ run "regional_storage_and_messaging_are_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.terminal_failure_dlq.name
+      == "ai-resume-coach-dev-use1-terminal-failure-dlq"
+    )
+    error_message = "The east terminal-failure DLQ name is incorrect."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.west.terminal_failure_dlq.name
+      == "ai-resume-coach-dev-usw2-terminal-failure-dlq"
+    )
+    error_message = "The west terminal-failure DLQ name is incorrect."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.outbox_publisher_schedule.state
       == "DISABLED"
       &&

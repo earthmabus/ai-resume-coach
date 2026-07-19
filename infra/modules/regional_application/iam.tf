@@ -155,6 +155,12 @@ resource "aws_iam_role_policy" "worker_runtime" {
         Resource = aws_sqs_queue.processing.arn
       },
       {
+        Sid      = "PublishTerminalWorkflowFailures"
+        Effect   = "Allow"
+        Action   = ["sqs:SendMessage"]
+        Resource = aws_sqs_queue.terminal_failure.arn
+      },
+      {
         Sid    = "DocumentObjectAccess"
         Effect = "Allow"
         Action = [

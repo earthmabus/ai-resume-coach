@@ -16,13 +16,16 @@ terraform.rc
 
 # Terraform generated artifacts
 *.zip
-lambda_layer/build
-
 infra/lambda.zip
 infra/pdf_layer.zip
 infra/worker.zip
-infra/tfplan
+lambda_layer/build
 
+# Terraform saved plan files
+infra/tfplan*
+*.tfplan
+
+# source files
 src/__pycache__/*
 src/core/__pycache__/*
 src/features/__pycache__/*
@@ -36,8 +39,5 @@ src/providers/__pycache__/*
 tools/__pycache__/*
 tests/__pycache__/*
 
-build/lambda/*
-
-# Terraform saved plan files
-infra/tfplan*
-*.tfplan
+# temporarily generated build directory
+build/*

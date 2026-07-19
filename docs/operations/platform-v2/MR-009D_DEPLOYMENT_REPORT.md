@@ -37,11 +37,12 @@ Both schedules were disabled again through Terraform after the failure was
 captured. MR-009D runtime validation remains blocked until the table/index
 contract is remediated.
 
-MR-009D3D remediates this prerequisite by adding the repository-required sparse
-`gsi1` index (`gsi1pk`/`gsi1sk`, projection `ALL`) in place. The deployment is
-performed in two phases: add the index with publisher schedules disabled, wait
-for `gsi1` to become `ACTIVE`, then enable development schedules and verify
-empty publisher cycles without creating synthetic business records.
+MR-009D3D remediated this prerequisite at deployment ID `2b87e4d` by adding the
+repository-required sparse `gsi1` index (`gsi1pk`/`gsi1sk`, projection `ALL`)
+in place. The deployment was performed in two phases: add the index with
+publisher schedules disabled, wait for `gsi1` to become `ACTIVE`, then enable
+development schedules and verify empty publisher cycles without creating
+synthetic business records.
 
 ## Scope
 

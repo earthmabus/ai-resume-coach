@@ -17,6 +17,7 @@ from core.config import get_config
 from core.auth import current_user_id, assert_item_owner
 from core.errors import ResourceConflictError
 from core.keys import base_keys, resume_sk, user_pk
+from core.workflow_dispatch import dispatch_partition, dispatch_sort_key
 from core.synthetic_placement import resolve_synthetic_owner_region
 from core.storage import (
     document_bucket,
@@ -840,6 +841,8 @@ def analyze_uploaded_resume(event):
                 "dispatchStatus": "PENDING",
                 "dispatchAttempts": 0,
                 "nextDispatchAttemptAt": created_at,
+                "gsi2pk": dispatch_partition(owner_region),
+                "gsi2sk": dispatch_sort_key(created_at, analysis_id),
                 "provider": requested_provider,
                 "model": os.getenv("OPENAI_MODEL", ""),
                 "analysisVersion": "pdf-extraction-v1",
@@ -905,6 +908,7 @@ def analyze_uploaded_resume(event):
 
         if current_status not in {
             "QUEUED_PENDING_DISPATCH",
+            "QUEUED",
             "processing",
             "WORKER_PROCESSING",
             "completed",

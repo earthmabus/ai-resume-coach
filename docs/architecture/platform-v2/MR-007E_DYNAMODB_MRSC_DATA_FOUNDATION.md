@@ -61,6 +61,9 @@ version, request, correlation, and dispatch fields without follow-up reads. The
 outbox status partition is acceptable for the current development validation
 scale and must be revisited before high-volume production scheduling.
 
+MR-009D3D deployed this index in development at deployment ID `2b87e4d` without
+replacing the table, west replica, or witness.
+
 ## Outbox schedule
 
 The table, publisher permissions, real outbox-publisher package, and
@@ -68,6 +71,10 @@ idempotency/outbox tests now exist. EventBridge schedule activation is
 controlled by `enable_outbox_publisher_schedule`, which defaults to `false`.
 Development runtime validation may explicitly enable it after verifying
 publisher duplicate-dispatch safety and IAM scope.
+
+MR-009D3D verified empty scheduled publisher cycles in both active regions after
+`gsi1` became `ACTIVE`; synthetic business workflow validation remains deferred
+to MR-009D3B.
 
 ## Deferred
 

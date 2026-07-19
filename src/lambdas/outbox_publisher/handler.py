@@ -21,6 +21,10 @@ from core.outbox_publisher import (
 )
 from core.region_routing import RegionRoutingService
 from core.regional_transport import SqsRegionalTransport
+from core.workflow_dispatch import (
+    ResumeWorkflowDispatcher,
+    WorkflowDispatchResult,
+)
 from core.work_placement import (
     WorkOwnershipResolver,
     WorkPlacementService,
@@ -41,6 +45,7 @@ DEFAULT_PROJECT_NAME = "ai-resume-coach"
 DEFAULT_ENVIRONMENT = "unknown"
 
 _publisher: OutboxPublisher | None = None
+_workflow_dispatcher: ResumeWorkflowDispatcher | None = None
 
 
 def required_environment_variable(
@@ -294,6 +299,45 @@ def build_publisher() -> OutboxPublisher:
     )
 
 
+def build_workflow_dispatcher() -> ResumeWorkflowDispatcher:
+    region = str(os.getenv("AWS_REGION") or "unknown")
+    dynamodb = boto3.resource("dynamodb")
+    return ResumeWorkflowDispatcher(
+        table=dynamodb.Table(configured_table_name()),
+        sqs_client=boto3.client("sqs"),
+        queue_url=required_environment_variable(
+            "RESUME_ANALYSIS_QUEUE_URL"
+        ),
+        region=region,
+        deployment_id=str(os.getenv("DEPLOYMENT_ID") or "unknown"),
+        batch_size=configured_batch_size(),
+    )
+
+
+def get_workflow_dispatcher() -> ResumeWorkflowDispatcher:
+    global _workflow_dispatcher
+    if _workflow_dispatcher is None:
+        _workflow_dispatcher = build_workflow_dispatcher()
+    return _workflow_dispatcher
+
+
+def workflow_dispatch_enabled() -> bool:
+    configured = os.getenv("WORKFLOW_DISPATCH_ENABLED")
+    if configured is not None:
+        return configured.strip().lower() in {
+            "1",
+            "true",
+            "yes",
+            "on",
+        }
+
+    # Unit tests use ENVIRONMENT=test and historically exercise only the
+    # transactional-outbox publisher. Keep that boundary isolated unless a
+    # test explicitly enables aggregate workflow dispatch. Runtime
+    # environments remain enabled by default.
+    return str(os.getenv("ENVIRONMENT") or "").strip().lower() != "test"
+
+
 def get_publisher() -> OutboxPublisher:
     global _publisher
 
@@ -304,8 +348,9 @@ def get_publisher() -> OutboxPublisher:
 
 
 def reset_publisher() -> None:
-    global _publisher
+    global _publisher, _workflow_dispatcher
     _publisher = None
+    _workflow_dispatcher = None
 
 
 def result_payload(
@@ -490,10 +535,22 @@ def handler(
         )
     )
 
-    result = (
-        get_publisher().publish_pending()
-    )
+    result = get_publisher().publish_pending()
     response = result_payload(result)
+
+    if workflow_dispatch_enabled():
+        workflow_result = (
+            get_workflow_dispatcher().dispatch_pending()
+        )
+        response["workflow"] = {
+            "examined": workflow_result.examined,
+            "claimed": workflow_result.claimed,
+            "dispatched": workflow_result.dispatched,
+            "failed": workflow_result.failed,
+            "skipped": workflow_result.skipped,
+            "recovered": workflow_result.recovered,
+            "recoverySkipped": workflow_result.recovery_skipped,
+        }
 
     logger.info(
         json.dumps(

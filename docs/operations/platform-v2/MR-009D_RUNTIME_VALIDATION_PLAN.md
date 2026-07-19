@@ -461,13 +461,13 @@ successfully because the deployed table does not have the repository-required
 must not restart until the DynamoDB table/index contract is explicitly
 remediated and empty publisher cycles complete with zero counts.
 
-MR-009D3D prerequisite update: the accepted remediation is to add sparse
-`gsi1` with string keys `gsi1pk` and `gsi1sk`, projection `ALL`, using an
-in-place DynamoDB table update. Phase 1 keeps
-`enable_outbox_publisher_schedule=false` until the index reaches `ACTIVE`.
-Phase 2 sets `enable_outbox_publisher_schedule=true` and observes normal empty
-EventBridge-triggered publisher cycles. No synthetic business work is created in
-MR-009D3D.
+MR-009D3D prerequisite update: deployment ID `2b87e4d` added sparse `gsi1`
+with string keys `gsi1pk` and `gsi1sk`, projection `ALL`, using an in-place
+DynamoDB table update. Phase 1 kept `enable_outbox_publisher_schedule=false`
+until the index reached `ACTIVE`. Phase 2 set
+`enable_outbox_publisher_schedule=true` and observed normal empty
+EventBridge-triggered publisher cycles in both active regions. No synthetic
+business work was created in MR-009D3D.
 
 ## Decision Criteria
 

@@ -41,8 +41,9 @@ def test_builds_expected_isolated_packages():
     assert any(path.startswith("providers/") for path in api_files)
 
     assert "handler.py" in worker_files
+    assert any(path.startswith("core/") for path in worker_files)
+    assert "core/retry_policy.py" in worker_files
     assert any(path.startswith("providers/") for path in worker_files)
-    assert not any(path.startswith("core/") for path in worker_files)
     assert not any(path.startswith("features/") for path in worker_files)
 
     assert "handler.py" in publisher_files

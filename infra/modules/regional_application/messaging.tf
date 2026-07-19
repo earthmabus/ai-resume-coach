@@ -1,3 +1,17 @@
+resource "aws_sqs_queue" "terminal_failure" {
+  name = "${local.name_prefix}-terminal-failure-dlq"
+
+  message_retention_seconds = var.messaging.dlq_retention_seconds
+  sqs_managed_sse_enabled   = true
+
+  tags = merge(
+    local.tags,
+    {
+      Capability = "workflow-terminal-failure-dlq"
+    },
+  )
+}
+
 resource "aws_sqs_queue" "processing_dlq" {
   name = "${local.name_prefix}-processing-dlq"
 

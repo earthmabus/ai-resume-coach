@@ -87,14 +87,15 @@ DynamoDB table/index contract is aligned with repository code.
 
 ## MR-009D3D GSI Prerequisite
 
-MR-009D3D aligns the deployed table with the repository query contract by adding
-the sparse `gsi1` index in place: hash key `gsi1pk`, range key `gsi1sk`,
-projection `ALL`. The index is required by outbox dispatch queries and by
-entity fallback lookup paths in API and worker code.
+MR-009D3D aligned the deployed table with the repository query contract by
+adding the sparse `gsi1` index in place: hash key `gsi1pk`, range key
+`gsi1sk`, projection `ALL`. The index is required by outbox dispatch queries
+and by entity fallback lookup paths in API and worker code.
 
 Schedule enablement remains a separate phase. Development applies must first
 add the index while `enable_outbox_publisher_schedule=false`, wait for the table
 and `gsi1` to become `ACTIVE`, verify replica and witness health, and only then
 apply `enable_outbox_publisher_schedule=true` to observe empty scheduled cycles.
-If empty cycles fail, schedules must be disabled again through Terraform before
-MR-009D3B is retried.
+Deployment ID `2b87e4d` completed those phases successfully in development. If
+future empty cycles fail, schedules must be disabled again through Terraform
+before MR-009D3B is retried.

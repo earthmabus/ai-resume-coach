@@ -34,6 +34,7 @@ PACKAGES = (
         name="worker",
         handler_source="src/lambdas/worker/handler.py",
         shared_directories=(
+            "src/core",
             "src/providers",
         ),
     ),
