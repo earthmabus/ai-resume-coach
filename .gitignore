@@ -43,3 +43,4 @@ build/*
 
 # Local runtime-validation evidence
 evidence/
+tools/multi_site/*.env
