@@ -1,19 +1,25 @@
 # Regional Isolation and Recovery Runbook
 
-## Isolate
+## Isolate one site
 
-1. Identify the affected site and confirm the other site is healthy.
-2. Set that site's `site_routing_enabled` value to `false`.
-3. Plan, review, and apply the Route 53 record removal.
-4. Confirm global traffic reaches the remaining site.
-5. Preserve logs, alarms, traces, and deployment identifiers.
+1. Confirm the peer site is directly live and ready.
+2. Capture pre-change evidence.
+3. Set only the affected site's `site_routing_enabled` value to `false`.
+4. Review and apply the Terraform plan.
+5. Verify the global hostname reaches the remaining site.
+6. Preserve routing, health, alarm, queue, and deployment evidence.
 
-## Recover
+## Restore one site
 
-1. Correct or roll back the isolated site.
-2. Validate all regional health endpoints directly.
-3. Confirm queues, DLQs, DynamoDB access, alarms, and synthetics are healthy.
-4. Set the site's routing value back to `true`.
-5. Plan, apply, and observe traffic before closing the incident.
+1. Correct or roll back the isolated application.
+2. Verify direct liveness/readiness, queues, DLQs, mappings, alarms, and MRSC.
+3. Set the site routing value back to `true`.
+4. Review and apply the Route 53 change.
+5. Observe both sites before closing the incident.
 
-Never disable both sites. Do not use infrastructure rollback to reverse application data changes.
+## Invariants
+
+- Never disable both sites.
+- Routing isolation does not reassign existing work.
+- Do not mutate `ownerRegion`, outbox records, or queue messages.
+- Do not use infrastructure rollback to reverse application data.

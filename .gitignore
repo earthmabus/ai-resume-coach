@@ -1,4 +1,3 @@
-
 # Terraform local/cache files
 **/.terraform/*
 *.tfstate
@@ -41,3 +40,6 @@ tests/__pycache__/*
 
 # temporarily generated build directory
 build/*
+
+# Local runtime-validation evidence
+evidence/
