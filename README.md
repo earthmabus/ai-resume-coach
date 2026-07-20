@@ -1,48 +1,59 @@
-# Platform Architecture Book
+# MR-009D4 Replacement Package
 
-This package bootstraps the Platform V2 Architecture Book.
+Copy the files in this package over the repository root, preserving paths.
 
-## Reading Order
-01. Executive Overview
-02. Business Goals
-03. Architecture Overview
-04. System Context
-05. Active-Active Architecture
-06. Request Lifecycle
-07. Data Architecture
-08. Processing Architecture
-09. Security Architecture
-10. Observability
-11. Disaster Recovery
-12. Deployment Architecture
-13. Operational Runbook
-14. Architectural Decisions
-15. Future Evolution
+## Included changes
 
-# Codex Context Package
+- `tools/multi_site/mr009d4_runtime_validation.sh`
+  - bidirectional Route 53 routing isolation;
+  - global routing convergence measurement;
+  - authenticated survivor-region writes and reads;
+  - automatic safety restoration;
+  - timestamped evidence collection.
+- `tools/multi_site/inspect_jwt_claims.py`
+  - ID-token validation;
+  - expiration and minimum remaining-lifetime validation;
+  - safe claim summary without token disclosure.
+- `tests/test_mr009d4_runtime_tools.py`
+  - JWT lifetime regression tests;
+  - isolation/restoration safety-contract tests;
+  - survivor-flow assertions.
+- MR-009D4 validation plan and expanded isolation runbook.
 
-This package contains repository guidance and durable architectural context for continuing the AI Resume Coach multi-site program with Codex.
-
-## Merge
-
-From the repository root:
+## Validate after extraction
 
 ```bash
-unzip /path/to/ai-resume-coach-codex-context.zip -d /tmp/ai-resume-coach-codex-context
-cp -R /tmp/ai-resume-coach-codex-context/ai-resume-coach-codex-context/. .
-git diff -- AGENTS.md docs/engineering docs/architecture/decisions
+python -m compileall src tests tools
+pytest -q tests
+
+terraform -chdir=infra fmt -check -recursive
+terraform -chdir=infra validate
+terraform -chdir=infra test
+
+bash -n tools/multi_site/mr009d4_runtime_validation.sh
+./tools/validate_platform_v2_foundation.sh
 ```
 
-Review the files before committing. The package intentionally contains documentation and agent guidance only; it does not modify application or Terraform code.
+## Read-only preflight
 
-## Contents
+```bash
+./tools/multi_site/mr009d4_runtime_validation.sh
+```
 
-- `AGENTS.md`: concise repository instructions for coding agents
-- `docs/engineering/CODEX_WORKING_CONTEXT.md`: current platform state and vocabulary
-- `docs/engineering/MULTI_SITE_COMPLETION_PLAN.md`: remaining multi-site work
-- `docs/engineering/CODEX_TASK_TEMPLATE.md`: bounded-task prompt template
-- `docs/engineering/VALIDATION_CONTRACT.md`: required validation commands
-- `docs/architecture/decisions/MS-001_MULTI_SITE_TOPOLOGY.md`
-- `docs/architecture/decisions/MS-002_SINGLE_TABLE_FOR_NOW.md`
-- `docs/architecture/decisions/MS-003_SHARED_PROCESSING_CAPABILITY.md`
-- `docs/architecture/decisions/MS-004_RUNTIME_IDENTITY.md`
+The preflight does not change routing unless both `EXECUTE_FAILOVER=YES` and `CONFIRM_MUTATION=YES` are set.
+
+## Authorized runtime execution
+
+```bash
+export AWS_PROFILE=<profile>
+export TFVARS_FILE="$PWD/infra/<deployment>.tfvars"
+export AUTH_TOKEN='<fresh Cognito ID token>'
+export SYNTHETIC_PDF="$PWD/<synthetic-file>.pdf"
+export EXECUTE_FAILOVER=YES
+export CONFIRM_MUTATION=YES
+
+./tools/multi_site/mr009d4_runtime_validation.sh
+echo "MR-009D4 exit code: $?"
+```
+
+Review the complete plan before allowing each apply. The harness restores both routing records after each scenario and also attempts restoration from its exit trap.

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from dataclasses import dataclass
+import json
 from typing import Any
 
 from core.config import AppConfig, get_config
@@ -55,10 +56,29 @@ def _claim_values(value: Any) -> set[str]:
             if str(item).strip()
         }
 
+    text = str(value).strip()
+    if not text:
+        return set()
+
+    if text.startswith("[") and text.endswith("]"):
+        try:
+            parsed = json.loads(text)
+        except json.JSONDecodeError:
+            parsed = None
+
+        if isinstance(parsed, list):
+            return {
+                str(item).strip()
+                for item in parsed
+                if str(item).strip()
+            }
+
+        text = text[1:-1].strip()
+
     return {
-        item.strip()
-        for item in str(value).split(",")
-        if item.strip()
+        item.strip().strip("\"'")
+        for item in text.split(",")
+        if item.strip().strip("\"'")
     }
 
 
