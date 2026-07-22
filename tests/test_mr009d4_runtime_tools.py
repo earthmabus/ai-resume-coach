@@ -137,3 +137,20 @@ def test_mr009d4_validates_safety_restore_plan_before_apply():
     assert validation in text
     assert apply_command in text
     assert text.index(validation) < text.index(apply_command)
+
+
+def test_mr009d4_aligns_routing_plans_to_deployed_runtime_inputs():
+    harness = HARNESS.read_text()
+    common = (ROOT / "tools/multi_site/common.sh").read_text()
+
+    assert "prepare_deployed_runtime_alignment" in common
+    assert "get-function-configuration" in common
+    assert "DEPLOYMENT_ID" in common
+    assert "ANALYSIS_PROVIDER" in common
+    assert "Deployed DEPLOYMENT_ID values are missing or inconsistent" in common
+    assert "Deployed ANALYSIS_PROVIDER values are missing or inconsistent" in common
+    assert "TERRAFORM_RUNTIME_ALIGNMENT_ARGS" in common
+
+    assert "prepare_deployed_runtime_alignment" in harness
+    assert harness.count('"${TERRAFORM_RUNTIME_ALIGNMENT_ARGS[@]}"') == 2
+    assert "Terraform runtime inputs aligned to deployed Lambda configuration" in harness

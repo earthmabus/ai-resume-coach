@@ -1,80 +1,65 @@
 # Multi-Site Completion Plan
 
-## Goal
+## Program status
 
-Complete the multi-site active-active program through deployed runtime evidence,
-controlled failover and recovery exercises, evidence-based operational runbooks,
-and final architecture reconciliation.
+**Complete — July 22, 2026.**
 
-## Implemented foundation
+The multi-site active-active program delivered the architecture, runtime controls, operating procedures, and failure certification required to continue application service through bounded loss or isolation of either active application region.
 
-The repository currently implements:
+## Implemented topology
 
-- active application sites in `us-east-1` and `us-west-2`;
-- a DynamoDB multi-Region strongly consistent table with witness in `us-east-2`;
-- symmetric regional HTTP APIs, Lambda functions, queues, and dead-letter queues;
-- shared Cognito identity;
-- transactional outbox dispatch;
-- deterministic work ownership and cross-Region SQS delivery;
-- runtime identity, correlation, readiness, alarms, dashboards, and synthetics;
-- explicit regional routing controls and a guard against disabling both sites;
-- sequential deployment and regional rollback contracts;
-- bounded retry, terminal-failure, and explicit workflow-state behavior.
+- Active application sites: `us-east-1` and `us-west-2`.
+- DynamoDB multi-Region strongly consistent replicas in both active sites.
+- DynamoDB witness responsibility in `us-east-2`.
+- Symmetric regional HTTP APIs, API Lambdas, outbox publishers, SQS queues, workers, DLQs, and document buckets.
+- Shared Cognito identity and shared DynamoDB system of record.
+- Route 53 latency routing with health checks and per-site routing controls.
+- Transactional outbox dispatch, deterministic work ownership, regional delivery, idempotency, and explicit workflow state.
+- Non-mutating operational-readiness validation and approval-gated chaos certification.
 
-The remaining work validates and documents those controls. It does not introduce
-a generic workflow engine, public replay API, cross-Region queue draining, or
-automatic reassignment of in-flight work.
+## Completion evidence
 
-## MR-009D3B — Synthetic end-to-end runtime validation
+MR-014 completed successfully on July 22, 2026 against deployment ID `9fd780e1583637c5848ab21c5e38a3cf56e995c9`.
 
-Use `tools/multi_site/mr009d3b_runtime_validation.sh` after recording the
-required authorization variables in a local environment file.
+The final report recorded four of four scenarios passing:
 
-Completion requires one local-owner flow and one remote-owner flow to reach the
-normal completed state through the outbox, owning-region queue, and worker.
+1. Terraform rejected disabling both application sites.
+2. East and west routing isolation each converged to the surviving site; authenticated work succeeded; ownership and cross-region reads were correct; routing was restored.
+3. Worker interruption retained durable backlog; duplicate submission remained idempotent; restoration resumed processing; the workflow completed; the queue drained.
+4. Both regions, the MRSC contract, and authenticated reads passed after recovery.
 
-## MR-010 — Failover and recovery validation
+The permanent certification summary is `docs/certification/MR-014_MULTI_SITE_CERTIFICATION.md`.
 
-Use `tools/multi_site/mr010_failover_recovery.sh` for:
+## Closeout milestones
 
-- east isolation and restoration;
-- west isolation and restoration;
-- rejection of disabling both sites;
-- worker interruption, queue backlog growth, restoration, and drain;
-- MRSC read/write visibility;
-- regional application rollback while the peer remains healthy.
+### MR-015 — Multi-Site Closeout
 
-Every mutating exercise requires an explicit confirmation flag and creates
-timestamped evidence.
+- Preserve the MR-014 certification result.
+- Reconcile stale completion and evidence records.
+- Record known limitations and the certified baseline.
+- Mark the implementation program complete.
 
-## MR-011 — Operational runbooks
+### MR-016 — Multi-Site Operations and Architecture
 
-Authoritative runbooks:
+- Reconcile the final architecture with the deployed design.
+- Record implementation pivots and accepted boundaries.
+- Consolidate the operator runbook.
+- Publish final architecture posters.
+- Complete final architecture and operational acceptance.
 
-- `docs/operations/platform-v2/MULTI_SITE_DEPLOYMENT_RUNBOOK.md`
-- `docs/operations/platform-v2/REGIONAL_ISOLATION_AND_RECOVERY_RUNBOOK.md`
-- `docs/operations/platform-v2/QUEUE_BACKLOG_AND_DLQ_RUNBOOK.md`
-- `docs/operations/platform-v2/INCIDENT_EVIDENCE_COLLECTION_RUNBOOK.md`
-- `docs/runbooks/OUTBOX_OPERATIONS.md`
+## Certified boundaries
 
-## MR-012 — Final architecture reconciliation
+The program certifies bounded routing isolation and worker-consumer interruption. It does not claim:
 
-The final reconciliation is recorded in
-`docs/architecture/platform-v2/MR-012_MULTI_SITE_FINAL_RECONCILIATION.md`.
+- automatic ownership reassignment;
+- automatic cross-Region queue draining;
+- automatic terminal-failure replay;
+- zero interruption for in-flight work;
+- a public recovery API or operator console;
+- full production-readiness controls;
+- measured contractual RTO/RPO;
+- whole-account or whole-cloud disaster recovery.
 
-Runtime claims remain provisional until the generated MR-009D3B and MR-010
-evidence reports contain successful observations.
+## Future work
 
-## Completion criteria
-
-The multi-site program is complete when:
-
-- repository validation remains green;
-- both sites prove correct runtime identity and readiness;
-- local and cross-Region asynchronous flows complete with end-to-end correlation;
-- east and west isolation/restoration exercises pass;
-- queue backlog growth and drain are observed without data loss;
-- MRSC visibility is demonstrated;
-- a regional rollback is exercised;
-- runbooks match commands actually used;
-- final reconciliation records evidence and known limitations.
+WAF, permanent dashboards, alarms, synthetics, load testing, cost modeling, and broader production-readiness enforcement belong to a separate production-hardening program. They are not prerequisites for multi-site completion.

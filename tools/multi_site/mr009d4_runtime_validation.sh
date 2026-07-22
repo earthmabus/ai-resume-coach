@@ -19,6 +19,8 @@ fi
 
 aws_cli sts get-caller-identity > "$EVIDENCE_DIR/aws-identity.json"
 regional_endpoints
+prepare_deployed_runtime_alignment "$EVIDENCE_DIR/deployed-runtime-alignment.json" "$EVIDENCE_DIR/terraform-outputs.json"
+record "PASSED: Terraform runtime inputs aligned to deployed Lambda configuration"
 health_capture east-before "$EAST_API"
 health_capture west-before "$WEST_API"
 
@@ -59,6 +61,8 @@ require_env AUTH_TOKEN
 require_env SYNTHETIC_PDF
 TFVARS_FILE="$(realpath "$TFVARS_FILE")"
 [[ -f "$TFVARS_FILE" ]] || { echo "TFVARS_FILE not found" >&2; exit 2; }
+python "$ROOT_DIR/tools/multi_site/compose_mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/tfvars-profile-validation.json"
+record "PASSED: complete MR-014 Terraform input profile validated"
 [[ -f "$SYNTHETIC_PDF" ]] || { echo "SYNTHETIC_PDF not found" >&2; exit 2; }
 
 python "$ROOT_DIR/tools/multi_site/inspect_jwt_claims.py" \
@@ -137,7 +141,7 @@ restore_both_sites() {
     record "Safety cleanup: restoring both Route 53 routing records"
     set +e
     terraform -chdir="$INFRA_DIR" plan -input=false -lock-timeout=60s \
-      -var-file="$TFVARS_FILE" -var='site_routing_enabled={east=true,west=true}' \
+      -var-file="$TFVARS_FILE" "${TERRAFORM_RUNTIME_ALIGNMENT_ARGS[@]}" -var='site_routing_enabled={east=true,west=true}' \
       -out="$EVIDENCE_DIR/safety-restore.tfplan" > "$EVIDENCE_DIR/safety-restore-plan.txt" 2>&1
     local plan_rc=$?
     if (( plan_rc == 0 )); then
@@ -147,7 +151,8 @@ restore_both_sites() {
         set -e
         exit "$original_rc"
       fi
-      terraform -chdir="$INFRA_DIR" apply -input=false "$EVIDENCE_DIR/safety-restore.tfplan" \
+      env -u TF_VAR_deployment_id -u TF_VAR_analysis_provider \
+        terraform -chdir="$INFRA_DIR" apply -input=false "$EVIDENCE_DIR/safety-restore.tfplan" \
         > "$EVIDENCE_DIR/safety-restore-apply.txt" 2>&1
       local apply_rc=$?
       if (( apply_rc == 0 )); then
@@ -196,12 +201,13 @@ validate_routing_only_plan() {
 apply_routing() {
   local label="$1" routing="$2"
   terraform -chdir="$INFRA_DIR" plan -input=false -lock-timeout=60s \
-    -var-file="$TFVARS_FILE" -var="site_routing_enabled=$routing" \
+    -var-file="$TFVARS_FILE" "${TERRAFORM_RUNTIME_ALIGNMENT_ARGS[@]}" -var="site_routing_enabled=$routing" \
     -out="$EVIDENCE_DIR/${label}.tfplan" | tee "$EVIDENCE_DIR/${label}-plan.txt"
 
   validate_routing_only_plan "$label"
 
-  terraform -chdir="$INFRA_DIR" apply -input=false "$EVIDENCE_DIR/${label}.tfplan" \
+  env -u TF_VAR_deployment_id -u TF_VAR_analysis_provider \
+    terraform -chdir="$INFRA_DIR" apply -input=false "$EVIDENCE_DIR/${label}.tfplan" \
     | tee "$EVIDENCE_DIR/${label}-apply.txt"
   routing_changed=1
   terraform_output_json > "$EVIDENCE_DIR/${label}-terraform-outputs.json"

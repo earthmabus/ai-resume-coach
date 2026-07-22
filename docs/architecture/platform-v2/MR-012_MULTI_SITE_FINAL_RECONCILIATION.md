@@ -2,90 +2,63 @@
 
 ## Status
 
-Implementation reconciliation is in progress. The core runtime path has been observed through publisher dispatch, SQS delivery, worker claim, successful processing, and a persisted `completed` workflow. MR-012 now includes a non-mutating operational-readiness gate so future validation fails before execution when required runtime infrastructure is disabled or unavailable.
+**Reconciled and accepted.**
 
-## Operational-readiness gate
-
-Before running any mutating validation, execute:
-
-```bash
-./tools/multi_site/mr012_operational_readiness.sh
-```
-
-The gate verifies both regional readiness endpoints, publisher schedules, API/worker/publisher Lambda functions, regional processing queues and DLQs, and the DynamoDB active-replica contract. It writes a machine-readable report under `evidence/mr012-<timestamp>/` and performs no mutations.
+MR-012 introduced the non-mutating operational-readiness gate. MR-014 subsequently supplied the complete failure and recovery evidence. The final certification passed on July 22, 2026.
 
 ## Current topology
 
 - Active application regions: `us-east-1`, `us-west-2`.
 - DynamoDB MRSC witness region: `us-east-2`.
-- Each active region contains an HTTP API, API Lambda, outbox publisher, SQS
-  processing queue, DLQ, and worker Lambda.
+- Each active region contains an HTTP API, API Lambda, outbox publisher, SQS processing queue, DLQs, worker Lambda, document bucket, and regional logs.
 - Cognito identity and the DynamoDB system of record are shared capabilities.
-- Optional Route 53 latency routing publishes only sites enabled through
-  `site_routing_enabled`.
+- Route 53 latency routing publishes the sites enabled by `site_routing_enabled` and uses regional readiness health checks.
 
 ## Request and processing lifecycle
 
-A protected request enters one regional HTTP API. The API derives runtime
-identity, request ID, and correlation ID. Asynchronous work and an outbox record
-are persisted atomically. The work record carries deterministic `ownerRegion`.
-The scheduled publisher sends the event to the queue in that region. The worker
-validates ownership and workflow state before processing.
+A protected request enters one regional HTTP API. The API derives runtime identity, request ID, correlation ID, and an idempotency fingerprint. Asynchronous work and its outbox record are persisted atomically. The work record carries deterministic `ownerRegion`. A scheduled publisher dispatches the event to the owner-region SQS queue. The regional worker validates ownership and workflow state before processing.
 
-Duplicate API, publisher, queue, and worker deliveries are controlled through
-idempotency and conditional writes.
+Duplicate API, publisher, queue, and worker deliveries are controlled through idempotency, conditional writes, and explicit workflow transitions.
 
 ## Data architecture
 
-The ResumeAnalysis table is the MRSC system of record. `us-east-1` and
-`us-west-2` are active replicas; `us-east-2` is a witness and does not host
-application compute. Sparse `gsi1` supports pending outbox queries. Sparse
-`gsi2` supports dispatch-oriented access.
+The ResumeAnalysis table is the MRSC system of record. `us-east-1` and `us-west-2` are active replicas. `us-east-2` supplies the witness responsibility and hosts no application API, worker, queue, or document bucket. Sparse indexes support pending outbox and dispatch access patterns.
+
+Document storage remains regional. Work ownership identifies the site responsible for document access and processing.
 
 ## Availability and recovery
 
-Route 53 records can remove one site while retaining the other. Terraform
-rejects disabling both sites. Routing isolation affects new globally routed
-requests; it does not reassign existing work or drain queues across regions.
-Regional worker interruption creates durable SQS backlog. Restoration resumes
-normal processing.
+Routing isolation removes one Route 53 latency record while leaving that regional stack directly reachable for diagnosis. New globally routed requests converge to the surviving site. Existing work is not reassigned.
+
+Worker interruption leaves work durably queued. Restoring the event-source mapping resumes processing. The certification harness verifies restoration rather than assuming the enabling request has completed.
 
 ## Deployment and rollback
 
-Validate first, deploy and verify one regional application, deploy and verify
-the peer, then update global routing. Roll back only the affected regional
-application while preserving the healthy peer and application data.
+Deploy and validate one regional application, deploy and validate its peer, then change global routing separately. Roll back only the affected regional application package or configuration. Infrastructure rollback must not attempt to reverse durable application data.
 
 ## Security and privacy
 
-Cognito JWT authorization protects product routes. Development-only synthetic
-placement requires an explicit feature flag and authorized Cognito group.
-Evidence and logs must exclude tokens, secrets, resume text, job descriptions,
-prompts, provider bodies, queue URLs, and raw exception stacks.
+Cognito JWT authorization protects product routes. Synthetic placement is development-only, feature-gated, and restricted to an authorized Cognito group. Evidence and logs must exclude tokens, secrets, resume text, job descriptions, prompts, provider payloads, and raw exception bodies.
 
-## Explicit limitations
+## Certification ledger
 
-The current platform does not provide:
+| Evidence | Result | Authoritative record |
+|---|---|---|
+| Both-sites-disabled guard | PASS | MR-014 certification record |
+| East isolation/restoration | PASS | MR-014 certification record |
+| West isolation/restoration | PASS | MR-014 certification record |
+| Authenticated survivor work | PASS | MR-014 certification record |
+| Cross-region reads and owner-region correctness | PASS | MR-014 certification record |
+| Worker backlog growth/restoration/drain | PASS | MR-014 certification record |
+| Duplicate idempotency | PASS | MR-014 certification record |
+| Post-recovery readiness and MRSC health | PASS | MR-014 certification record |
 
-- automatic ownership reassignment based on health;
-- automatic cross-Region queue draining;
-- automatic replay of terminal failures;
-- a public recovery API or operator console;
-- zero-interruption guarantees for in-flight work;
-- production activation of the publisher schedule without a separate decision;
-- DR certification, measured RTO/RPO, or zero-to-production rebuild proof.
+See `docs/certification/MR-014_MULTI_SITE_CERTIFICATION.md`.
 
-## Evidence ledger
+## Accepted limitations
 
-| Evidence | Report path | Result | Timestamp |
-|---|---|---|---|
-| Local-owner flow | `evidence/mr009d3b-*/` | Pending | Pending |
-| Remote-owner flow | `evidence/mr009d3b-*/` | Pending | Pending |
-| East isolation/restoration | `evidence/mr010-*/` | Pending | Pending |
-| West isolation/restoration | `evidence/mr010-*/` | Pending | Pending |
-| Backlog growth/drain | `evidence/mr010-*/` | Pending | Pending |
-| MRSC visibility | `evidence/mr010-*/` | Pending | Pending |
-| Regional rollback | `evidence/mr010-*/` | Pending | Pending |
+The platform does not provide automatic ownership reassignment, automatic cross-Region queue draining, automatic terminal-failure replay, a public recovery console, or a zero-interruption guarantee for in-flight work. Full WAF, alarm, dashboard, and synthetic-monitoring activation is a separate production-hardening decision.
 
-Do not mark the program complete until every required row is successful or has
-an explicitly accepted exception.
+## Final conclusion
+
+The architecture documented in Platform V2 matches the deployed implementation and its observed behavior. Multi-site active-active is implemented, operable, and runtime-certified.
