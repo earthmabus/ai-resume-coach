@@ -25,7 +25,7 @@ TERMINAL_STATUSES = frozenset(
     }
 )
 
-_ALLOWED_TRANSITIONS = {
+WORKFLOW_TRANSITIONS = {
     STATUS_ANALYSIS_IN_PROGRESS: frozenset(
         {
             STATUS_QUEUED_PENDING_DISPATCH,
@@ -87,15 +87,25 @@ class InvalidWorkflowTransition(ValueError):
 
 
 def known_status(status: str | None) -> bool:
-    return bool(status) and status in _ALLOWED_TRANSITIONS
+    return bool(status) and status in WORKFLOW_TRANSITIONS
 
+
+
+def known_statuses() -> tuple[str, ...]:
+    """Return the complete authoritative workflow-status vocabulary."""
+    return tuple(WORKFLOW_TRANSITIONS)
+
+
+def allowed_targets(current_status: str) -> frozenset[str]:
+    """Return legal target states for a known status, or an empty set."""
+    return WORKFLOW_TRANSITIONS.get(current_status, frozenset())
 
 def is_terminal(status: str | None) -> bool:
     return status in TERMINAL_STATUSES
 
 
 def can_transition(current_status: str, target_status: str) -> bool:
-    return target_status in _ALLOWED_TRANSITIONS.get(current_status, frozenset())
+    return target_status in WORKFLOW_TRANSITIONS.get(current_status, frozenset())
 
 
 def assert_transition(current_status: str, target_status: str) -> None:

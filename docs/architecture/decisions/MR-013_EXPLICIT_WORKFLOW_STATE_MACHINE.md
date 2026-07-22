@@ -25,14 +25,23 @@ migration or an API compatibility break.
 - Terminal workflow states cannot be reclaimed or overwritten.
 - Retryable failures may return only to worker processing.
 - Dispatch may advance a workflow only from `QUEUED_PENDING_DISPATCH` to
-  `QUEUED`.
+  `QUEUED`, and the DynamoDB condition must verify that source state still
+  exists at write time.
 - Worker claims and outcomes are validated before conditional writes.
 - Unknown or invalid transitions fail closed with a clear exception.
 - DynamoDB conditional expressions remain the final concurrency control at the
   persistence boundary.
 
-## Terraform maintenance
+## Terraform compatibility
 
-The DynamoDB table and both GSIs use `key_schema` blocks. Deprecated
-`hash_key` and `range_key` arguments are removed without changing the logical
-partition or sort keys.
+MR-013 does not change the DynamoDB key model. The current AWS provider schema
+continues to use table-level `hash_key` and `range_key` arguments while the GSI
+contract remains unchanged. Terraform schema modernization is not required to
+complete the workflow-state decision and must not be represented as part of
+this slice unless provider support is verified in the deployed toolchain.
+
+## Evidence
+
+Run `./tools/multi_site/mr013_workflow_state_validation.sh` to export the
+complete status vocabulary, legal transition graph, terminal-state set, and
+contract-validation result under `evidence/mr013-<timestamp>/`.
