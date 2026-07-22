@@ -1,0 +1,20 @@
+{
+  "slice": "MR-012",
+  "title": "Operational Readiness and Final Reconciliation",
+  "overlay": true,
+  "files": [
+    "MR-012_INSTALL.md",
+    "MR-012_MANIFEST.json",
+    "tools/multi_site/mr012_operational_readiness.py",
+    "tools/multi_site/mr012_operational_readiness.sh",
+    "tests/test_mr012_operational_readiness.py",
+    "docs/engineering/slices/MR-012_OPERATIONAL_READINESS_AND_FINAL_RECONCILIATION.md",
+    "docs/architecture/platform-v2/MR-012_MULTI_SITE_FINAL_RECONCILIATION.md"
+  ],
+  "validation": {
+    "python_tests": "612 passed, 1 skipped",
+    "focused_tests": "4 passed",
+    "shell_syntax": "passed",
+    "terraform": "not run because Terraform is unavailable in the packaging environment"
+  }
+}

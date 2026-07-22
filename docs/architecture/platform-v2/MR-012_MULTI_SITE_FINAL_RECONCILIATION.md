@@ -2,9 +2,17 @@
 
 ## Status
 
-Implementation reconciliation complete. Runtime evidence remains pending until
-MR-009D3B and MR-010 execution reports contain successful observations from the
-authorized development environment.
+Implementation reconciliation is in progress. The core runtime path has been observed through publisher dispatch, SQS delivery, worker claim, successful processing, and a persisted `completed` workflow. MR-012 now includes a non-mutating operational-readiness gate so future validation fails before execution when required runtime infrastructure is disabled or unavailable.
+
+## Operational-readiness gate
+
+Before running any mutating validation, execute:
+
+```bash
+./tools/multi_site/mr012_operational_readiness.sh
+```
+
+The gate verifies both regional readiness endpoints, publisher schedules, API/worker/publisher Lambda functions, regional processing queues and DLQs, and the DynamoDB active-replica contract. It writes a machine-readable report under `evidence/mr012-<timestamp>/` and performs no mutations.
 
 ## Current topology
 
@@ -64,7 +72,8 @@ The current platform does not provide:
 - automatic replay of terminal failures;
 - a public recovery API or operator console;
 - zero-interruption guarantees for in-flight work;
-- production activation of the publisher schedule without a separate decision.
+- production activation of the publisher schedule without a separate decision;
+- DR certification, measured RTO/RPO, or zero-to-production rebuild proof.
 
 ## Evidence ledger
 
