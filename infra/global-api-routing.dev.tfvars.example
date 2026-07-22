@@ -1,0 +1,22 @@
+# Example external-certificate deployment inputs.
+#
+# 1. Run tools/multi_site/prepare_external_acm_certificates.sh.
+# 2. Replace the certificate ARN placeholders.
+# 3. Pass the resulting local file explicitly:
+#
+#    terraform -chdir=infra plan \
+#      -var-file=global-api-routing.dev.tfvars
+
+enable_global_api_routing        = true
+enable_route53_api_health_checks = false
+
+api_domain_name        = "api.example.com"
+route53_public_zone_id = "Z0123456789EXAMPLE"
+
+east_api_certificate_arn = "REPLACE_WITH_US_EAST_1_CERTIFICATE_ARN"
+west_api_certificate_arn = "REPLACE_WITH_US_WEST_2_CERTIFICATE_ARN"
+
+site_routing_enabled = {
+  east = true
+  west = true
+}

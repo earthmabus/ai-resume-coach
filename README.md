@@ -17,6 +17,10 @@ The certification proved the both-sites-disabled guard, bidirectional routing is
 
 The multi-site program does **not** claim full production readiness. Cognito WAF, permanent operational alarms, dashboards, and synthetic monitoring remain optional production-hardening controls outside MR-015/MR-016.
 
+## Documentation map
+
+See [`docs/README.md`](docs/README.md) for the architecture, certification, operations, engineering, and historical-documentation index.
+
 ## Authoritative documentation
 
 - `docs/architecture/platform-v2/PLATFORM_V2_ARCHITECTURE.md`

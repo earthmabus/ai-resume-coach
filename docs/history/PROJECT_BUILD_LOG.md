@@ -1,3 +1,9 @@
+# Project Build Log
+
+> Historical implementation log. This document is retained for project history
+> and is not an authoritative description of the current architecture or
+> deployment procedure.
+
 Created execution environment
 * Fedora Linux VM
 * AWS CLI

@@ -68,8 +68,8 @@ def test_runtime_harness_local_flow_has_no_override_and_remote_flow_does():
     assert '"${placement_headers[@]}"' in analysis_block
 
 
-def test_runtime_tfvars_is_not_automatically_loaded_by_terraform():
+def test_runtime_tfvars_example_is_not_automatically_loaded_by_terraform():
     infra = ROOT / "infra"
-    assert (infra / "runtime-validation.tfvars").is_file()
-    forbidden = list(infra.glob("*runtime-validation*.auto.tfvars"))
-    assert forbidden == []
+    assert (infra / "runtime-validation.tfvars.example").is_file()
+    assert not (infra / "runtime-validation.tfvars").exists()
+    assert not list(infra.glob("*runtime-validation*.auto.tfvars"))
