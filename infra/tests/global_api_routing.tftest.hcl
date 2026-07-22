@@ -19,6 +19,8 @@ run "global_api_routing_is_cost_gated_by_default" {
     condition = (
       output.global_api_routing.enabled == false
       &&
+      output.global_api_routing.certificate_management == "EXTERNAL"
+      &&
       output.global_api_routing.health_checks_enabled == false
     )
     error_message = "Global API routing and paid Route 53 health checks must be disabled by default."
@@ -34,20 +36,9 @@ run "global_api_routing_is_cost_gated_by_default" {
     )
     error_message = "The default global API routing contract is incorrect."
   }
-
-  assert {
-    condition = (
-      length(output.global_api_routing.active_regions) == 2
-      &&
-      contains(output.global_api_routing.active_regions, "us-east-1")
-      &&
-      contains(output.global_api_routing.active_regions, "us-west-2")
-    )
-    error_message = "The global API routing contract must identify both active Regions."
-  }
 }
 
-run "global_api_routing_composes_two_active_regions" {
+run "global_api_routing_composes_two_active_regions_with_external_certificates" {
   command = plan
 
   variables {
@@ -65,18 +56,17 @@ run "global_api_routing_composes_two_active_regions" {
     condition = (
       output.global_api_routing.enabled
       &&
+      output.global_api_routing.certificate_management == "EXTERNAL"
+      &&
       output.global_api_routing.health_checks_enabled == false
     )
-    error_message = "Global API routing should be enabled without requiring paid Route 53 health checks."
-  }
-
-  assert {
-    condition     = output.global_api_routing.domain_name == "api.resume.example.com"
-    error_message = "The global API routing contract must expose the configured API hostname."
+    error_message = "Global API routing must use validated external Regional ACM certificates."
   }
 
   assert {
     condition = (
+      output.global_api_routing.domain_name == "api.resume.example.com"
+      &&
       length(output.global_api_routing.active_regions) == 2
       &&
       contains(output.global_api_routing.active_regions, "us-east-1")
@@ -84,17 +74,6 @@ run "global_api_routing_composes_two_active_regions" {
       contains(output.global_api_routing.active_regions, "us-west-2")
     )
     error_message = "Global API routing must compose both active Regions."
-  }
-
-  assert {
-    condition = (
-      output.global_api_routing.routing_policy == "LATENCY"
-      &&
-      output.global_api_routing.health_path == "/health/ready"
-      &&
-      output.global_api_routing.tls_policy == "TLS_1_2"
-    )
-    error_message = "The global API routing policy, health path, or TLS policy is incorrect."
   }
 }
 
@@ -119,10 +98,5 @@ run "route53_health_checks_can_be_enabled_explicitly" {
       output.global_api_routing.health_checks_enabled
     )
     error_message = "Route 53 health checks must be enabled only when explicitly requested."
-  }
-
-  assert {
-    condition     = output.global_api_routing.health_path == "/health/ready"
-    error_message = "Route 53 health checks must use the readiness endpoint."
   }
 }

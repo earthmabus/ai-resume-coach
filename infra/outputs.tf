@@ -39,39 +39,33 @@ output "primary_frontend_site" {
 
 output "cognito_user_pool_id" {
   description = "Shared Cognito user-pool ID."
-  value       = aws_cognito_user_pool.users.id
+  value       = module.shared_foundation.identity.user_pool_id
 }
 
 output "cognito_user_pool_client_id" {
   description = "Shared Cognito web-client ID."
-  value       = aws_cognito_user_pool_client.web.id
+  value       = module.shared_foundation.identity.client_id
 }
 
 output "cognito_user_pool_domain" {
   description = "Shared Cognito hosted-domain prefix."
-  value       = aws_cognito_user_pool_domain.main.domain
+  value       = module.shared_foundation.identity.domain
 }
 
 output "cognito_issuer" {
   description = "JWT issuer trusted by both regional APIs."
 
-  value = join(
-    "",
-    [
-      "https://cognito-idp.us-east-1.amazonaws.com/",
-      aws_cognito_user_pool.users.id,
-    ],
-  )
+  value = module.shared_foundation.identity.issuer
 }
 
 output "registration_notification_lambda_name" {
   description = "Shared registration-notification Lambda function name."
-  value       = aws_lambda_function.registration_notification.function_name
+  value       = module.shared_foundation.registration_notification.lambda_name
 }
 
 output "registration_notification_topic_arn" {
   description = "SNS topic receiving registration notifications."
-  value       = aws_sns_topic.user_registration_notifications.arn
+  value       = module.shared_foundation.registration_notification.topic_arn
 }
 
 output "lambda_package_hashes" {
@@ -126,13 +120,13 @@ output "resume_analysis_data" {
   description = "DynamoDB MRSC Resume Analysis system-of-record contract."
 
   value = {
-    table_name         = aws_dynamodb_table.resume_analysis.name
-    primary_table_arn  = aws_dynamodb_table.resume_analysis.arn
+    table_name         = module.shared_foundation.resume_analysis.name
+    primary_table_arn  = module.shared_foundation.resume_analysis.primary_arn
     primary_region     = local.resume_analysis_table.primary_region
     replica_regions    = local.resume_analysis_table.replica_regions
     witness_region     = local.resume_analysis_table.witness_region
     consistency_mode   = local.resume_analysis_table.consistency_mode
-    billing_mode       = aws_dynamodb_table.resume_analysis.billing_mode
+    billing_mode       = module.shared_foundation.resume_analysis.billing_mode
     pitr_enabled       = true
     deletion_protected = var.dynamodb_deletion_protection_enabled
     global_secondary_indexes = {

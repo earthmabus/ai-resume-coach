@@ -144,3 +144,43 @@ def test_override_rejects_blank_region(monkeypatch):
 
     with pytest.raises(ValidationError):
         resolve_synthetic_owner_region(event_with_header(" "))
+
+
+@pytest.mark.parametrize(
+    "groups",
+    [
+        ["synthetic-runtime-validation"],
+        "synthetic-runtime-validation",
+        "users,synthetic-runtime-validation",
+        '["synthetic-runtime-validation"]',
+        '["users", "synthetic-runtime-validation"]',
+        "[synthetic-runtime-validation]",
+        "[users,synthetic-runtime-validation]",
+    ],
+)
+def test_override_accepts_supported_group_claim_shapes(
+    monkeypatch,
+    groups,
+):
+    enable_dev_override(monkeypatch)
+
+    placement = resolve_synthetic_owner_region(
+        event_with_header("us-west-2", groups=groups)
+    )
+
+    assert placement is not None
+    assert placement.used
+    assert placement.owner_region == "us-west-2"
+
+
+def test_override_accepts_groups_claim_alias(monkeypatch):
+    enable_dev_override(monkeypatch)
+
+    event = event_with_header("us-west-2", groups=None)
+    claims = event["requestContext"]["authorizer"]["jwt"]["claims"]
+    claims["groups"] = '["synthetic-runtime-validation"]'
+
+    placement = resolve_synthetic_owner_region(event)
+
+    assert placement is not None
+    assert placement.owner_region == "us-west-2"

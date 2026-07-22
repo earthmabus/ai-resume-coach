@@ -10,7 +10,11 @@ from typing import Any
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
-from core.workflow_state import assert_transition
+from core.workflow_state import (
+    STATUS_QUEUED,
+    STATUS_QUEUED_PENDING_DISPATCH,
+    assert_transition,
+)
 from core.dynamodb_contract import (
     GSI2_INDEX_NAME,
     GSI2_PARTITION_KEY,
@@ -20,8 +24,7 @@ from core.dynamodb_contract import (
 DISPATCH_PENDING = "PENDING"
 DISPATCH_CLAIMED = "CLAIMED"
 DISPATCH_DISPATCHED = "DISPATCHED"
-STATUS_PENDING_DISPATCH = "QUEUED_PENDING_DISPATCH"
-STATUS_QUEUED = "QUEUED"
+STATUS_PENDING_DISPATCH = STATUS_QUEUED_PENDING_DISPATCH
 DEFAULT_LEASE_SECONDS = 300
 DEFAULT_BATCH_SIZE = 25
 MAX_RETRY_DELAY_SECONDS = 1800
@@ -241,7 +244,8 @@ class ResumeWorkflowDispatcher:
             ConditionExpression=(
                 "dispatchStatus = :claimed "
                 "AND dispatchAttemptId = :attemptId "
-                "AND ownerRegion = :region"
+                "AND ownerRegion = :region "
+                "AND #status = :pendingStatus"
             ),
             ExpressionAttributeNames={"#status": "status"},
             ExpressionAttributeValues={
@@ -253,6 +257,7 @@ class ResumeWorkflowDispatcher:
                 ":updatedAt": utc_now(),
                 ":region": self.region,
                 ":deploymentId": self.deployment_id,
+                ":pendingStatus": STATUS_PENDING_DISPATCH,
             },
         )
 

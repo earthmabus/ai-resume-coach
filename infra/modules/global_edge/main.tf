@@ -78,7 +78,7 @@ resource "aws_apigatewayv2_api_mapping" "west" {
 resource "aws_route53_health_check" "east" {
   count = var.global_api.enabled && var.global_api.health_checks_enabled ? 1 : 0
 
-  fqdn              = var.global_api.domain_name
+  fqdn              = trimsuffix(trimprefix(var.primary_site.api_endpoint, "https://"), "/")
   port              = 443
   type              = "HTTPS"
   resource_path     = "/health/ready"
@@ -97,7 +97,7 @@ resource "aws_route53_health_check" "east" {
 resource "aws_route53_health_check" "west" {
   count = var.global_api.enabled && var.global_api.health_checks_enabled ? 1 : 0
 
-  fqdn              = var.global_api.domain_name
+  fqdn              = trimsuffix(trimprefix(var.secondary_site.api_endpoint, "https://"), "/")
   port              = 443
   type              = "HTTPS"
   resource_path     = "/health/ready"

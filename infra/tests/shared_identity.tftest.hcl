@@ -17,7 +17,7 @@ run "shared_identity_is_created_once" {
 
   assert {
     condition = (
-      aws_cognito_user_pool.users.name
+      module.shared_foundation.identity.name
       == "ai-resume-coach-dev-users"
     )
 
@@ -26,7 +26,7 @@ run "shared_identity_is_created_once" {
 
   assert {
     condition = (
-      aws_lambda_function.registration_notification.function_name
+      module.shared_foundation.registration_notification.lambda_name
       == "ai-resume-coach-dev-registration-notification"
     )
 
@@ -35,7 +35,7 @@ run "shared_identity_is_created_once" {
 
   assert {
     condition = (
-      aws_lambda_function.registration_notification.handler
+      module.shared_foundation.registration_notification.handler
       == "handler.lambda_handler"
     )
 
@@ -44,7 +44,7 @@ run "shared_identity_is_created_once" {
 
   assert {
     condition = (
-      length(aws_sns_topic_subscription.user_registration_email)
+      module.shared_foundation.registration_notification.subscription_count
       == 0
     )
 

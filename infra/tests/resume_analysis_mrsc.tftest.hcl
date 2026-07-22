@@ -16,54 +16,38 @@ run "resume_analysis_system_of_record_uses_mrsc_with_witness" {
   command = plan
 
   assert {
-    condition     = aws_dynamodb_table.resume_analysis.name == "ai-resume-coach-dev-resume-analysis"
+    condition     = module.shared_foundation.resume_analysis.name == "ai-resume-coach-dev-resume-analysis"
     error_message = "The application table name is incorrect."
   }
 
   assert {
-    condition     = aws_dynamodb_table.resume_analysis.billing_mode == "PAY_PER_REQUEST"
+    condition     = module.shared_foundation.resume_analysis.billing_mode == "PAY_PER_REQUEST"
     error_message = "The MRSC application table must use on-demand billing."
   }
 
   assert {
     condition = (
-      aws_dynamodb_table.resume_analysis.hash_key == "pk"
+      module.shared_foundation.resume_analysis.hash_key == "pk"
       &&
-      aws_dynamodb_table.resume_analysis.range_key == "sk"
+      module.shared_foundation.resume_analysis.range_key == "sk"
     )
     error_message = "The application table must use the pk/sk composite key."
   }
 
   assert {
-    condition = alltrue([
-      for required_name in [
-        "pk",
-        "sk",
-        "gsi1pk",
-        "gsi1sk",
-        "gsi2pk",
-        "gsi2sk",
-      ] : contains(aws_dynamodb_table.resume_analysis.attribute[*].name, required_name)
-    ])
-    error_message = "The application table must declare pk/sk plus gsi1 and gsi2 key attributes."
+    condition = (
+      module.shared_foundation.resume_analysis.key_attributes
+      == {
+        pk     = "S"
+        sk     = "S"
+        gsi1pk = "S"
+        gsi1sk = "S"
+        gsi2pk = "S"
+        gsi2sk = "S"
+      }
+    )
+    error_message = "The application table must declare string pk/sk plus gsi1 and gsi2 key attributes."
   }
-
-  assert {
-    condition = alltrue([
-      for attribute in aws_dynamodb_table.resume_analysis.attribute :
-      attribute.type == "S"
-    ])
-    error_message = "All DynamoDB key attributes must be strings."
-  }
-
-  # AWS provider 6.55.0 exposes deprecated computed hash_key/range_key
-  # attributes alongside key_schema. Under command = plan, those computed values
-  # can mark the entire global_secondary_index set as unknown. Terraform 1.15.8
-  # then crashes while rendering that unknown assertion diagnostic.
-  #
-  # The concrete GSI key contract is validated by tests/test_dynamodb_contract.py
-  # against infra/data.tf. This Terraform test validates the exported, stable
-  # application-data contract below.
 
   assert {
     condition = (
@@ -88,29 +72,23 @@ run "resume_analysis_system_of_record_uses_mrsc_with_witness" {
 
   assert {
     condition = (
-      length(aws_dynamodb_table.resume_analysis.replica) == 1
+      module.shared_foundation.resume_analysis.replica_regions == ["us-east-1", "us-west-2"]
       &&
-      one(aws_dynamodb_table.resume_analysis.replica).region_name == "us-west-2"
-      &&
-      one(aws_dynamodb_table.resume_analysis.replica).consistency_mode == "STRONG"
+      module.shared_foundation.resume_analysis.consistency_mode == "STRONG"
     )
-    error_message = "The table must add us-west-2 as its strong-consistency peer replica."
+    error_message = "The table must expose us-west-2 as its strong-consistency peer replica."
+  }
+
+  assert {
+    condition     = module.shared_foundation.resume_analysis.witness_region == "us-east-2"
+    error_message = "The MRSC table must expose us-east-2 as its witness."
   }
 
   assert {
     condition = (
-      length(aws_dynamodb_table.resume_analysis.global_table_witness) == 1
+      module.shared_foundation.resume_analysis.pitr_enabled
       &&
-      one(aws_dynamodb_table.resume_analysis.global_table_witness).region_name == "us-east-2"
-    )
-    error_message = "The MRSC table must use us-east-2 as its witness."
-  }
-
-  assert {
-    condition = (
-      one(aws_dynamodb_table.resume_analysis.point_in_time_recovery).enabled
-      &&
-      one(aws_dynamodb_table.resume_analysis.replica).point_in_time_recovery
+      module.shared_foundation.resume_analysis.replica_pitr_enabled
     )
     error_message = "PITR must be enabled for both active replicas."
   }

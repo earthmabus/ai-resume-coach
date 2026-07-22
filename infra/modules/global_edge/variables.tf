@@ -67,7 +67,7 @@ variable "global_api" {
         trimspace(var.global_api.west_certificate_arn) != ""
       )
     )
-    error_message = "Enabled global API routing requires a domain, hosted-zone ID, and one validated certificate ARN per active Region."
+    error_message = "Enabled global API routing requires a domain, hosted-zone ID, and one validated external ACM certificate ARN per active Region."
   }
 }
 

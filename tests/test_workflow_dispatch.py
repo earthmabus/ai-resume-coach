@@ -124,3 +124,16 @@ def test_recovery_race_is_safely_skipped():
     result = dispatcher(table).dispatch_pending()
     assert result.recovered == 0
     assert result.recovery_skipped == 1
+
+
+def test_mark_dispatched_requires_workflow_to_remain_pending_dispatch():
+    table = FakeTable(pending=[pending_item()])
+    claimed = {**pending_item(), "dispatchStatus": "CLAIMED", "dispatchAttemptId": "attempt-1"}
+
+    dispatcher(table).mark_dispatched(claimed, "attempt-1")
+
+    update = table.updates[-1]
+    assert "#status = :pendingStatus" in update["ConditionExpression"]
+    assert update["ExpressionAttributeNames"]["#status"] == "status"
+    assert update["ExpressionAttributeValues"][":pendingStatus"] == "QUEUED_PENDING_DISPATCH"
+    assert update["ExpressionAttributeValues"][":queued"] == "QUEUED"

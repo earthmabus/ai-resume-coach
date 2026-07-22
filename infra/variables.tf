@@ -330,8 +330,6 @@ variable "enable_global_api_routing" {
   default     = false
 }
 
-
-
 variable "site_routing_enabled" {
   description = "Controls whether each active site is published in global Route 53 routing."
   type = object({

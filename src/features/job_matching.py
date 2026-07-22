@@ -30,6 +30,7 @@ from core.keys import (
 )
 from core.outbox import build_job_match_outbox_event
 from core.request_context import build_request_context
+from core.synthetic_placement import resolve_synthetic_owner_region
 from core.responses import build_response, parse_body
 from core.storage import (
     get_entity_by_id,
@@ -153,6 +154,12 @@ def match_job_description(event):
         require_idempotency=True,
     )
     user_id = context.user_id
+    synthetic_placement = resolve_synthetic_owner_region(event)
+    owner_region = (
+        synthetic_placement.owner_region
+        if synthetic_placement is not None
+        else context.region
+    )
 
     analysis_id = str(body.get("analysisId") or "").strip()
     job_name = (
@@ -497,6 +504,7 @@ def match_job_description(event):
                 created_region=context.region,
                 created_deployment_id=context.deployment_id,
                 request_id=context.request_id,
+                owner_region=owner_region,
                 correlation_id=effective_correlation_id,
                 created_at=created_at,
             )

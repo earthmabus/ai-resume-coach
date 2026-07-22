@@ -104,7 +104,7 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
-      length(coalesce(aws_lambda_function.registration_notification.layers, [])) == 0
+      module.shared_foundation.registration_notification.dependency_layers == 0
       &&
       output.regional_foundations.east.compute.worker.dependency_layer_count == 0
       &&

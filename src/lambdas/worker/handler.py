@@ -15,7 +15,13 @@ from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
 from core.retry_policy import decide_retry, receive_attempt
-from core.workflow_state import assert_transition
+from core.workflow_state import (
+    STATUS_PROCESSING,
+    STATUS_QUEUED,
+    STATUS_QUEUED_PENDING_DISPATCH,
+    STATUS_WAITING,
+    assert_transition,
+)
 from core.terminal_failure import TerminalFailureEnvelope
 from providers.factory import get_analysis_provider
 
@@ -346,8 +352,9 @@ def get_item_strong(key: dict) -> dict | None:
 
 def claimable_statuses(job_type: str) -> set[str]:
     common = {
-        "processing",
-        "QUEUED_PENDING_DISPATCH",
+        STATUS_PROCESSING,
+        STATUS_QUEUED_PENDING_DISPATCH,
+        STATUS_QUEUED,
         STATUS_FAILED_RETRYABLE,
     }
 
@@ -355,7 +362,7 @@ def claimable_statuses(job_type: str) -> set[str]:
         "resumeTailoring",
         "interviewPreparation",
     }:
-        common.add("waiting")
+        common.add(STATUS_WAITING)
 
     if job_type == "jobMatch":
         common.add(STATUS_RESULT_READY)

@@ -128,7 +128,7 @@ resource "aws_wafv2_web_acl_association" "cognito" {
   count    = var.enable_cognito_waf ? 1 : 0
   provider = aws.us_east_1
 
-  resource_arn = aws_cognito_user_pool.users.arn
+  resource_arn = module.shared_foundation.identity.user_pool_arn
   web_acl_arn  = aws_wafv2_web_acl.cognito[0].arn
 }
 

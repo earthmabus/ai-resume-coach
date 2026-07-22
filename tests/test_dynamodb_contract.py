@@ -17,11 +17,25 @@ from core.keys import (
 
 REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
 
+DYNAMODB_TERRAFORM = (
+    REPOSITORY_ROOT
+    / "infra"
+    / "modules"
+    / "shared_foundation"
+    / "main.tf"
+)
+
+
+def _table_source() -> str:
+    assert DYNAMODB_TERRAFORM.is_file(), (
+        f"Authoritative DynamoDB Terraform file not found: "
+        f"{DYNAMODB_TERRAFORM}"
+    )
+    return DYNAMODB_TERRAFORM.read_text()
+
 
 def test_gsi1_constants_match_table_terraform():
-    table_source = (
-        REPOSITORY_ROOT / "infra" / "data.tf"
-    ).read_text()
+    table_source = _table_source()
 
     assert 'hash_key  = "pk"' in table_source
     assert 'range_key = "sk"' in table_source
@@ -39,9 +53,7 @@ def test_gsi1_constants_match_table_terraform():
 
 
 def test_all_global_secondary_indexes_use_key_schema():
-    table_source = (
-        REPOSITORY_ROOT / "infra" / "data.tf"
-    ).read_text()
+    table_source = _table_source()
 
     gsi_source = table_source.split("global_secondary_index", 1)[1]
     assert "hash_key" not in gsi_source

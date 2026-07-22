@@ -1,0 +1,22 @@
+{
+  "slice": "MR-013",
+  "title": "Explicit Workflow State Machine",
+  "overlay": true,
+  "files": [
+    "MR-013_INSTALL.md",
+    "MR-013_MANIFEST.json",
+    "src/core/workflow_state.py",
+    "src/core/workflow_dispatch.py",
+    "tools/multi_site/mr013_workflow_state_validation.py",
+    "tools/multi_site/mr013_workflow_state_validation.sh",
+    "tests/test_mr013_workflow_state_validation.py",
+    "tests/test_workflow_dispatch.py",
+    "docs/architecture/decisions/MR-013_EXPLICIT_WORKFLOW_STATE_MACHINE.md",
+    "docs/engineering/slices/MR-013_EXPLICIT_WORKFLOW_STATE_MACHINE.md"
+  ],
+  "safety": {
+    "runtime_mutations": false,
+    "aws_mutations": false,
+    "data_migration": false
+  }
+}

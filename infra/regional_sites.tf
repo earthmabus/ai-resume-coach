@@ -20,16 +20,10 @@ module "east" {
   }
 
   identity = {
-    user_pool_id = aws_cognito_user_pool.users.id
-    client_id    = aws_cognito_user_pool_client.web.id
+    user_pool_id = module.shared_foundation.identity.user_pool_id
+    client_id    = module.shared_foundation.identity.client_id
 
-    issuer = join(
-      "",
-      [
-        "https://cognito-idp.us-east-1.amazonaws.com/",
-        aws_cognito_user_pool.users.id,
-      ],
-    )
+    issuer = module.shared_foundation.identity.issuer
   }
 
   storage = {
@@ -150,16 +144,10 @@ module "west" {
   }
 
   identity = {
-    user_pool_id = aws_cognito_user_pool.users.id
-    client_id    = aws_cognito_user_pool_client.web.id
+    user_pool_id = module.shared_foundation.identity.user_pool_id
+    client_id    = module.shared_foundation.identity.client_id
 
-    issuer = join(
-      "",
-      [
-        "https://cognito-idp.us-east-1.amazonaws.com/",
-        aws_cognito_user_pool.users.id,
-      ],
-    )
+    issuer = module.shared_foundation.identity.issuer
   }
 
   storage = {

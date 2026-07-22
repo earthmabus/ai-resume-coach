@@ -1,44 +1,66 @@
-# Platform V2 / MR-007 Acceptance Criteria
+# Platform V2 Multi-Site Acceptance Criteria
+
+Status: **Accepted July 22, 2026**
 
 ## Architecture
-- [ ] East and west use the same regional module.
-- [ ] Root contains no regional compute implementation.
-- [ ] Global resources are created once.
-- [ ] Provider aliases are explicit.
-- [ ] Naming is symmetric and region-qualified.
+
+- [x] East and west use the same regional module.
+- [x] Root Terraform composes rather than duplicates regional compute.
+- [x] Shared and global resources are created once.
+- [x] Provider aliases are explicit.
+- [x] Naming is symmetric and region-qualified.
+- [x] DynamoDB MRSC uses active replicas in east and west with the configured witness responsibility in `us-east-2`.
 
 ## Build and test
-- [ ] Python tests pass.
-- [ ] Package tests pass.
-- [ ] Terraform fmt, validate, and test pass.
-- [ ] Fresh-state plan is reviewed.
 
-## Regional isolation
-- [ ] Each API uses its own table, bucket, and queue.
-- [ ] Each publisher sends only locally.
-- [ ] Each worker consumes only locally.
-- [ ] No runtime requires cross-region access in MR-007.
+- [x] Python tests pass.
+- [x] Package and validation-tool tests pass.
+- [x] Terraform formatting, validation, and tests pass.
+- [x] Routing mutation plans are constrained to the intended Route 53 records.
+- [x] Runtime Terraform inputs are aligned with the deployed Lambda configuration.
+
+## Regional execution
+
+- [x] Each API uses its regional document bucket and processing path.
+- [x] Work is dispatched to the deterministic owner-region queue.
+- [x] Each worker consumes only its regional queue.
+- [x] Ownership and state transitions prevent incorrect regional processing.
+- [x] Duplicate API and transport delivery remains idempotent.
 
 ## Shared services
-- [ ] One Cognito pool serves both APIs.
-- [ ] One registration-notification path exists.
-- [ ] One frontend and CloudFront distribution exist.
-- [ ] Frontend intentionally points to east.
 
-## Runtime validation
-- [ ] East health reports `us-east-1`.
-- [ ] West health reports `us-west-2`.
-- [ ] Both versions report the same deployment ID.
-- [ ] Both publisher and worker smoke tests pass.
-- [ ] Authentication works against both APIs.
-- [ ] End-to-end resume processing works in both Regions.
+- [x] One Cognito user pool serves both APIs.
+- [x] One registration-notification path exists.
+- [x] One frontend and CloudFront distribution exist.
+- [x] One MRSC DynamoDB system of record serves both active sites.
+- [x] Route 53 exposes both active APIs through one global hostname.
+
+## Runtime certification
+
+- [x] East health reports `us-east-1`.
+- [x] West health reports `us-west-2`.
+- [x] Both sites report the certified deployment ID.
+- [x] Authentication works through global and regional APIs.
+- [x] End-to-end resume processing works through the multi-site path.
+- [x] East isolation and restoration pass.
+- [x] West isolation and restoration pass.
+- [x] Terraform rejects disabling both sites.
+- [x] Worker interruption retains backlog and restoration completes it.
+- [x] Final queue drain and post-recovery reconciliation pass.
 
 ## Operations
-- [ ] Regional dashboards and alarms exist.
-- [ ] DLQs are empty after testing.
-- [ ] Terraform returns no changes.
+
+- [x] Regional readiness, queue, DLQ, mapping, publisher, worker, and MRSC preflight checks exist.
+- [x] Mutating certification requires explicit authorization flags.
+- [x] Routing and worker mutations have exit-trap restoration.
+- [x] A consolidated operations runbook exists.
+- [x] Sanitized certification evidence is preserved.
+- [ ] Permanent dashboards, alarms, synthetics, and Cognito WAF are enabled. This is explicitly deferred to production hardening and does not block multi-site acceptance.
 
 ## Documentation
-- [ ] Design committed.
-- [ ] Rebuild outcomes and pivots recorded.
-- [ ] Poster regeneration remains scheduled for final active-active completion.
+
+- [x] Final architecture is committed.
+- [x] Implementation pivots are recorded.
+- [x] Certification and accepted limitations are recorded.
+- [x] Final architecture posters are regenerated.
+- [x] Architecture and operational acceptance is recorded.

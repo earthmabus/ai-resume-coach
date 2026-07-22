@@ -2,7 +2,7 @@
 set -euo pipefail
 source "$(dirname "$0")/common.sh"
 
-for cmd in aws terraform curl python pytest; do
+for cmd in aws terraform curl python pytest jq; do
   require_cmd "$cmd"
 done
 
@@ -31,6 +31,7 @@ cat > "$EVIDENCE_DIR/REPORT.md" <<REPORT
 - Repository validation: passed
 - East liveness/readiness: captured
 - West liveness/readiness: captured
+- Target Career prerequisite: pending
 - Local-owner synthetic flow: pending
 - Remote-owner synthetic flow: pending
 
@@ -47,27 +48,119 @@ fi
 confirm_mutation
 require_env AUTH_TOKEN
 require_env SYNTHETIC_PDF
+
+python "$ROOT_DIR/tools/multi_site/inspect_jwt_claims.py" \
+  --token "$AUTH_TOKEN" \
+  --require-group "${SYNTHETIC_PLACEMENT_OVERRIDE_GROUP:-synthetic-runtime-validation}" \
+  --output "$EVIDENCE_DIR/auth-token-claims.json"
+record "PASSED: validation principal contains the authorized synthetic group"
+
 [[ -f "$SYNTHETIC_PDF" ]] || {
   echo "SYNTHETIC_PDF not found" >&2
   exit 2
 }
 
+http_request() {
+  local step="$1"
+  local output_file="$2"
+  shift 2
+
+  local status
+  status="$(curl --silent --show-error \
+    --output "$output_file" \
+    --write-out '%{http_code}' \
+    "$@")" || {
+      local curl_status=$?
+      record "FAILED: $step (curl exit $curl_status)"
+      [[ -s "$output_file" ]] && cat "$output_file" >&2
+      exit "$curl_status"
+    }
+
+  printf '%s\n' "$status" > "${output_file}.http-status"
+
+  if [[ ! "$status" =~ ^2 ]]; then
+    record "FAILED: $step (HTTP $status)"
+    [[ -s "$output_file" ]] && cat "$output_file" >&2
+    exit 22
+  fi
+
+  record "PASSED: $step (HTTP $status)"
+}
+
+ensure_target_career() {
+  local current_file="$EVIDENCE_DIR/target-career-east-before.json"
+
+  http_request "read Target Career prerequisite" "$current_file" \
+    --max-time 20 \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    "$EAST_API/target-career"
+
+  local version role_title industry
+  version="$(jq -r '.version // 0' "$current_file")"
+  role_title="$(jq -r '.roleTitle // ""' "$current_file")"
+  industry="$(jq -r '.industry // ""' "$current_file")"
+
+  if [[ -n "$role_title" && -n "$industry" ]]; then
+    record "Target Career prerequisite already satisfied (version $version)"
+    return
+  fi
+
+  local payload_file="$EVIDENCE_DIR/target-career-seed-request.json"
+  jq -n \
+    --argjson version "$version" \
+    --arg roleTitle "Software Engineering Director" \
+    --arg industry "Healthcare" \
+    '{version: $version, roleTitle: $roleTitle, industry: $industry}' \
+    > "$payload_file"
+
+  http_request "seed Target Career prerequisite" \
+    "$EVIDENCE_DIR/target-career-east-seeded.json" \
+    --max-time 20 \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    -H "Content-Type: application/json" \
+    -X PUT "$EAST_API/target-career" \
+    --data-binary "@$payload_file"
+
+  http_request "verify Target Career replication in West" \
+    "$EVIDENCE_DIR/target-career-west-after.json" \
+    --max-time 20 \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    "$WEST_API/target-career"
+
+  local west_role west_industry
+  west_role="$(jq -r '.roleTitle // ""' "$EVIDENCE_DIR/target-career-west-after.json")"
+  west_industry="$(jq -r '.industry // ""' "$EVIDENCE_DIR/target-career-west-after.json")"
+  [[ -n "$west_role" && -n "$west_industry" ]] || {
+    record "FAILED: Target Career did not replicate to West"
+    exit 5
+  }
+
+  record "Target Career prerequisite satisfied and observed in West"
+}
+
 run_flow() {
   local name="$1"
   local api="$2"
-  local owner="$3"
+  local owner="${3:-}"
   local corr="mr009d3b-${name}-$(date -u +%s)"
   local request_id="${corr}-request"
+  local -a placement_headers=()
 
-  curl --fail-with-body --silent --show-error \
+  if [[ -n "$owner" ]]; then
+    placement_headers+=(
+      -H "X-Validation-Owner-Region: $owner"
+    )
+  fi
+
+  http_request "$name create upload URL" \
+    "$EVIDENCE_DIR/${name}-upload-url.json" \
+    --max-time 20 \
     -H "Authorization: Bearer $AUTH_TOKEN" \
     -H "Content-Type: application/json" \
     -H "X-Correlation-Id: $corr" \
     -H "Idempotency-Key: $request_id" \
-    -H "X-Validation-Owner-Region: $owner" \
     -X POST "$api/resume-upload-url" \
-    -d '{"fileName":"mr009d3b-synthetic.pdf","contentType":"application/pdf"}' \
-    > "$EVIDENCE_DIR/${name}-upload-url.json"
+    -d '{"fileName":"mr009d3b-synthetic.pdf","contentType":"application/pdf"}'
 
   python - "$EVIDENCE_DIR/${name}-upload-url.json" \
     "$EVIDENCE_DIR/${name}-upload.env" <<'PYCODE'
@@ -92,30 +185,62 @@ PYCODE
   # shellcheck disable=SC1090
   source "$EVIDENCE_DIR/${name}-upload.env"
   [[ -n "${uploadUrl:-}" && -n "${documentKey:-}" ]] || {
-    echo "Upload response did not contain uploadUrl and documentKey" >&2
+    record "FAILED: $name upload response lacked uploadUrl or documentKey"
     exit 4
   }
 
-  curl --fail-with-body --silent --show-error \
+  http_request "$name upload synthetic PDF" \
+    "$EVIDENCE_DIR/${name}-upload-put.txt" \
+    --max-time 60 \
     -X PUT \
     -H "Content-Type: application/pdf" \
     --data-binary "@$SYNTHETIC_PDF" \
-    "$uploadUrl" \
-    > "$EVIDENCE_DIR/${name}-upload-put.txt"
+    "$uploadUrl"
 
-  curl --fail-with-body --silent --show-error \
+  http_request "$name submit resume analysis" \
+    "$EVIDENCE_DIR/${name}-analysis-response.json" \
+    --max-time 30 \
     -H "Authorization: Bearer $AUTH_TOKEN" \
     -H "Content-Type: application/json" \
     -H "X-Correlation-Id: $corr" \
     -H "Idempotency-Key: ${request_id}-analyze" \
-    -H "X-Validation-Owner-Region: $owner" \
+    "${placement_headers[@]}" \
     -X POST "$api/analyze-uploaded-resume" \
-    -d "{\"documentKey\":\"$documentKey\",\"fileName\":\"mr009d3b-synthetic.pdf\",\"resumeName\":\"MR-009D3B Synthetic\"}" \
-    > "$EVIDENCE_DIR/${name}-analysis-response.json"
+    -d "{\"documentKey\":\"$documentKey\",\"fileName\":\"mr009d3b-synthetic.pdf\",\"resumeName\":\"MR-009D3B Synthetic\"}"
+
+  local analysis_id
+  analysis_id="$(jq -r '.analysisId // .body.analysisId // empty' "$EVIDENCE_DIR/${name}-analysis-response.json")"
+  [[ -n "$analysis_id" ]] || {
+    record "FAILED: $name analysis response lacked analysisId"
+    exit 4
+  }
+
+  http_request "$name read analysis through East" \
+    "$EVIDENCE_DIR/${name}-analysis-east.json" \
+    --max-time 20 \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    "$EAST_API/analysis/$analysis_id"
+
+  http_request "$name read analysis through West" \
+    "$EVIDENCE_DIR/${name}-analysis-west.json" \
+    --max-time 20 \
+    -H "Authorization: Bearer $AUTH_TOKEN" \
+    "$WEST_API/analysis/$analysis_id"
+
+  local expected_owner actual_east_owner actual_west_owner
+  expected_owner="${owner:-${EAST_REGION:-us-east-1}}"
+  actual_east_owner="$(jq -r '.ownerRegion // empty' "$EVIDENCE_DIR/${name}-analysis-east.json")"
+  actual_west_owner="$(jq -r '.ownerRegion // empty' "$EVIDENCE_DIR/${name}-analysis-west.json")"
+  [[ "$actual_east_owner" == "$expected_owner" && "$actual_west_owner" == "$expected_owner" ]] || {
+    record "FAILED: $name ownerRegion mismatch (expected $expected_owner, east=$actual_east_owner, west=$actual_west_owner)"
+    exit 6
+  }
+  record "PASSED: $name ownerRegion is $expected_owner through both regional APIs"
 }
 
-run_flow east-local "$EAST_API" "${EAST_REGION:-us-east-1}"
+ensure_target_career
+run_flow east-local "$EAST_API"
 run_flow east-to-west "$EAST_API" "${WEST_REGION:-us-west-2}"
 
-record "Synthetic requests submitted; correlate response identifiers with logs and final state"
+record "Synthetic requests submitted and cross-region ownership verified"
 printf '%s\n' "$EVIDENCE_DIR"
