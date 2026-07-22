@@ -1,0 +1,5 @@
+# Explicit development-only validation controls.
+# Copy to runtime-validation.tfvars and pass it using -var-file.
+
+enable_synthetic_placement_override = true
+enable_outbox_publisher_schedule    = true
