@@ -16,7 +16,7 @@ Environment variables:
       Optional evidence destination; defaults under the repository.
 
   TFVARS_FILE
-      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+      Path to a complete tfvars profile. Compose with: tools/prepare/certification_profile.sh compose
 
   EXECUTE_FAILOVER
       Set explicitly for the target environment.

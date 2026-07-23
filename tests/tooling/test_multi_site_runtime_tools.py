@@ -7,8 +7,8 @@ from pathlib import Path
 
 from tools.inspect.jwt_claims import claim_values, decode_payload, groups
 
-ROOT = Path(__file__).resolve().parents[1]
-HARNESS = ROOT / "tools/validate/mr009d3b_runtime.sh"
+ROOT = Path(__file__).resolve().parents[2]
+HARNESS = ROOT / "tools/validate/runtime_baseline.sh"
 
 
 def _jwt(payload: dict) -> str:

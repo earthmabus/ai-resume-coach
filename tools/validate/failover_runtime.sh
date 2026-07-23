@@ -3,7 +3,7 @@ set -euo pipefail
 
 show_help() {
   cat <<'EOF'
-Usage: tools/validate/mr009d4_runtime.sh [COMMAND] [OPTIONS]
+Usage: tools/validate/failover_runtime.sh [COMMAND] [OPTIONS]
 
 Purpose:
   Run MR-009D4 routing and failover runtime validation.
@@ -16,7 +16,7 @@ Environment variables:
       Optional evidence destination; defaults under the repository.
 
   TFVARS_FILE
-      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+      Path to a complete tfvars profile. Compose with: tools/prepare/certification_profile.sh compose
 
   EXECUTE_FAILOVER
       Set explicitly for the target environment.
@@ -97,7 +97,7 @@ require_env AUTH_TOKEN
 require_env SYNTHETIC_PDF
 TFVARS_FILE="$(realpath "$TFVARS_FILE")"
 [[ -f "$TFVARS_FILE" ]] || { echo "TFVARS_FILE not found" >&2; exit 2; }
-python "$ROOT_DIR/tools/prepare/mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/tfvars-profile-validation.json"
+python "$ROOT_DIR/tools/prepare/configuration_profile.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/tfvars-profile-validation.json"
 record "PASSED: complete MR-014 Terraform input profile validated"
 [[ -f "$SYNTHETIC_PDF" ]] || { echo "SYNTHETIC_PDF not found" >&2; exit 2; }
 

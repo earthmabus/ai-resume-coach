@@ -16,7 +16,7 @@ Environment variables:
       Optional evidence destination; defaults under the repository.
 
   TFVARS_FILE
-      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+      Path to a complete tfvars profile. Compose with: tools/prepare/certification_profile.sh compose
 
   AUTH_TOKEN
       Sensitive. Acquire with: source tools/prepare/auth.sh
@@ -70,7 +70,7 @@ PY
 case "$action" in
  certify)
    require_chaos_authorization; require_env TFVARS_FILE; require_env AUTH_TOKEN; require_env SYNTHETIC_PDF
-   "$ROOT_DIR/tools/prepare/mr014_certification.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
+   "$ROOT_DIR/tools/prepare/certification_profile.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
    combined="$EVIDENCE_DIR/results.json"; printf '{"scenarios":{}}\n' > "$combined"
    mkdir -p "$EVIDENCE_DIR/steps"
    for step in guard routing-certification worker-certification post-recovery; do
@@ -93,8 +93,8 @@ PYMERGE
    write_result guard-both-sites PASS false "$ev" '{"terraform_rejected_both_disabled":true}' ;;
  routing-certification)
    require_chaos_authorization; require_env TFVARS_FILE; require_env AUTH_TOKEN; require_env SYNTHETIC_PDF
-   "$ROOT_DIR/tools/prepare/mr014_certification.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
-   EXECUTE_FAILOVER=YES CONFIRM_MUTATION=YES "$ROOT_DIR/tools/validate/mr009d4_runtime.sh" | tee "$EVIDENCE_DIR/routing-certification.txt"
+   "$ROOT_DIR/tools/prepare/certification_profile.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
+   EXECUTE_FAILOVER=YES CONFIRM_MUTATION=YES "$ROOT_DIR/tools/validate/failover_runtime.sh" | tee "$EVIDENCE_DIR/routing-certification.txt"
    ev="$(latest_evidence mr009d4)"
    grep -q 'MR-009D4 PASSED' "$ev/execution.log"
    write_result bidirectional-routing PASS true "$ev" '{"dns_convergence":true,"authenticated_survivor_writes":true,"owner_region_correct":true,"cross_region_reads":true,"routing_restored":true}' ;;

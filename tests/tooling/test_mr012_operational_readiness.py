@@ -2,7 +2,7 @@ import importlib.util
 import sys
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 MODULE_PATH = ROOT / "tools" / "validate" / "operational_readiness.py"
 SPEC = importlib.util.spec_from_file_location("mr012_operational_readiness", MODULE_PATH)
 assert SPEC and SPEC.loader

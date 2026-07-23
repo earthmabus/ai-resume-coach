@@ -3,7 +3,7 @@ set -euo pipefail
 
 show_help() {
   cat <<'EOF'
-Usage: tools/prepare/mr014_certification.sh [COMMAND] [OPTIONS]
+Usage: tools/prepare/certification_profile.sh [COMMAND] [OPTIONS]
 
 Purpose:
   Compose, validate, plan, or apply the MR-014 certification profile.
@@ -19,7 +19,7 @@ Environment variables:
       Set explicitly for the target environment.
 
   TFVARS_FILE
-      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+      Path to a complete tfvars profile. Compose with: tools/prepare/certification_profile.sh compose
 
   CONFIRM_MUTATION
       Set CONFIRM_MUTATION=YES only after authorizing AWS mutations.
@@ -47,7 +47,7 @@ ROUTING_TFVARS_FILE="${ROUTING_TFVARS_FILE:-$INFRA_DIR/global-api-routing.genera
 MR014_CERTIFICATION_TFVARS_FILE="${MR014_CERTIFICATION_TFVARS_FILE:-$INFRA_DIR/.terraform-build/mr014-certification.tfvars}"
 
 compose_profile() {
-  python "$ROOT_DIR/tools/prepare/mr014_tfvars.py" compose \
+  python "$ROOT_DIR/tools/prepare/configuration_profile.py" compose \
     --input "$RUNTIME_TFVARS_FILE" \
     --input "$ROUTING_TFVARS_FILE" \
     --output "$MR014_CERTIFICATION_TFVARS_FILE" \
@@ -79,7 +79,7 @@ case "$action" in
     ;;
   validate)
     require_env TFVARS_FILE
-    python "$ROOT_DIR/tools/prepare/mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/profile-validation.json"
+    python "$ROOT_DIR/tools/prepare/configuration_profile.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/profile-validation.json"
     record "PASSED: TFVARS_FILE is a complete MR-014 certification profile"
     ;;
   *) echo "Usage: $0 {compose|plan|apply|validate}" >&2; exit 2 ;;

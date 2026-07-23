@@ -3,7 +3,7 @@ set -euo pipefail
 
 show_help() {
   cat <<'EOF'
-Usage: tools/validate/mr009d3b_runtime.sh [COMMAND] [OPTIONS]
+Usage: tools/validate/runtime_baseline.sh [COMMAND] [OPTIONS]
 
 Purpose:
   Run MR-009D3B regional runtime validation and optional synthetic writes.

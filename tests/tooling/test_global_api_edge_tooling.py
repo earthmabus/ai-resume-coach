@@ -1,6 +1,6 @@
 from pathlib import Path
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_dev_tfvars_example_requires_external_regional_certificates():

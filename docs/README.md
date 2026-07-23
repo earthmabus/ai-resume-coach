@@ -2,6 +2,9 @@
 
 ## Current architecture
 
+- [Repository structure](architecture/REPOSITORY_STRUCTURE.md)
+- [Operational tooling taxonomy](architecture/TOOLING_TAXONOMY.md)
+
 - [Platform V2 architecture](architecture/platform-v2/PLATFORM_V2_ARCHITECTURE.md)
 - [Architecture decisions](architecture/platform-v2/ARCHITECTURE_DECISIONS.md)
 - [Acceptance criteria](architecture/platform-v2/ACCEPTANCE_CRITERIA.md)

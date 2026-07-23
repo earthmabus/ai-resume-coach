@@ -9,7 +9,7 @@ Purpose:
 
 Environment variables:
   TFVARS_FILE
-      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+      Path to a complete tfvars profile. Compose with: tools/prepare/certification_profile.sh compose
 
   SYNTHETIC_PDF
       Path to an approved synthetic PDF; verify with: test -f "$SYNTHETIC_PDF"

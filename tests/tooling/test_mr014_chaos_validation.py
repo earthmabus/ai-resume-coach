@@ -1,6 +1,6 @@
 import importlib.util, json, subprocess, sys
 from pathlib import Path
-ROOT=Path(__file__).resolve().parents[1]
+ROOT=Path(__file__).resolve().parents[2]
 P=ROOT/'tools/validate/chaos.py'
 S=importlib.util.spec_from_file_location('mr014_enhanced',P); M=importlib.util.module_from_spec(S); sys.modules[S.name]=M; S.loader.exec_module(M)
 
@@ -32,7 +32,7 @@ def test_cli_catalog():
 
 def test_wrapper_contains_safety_cleanup_and_e2e_assertions():
     t=(ROOT/'tools/validate/chaos.sh').read_text()
-    for token in ['EXECUTE_CHAOS','CONFIRM_MUTATION','mr009d4_runtime.sh','restore_worker','duplicate_idempotent','queue_drained','certify)']:
+    for token in ['EXECUTE_CHAOS','CONFIRM_MUTATION','failover_runtime.sh','restore_worker','duplicate_idempotent','queue_drained','certify)']:
         assert token in t
 
 
@@ -68,7 +68,7 @@ def test_evidence_override_is_consumed_before_nested_scripts():
 
 
 def test_saved_plan_apply_sanitizes_ambient_runtime_tf_vars():
-    text = (ROOT / "tools/validate/mr009d4_runtime.sh").read_text()
+    text = (ROOT / "tools/validate/failover_runtime.sh").read_text()
     command = "env -u TF_VAR_deployment_id -u TF_VAR_analysis_provider"
     assert text.count(command) == 2
 

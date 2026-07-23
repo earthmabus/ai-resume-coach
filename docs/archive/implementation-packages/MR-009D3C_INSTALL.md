@@ -56,5 +56,5 @@ terraform -chdir=infra apply global-api-routing.tfplan
 TFVARS_FILE="$PWD/infra/global-api-routing.generated.tfvars" \
   ./tools/validate/global_api_edge.sh
 
-./tools/validate/mr009d4_runtime.sh
+./tools/validate/failover_runtime.sh
 ```

@@ -17,7 +17,7 @@ from core.workflow_state import (
 from tools.validate.workflow_state import build_report
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 
 
 def test_public_state_contract_matches_dispatch_transition():

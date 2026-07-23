@@ -11,7 +11,7 @@ from tools.build.pdf_dependency_layer import build_pdf_dependency_layer
 from tools.build.lambda_packages import build_all_packages
 
 
-ROOT = Path(__file__).resolve().parents[1]
+ROOT = Path(__file__).resolve().parents[2]
 BUILD_ROOT = ROOT / "build" / "lambda"
 LAYER_ROOT = ROOT / "build" / "lambda_layer" / "pdf_dependencies"
 

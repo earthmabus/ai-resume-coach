@@ -30,11 +30,11 @@ routing records before MR-014 may mutate routing.
 ## Operational sequence
 
 ```bash
-./tools/prepare/mr014_certification.sh compose
+./tools/prepare/certification_profile.sh compose
 
 export CONFIRM_MUTATION=YES
-./tools/prepare/mr014_certification.sh plan
-./tools/prepare/mr014_certification.sh apply
+./tools/prepare/certification_profile.sh plan
+./tools/prepare/certification_profile.sh apply
 
 export TFVARS_FILE="$PWD/infra/.terraform-build/mr014-certification.tfvars"
 ./tools/validate/chaos.sh preflight

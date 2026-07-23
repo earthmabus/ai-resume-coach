@@ -9,7 +9,7 @@ controls to defaults.
 ## Compose
 
 ```bash
-./tools/prepare/mr014_certification.sh compose
+./tools/prepare/certification_profile.sh compose
 export TFVARS_FILE="$PWD/infra/.terraform-build/mr014-certification.tfvars"
 ```
 
@@ -26,7 +26,7 @@ The command validates that the profile explicitly enables:
 Generate and inspect the plan:
 
 ```bash
-./tools/prepare/mr014_certification.sh plan
+./tools/prepare/certification_profile.sh plan
 ```
 
 The evidence directory contains `changes.tsv` and `plan.json`. Because an
@@ -38,7 +38,7 @@ Apply only after review:
 
 ```bash
 export CONFIRM_MUTATION=YES
-./tools/prepare/mr014_certification.sh apply
+./tools/prepare/certification_profile.sh apply
 ```
 
 ## Validate readiness

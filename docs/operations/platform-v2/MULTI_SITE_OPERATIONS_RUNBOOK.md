@@ -35,7 +35,7 @@ export AUTH_TOKEN='<fresh Cognito ID token>'
 export EXECUTE_FAILOVER=YES
 export CONFIRM_MUTATION=YES
 
-./tools/validate/mr009d4_runtime.sh
+./tools/validate/failover_runtime.sh
 ```
 
 Expected behavior:

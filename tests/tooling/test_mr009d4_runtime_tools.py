@@ -7,8 +7,8 @@ from pathlib import Path
 
 from tools.inspect.jwt_claims import remaining_lifetime
 
-ROOT = Path(__file__).resolve().parents[1]
-HARNESS = ROOT / "tools/validate/mr009d4_runtime.sh"
+ROOT = Path(__file__).resolve().parents[2]
+HARNESS = ROOT / "tools/validate/failover_runtime.sh"
 
 
 def _jwt(payload: dict) -> str:

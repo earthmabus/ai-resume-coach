@@ -90,7 +90,7 @@ TFVARS_FILE="$PWD/infra/global-api-routing.generated.tfvars" \
 Then rerun the MR-009D4 read-only preflight:
 
 ```bash
-tools/validate/mr009d4_runtime.sh
+tools/validate/failover_runtime.sh
 ```
 
 ## Rollback
