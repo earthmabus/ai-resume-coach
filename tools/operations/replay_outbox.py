@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 
-REPOSITORY_ROOT = Path(__file__).resolve().parents[1]
+REPOSITORY_ROOT = Path(__file__).resolve().parents[2]
 SOURCE_DIRECTORY = REPOSITORY_ROOT / "src"
 
 if str(SOURCE_DIRECTORY) not in sys.path:
