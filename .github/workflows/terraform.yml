@@ -73,6 +73,15 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: python -m compileall src tools tests
 
+      - name: Debug Python imports
+        run: |
+          python - <<'PY'
+          import tools
+          print("tools module:", tools)
+          print("tools file:", getattr(tools, "__file__", None))
+          print("tools path:", getattr(tools, "__path__", None))
+          PY
+
       - name: Run unit tests
         working-directory: ${{ github.workspace }}
         run: python -m pytest -q
