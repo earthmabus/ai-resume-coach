@@ -106,11 +106,3 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: terraform apply -input=false -auto-approve tfplan
 
-      - name: Invalidate CloudFront Cache
-        if: github.ref == 'refs/heads/main'
-        run: |
-          DISTRIBUTION_ID="$(terraform output -raw cloudfront_distribution_id)"
-
-          aws cloudfront create-invalidation \
-            --distribution-id "$DISTRIBUTION_ID" \
-            --paths "/*"
