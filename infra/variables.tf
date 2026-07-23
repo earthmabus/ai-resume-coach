@@ -83,6 +83,61 @@ variable "frontend_domain_name" {
   default     = "resume.michaelpopovich.com"
 }
 
+variable "enable_frontend_hosting" {
+  description = "Create the S3, CloudFront, ACM, and Route 53 resources for the static frontend."
+  type        = bool
+  default     = true
+}
+
+variable "frontend_hosted_zone_name" {
+  description = "Public Route 53 hosted-zone name containing frontend_domain_name."
+  type        = string
+  default     = "resume.michaelpopovich.com"
+}
+
+variable "frontend_bucket_force_destroy" {
+  description = "Allow Terraform to remove the non-empty frontend deployment bucket."
+  type        = bool
+  default     = false
+}
+
+variable "frontend_cloudfront_price_class" {
+  description = "CloudFront price class for the static frontend."
+  type        = string
+  default     = "PriceClass_100"
+
+  validation {
+    condition = contains([
+      "PriceClass_100",
+      "PriceClass_200",
+      "PriceClass_All",
+    ], var.frontend_cloudfront_price_class)
+    error_message = "frontend_cloudfront_price_class must be PriceClass_100, PriceClass_200, or PriceClass_All."
+  }
+}
+
+variable "frontend_cache_default_ttl_seconds" {
+  description = "Default CloudFront cache lifetime for frontend objects."
+  type        = number
+  default     = 300
+
+  validation {
+    condition     = var.frontend_cache_default_ttl_seconds >= 0
+    error_message = "frontend_cache_default_ttl_seconds must be non-negative."
+  }
+}
+
+variable "frontend_cache_max_ttl_seconds" {
+  description = "Maximum CloudFront cache lifetime for frontend objects."
+  type        = number
+  default     = 3600
+
+  validation {
+    condition     = var.frontend_cache_max_ttl_seconds >= var.frontend_cache_default_ttl_seconds
+    error_message = "frontend_cache_max_ttl_seconds must be at least frontend_cache_default_ttl_seconds."
+  }
+}
+
 variable "document_bucket_force_destroy" {
   description = "Allow Terraform to remove non-empty regional document buckets."
   type        = bool
@@ -281,6 +336,7 @@ variable "api_cors_allowed_origins" {
   description = "Origins allowed to call the regional HTTP APIs."
   type        = list(string)
   default = [
+    "https://resume.michaelpopovich.com",
     "http://localhost:5173",
     "http://localhost:8000",
   ]

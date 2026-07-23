@@ -32,6 +32,26 @@ output "frontend_domain_name" {
   value       = module.global_edge.domain_name
 }
 
+output "frontend_url" {
+  description = "Public HTTPS URL for the static frontend."
+  value       = var.enable_frontend_hosting ? "https://${var.frontend_domain_name}" : null
+}
+
+output "frontend_bucket_name" {
+  description = "Private S3 bucket receiving frontend deployment artifacts."
+  value       = var.enable_frontend_hosting ? aws_s3_bucket.frontend[0].id : null
+}
+
+output "cloudfront_distribution_id" {
+  description = "CloudFront distribution ID used for frontend cache invalidations."
+  value       = var.enable_frontend_hosting ? aws_cloudfront_distribution.frontend[0].id : null
+}
+
+output "cloudfront_distribution_domain_name" {
+  description = "CloudFront-generated domain name for the frontend distribution."
+  value       = var.enable_frontend_hosting ? aws_cloudfront_distribution.frontend[0].domain_name : null
+}
+
 output "primary_frontend_site" {
   description = "Regional site selected as the initial frontend API target."
   value       = module.global_edge.primary_site

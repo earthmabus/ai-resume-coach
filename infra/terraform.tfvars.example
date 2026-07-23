@@ -12,7 +12,13 @@ openai_api_key    = ""
 registration_notification_email = "replace-me@example.com"
 operational_alert_email          = "replace-me@example.com"
 
-frontend_domain_name = "resume.example.com"
+frontend_domain_name       = "resume.example.com"
+enable_frontend_hosting    = true
+frontend_hosted_zone_name  = "example.com"
+frontend_bucket_force_destroy = false
+frontend_cloudfront_price_class = "PriceClass_100"
+frontend_cache_default_ttl_seconds = 300
+frontend_cache_max_ttl_seconds     = 3600
 
 # Regional storage and messaging
 document_bucket_force_destroy                   = false
@@ -43,6 +49,7 @@ dynamodb_pitr_recovery_period_days   = 35
 
 # Regional HTTP APIs
 api_cors_allowed_origins = [
+  "https://resume.example.com",
   "http://localhost:5173",
   "http://localhost:8000",
 ]
