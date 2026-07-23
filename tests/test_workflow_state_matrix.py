@@ -80,7 +80,7 @@ def test_every_documented_status_is_known(status):
     assert known_status(status)
 
 
-@pytest.mark.parametrize("current,target", itertools.product(STATUSES, STATUSES))
+@pytest.mark.parametrize("current,target", list(itertools.product(STATUSES, STATUSES)))
 def test_transition_matrix_matches_documented_contract(current, target):
     expected = target in EXPECTED[current]
 
@@ -102,7 +102,15 @@ def test_terminal_states_have_no_outbound_edges(status):
     assert EXPECTED[status] == set()
 
 
-@pytest.mark.parametrize("status", set(STATUSES) - {STATUS_COMPLETED, STATUS_FAILED_PERMANENT, STATUS_FAILED_RETRY_EXHAUSTED})
+@pytest.mark.parametrize(
+    "status",
+    set(STATUSES)
+    - {
+        STATUS_COMPLETED,
+        STATUS_FAILED_PERMANENT,
+        STATUS_FAILED_RETRY_EXHAUSTED,
+    },
+)
 def test_nonterminal_states_are_not_reported_terminal(status):
     assert not is_terminal(status)
 

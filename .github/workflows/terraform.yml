@@ -12,6 +12,7 @@ on:
       - "tests/**"
       - "frontend/**"
       - "lambda_layer/**"
+      - "tools/**"
       - ".github/workflows/terraform.yml"
 
 env:
@@ -70,11 +71,11 @@ jobs:
 
       - name: Compile Python source
         working-directory: ${{ github.workspace }}
-        run: python -m compileall src
+        run: python -m compileall src tools tests
 
       - name: Run unit tests
         working-directory: ${{ github.workspace }}
-        run: pytest -q
+        run: python -m pytest -q
 
       - name: Build PDF Lambda layer
         working-directory: ${{ github.workspace }}

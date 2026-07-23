@@ -10,17 +10,17 @@ import pytest
 ROOT = Path(__file__).resolve().parents[1]
 SRC = ROOT / "src"
 
-for import_path in (
-    ROOT,
-    SRC,
-):
+# Put repository paths ahead of site-packages deterministically.  Merely
+# checking for membership is insufficient because a console-script entry point
+# can leave the repository root later in sys.path, allowing an unrelated
+# third-party package (for example, ``tools``) to shadow local modules.
+for import_path in reversed((ROOT, SRC)):
     normalized_path = str(import_path)
 
-    if normalized_path not in sys.path:
-        sys.path.insert(
-            0,
-            normalized_path,
-        )
+    while normalized_path in sys.path:
+        sys.path.remove(normalized_path)
+
+    sys.path.insert(0, normalized_path)
 
 
 TEST_ENVIRONMENT = {
