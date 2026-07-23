@@ -1,5 +1,29 @@
 #!/usr/bin/env bash
 
+show_help() {
+  cat <<'EOF'
+Usage: tools/prepare/auth.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Acquire a Cognito ID token and export AUTH_TOKEN.
+
+Environment variables:
+  SYNTHETIC_USERNAME
+      Set explicitly for the target environment.
+
+  SYNTHETIC_PASSWORD
+      Set explicitly for the target environment.
+
+  AWS_PROFILE
+      Optional. List values with: aws configure list-profiles
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 acquire_auth_token() {
   if [[ -z "${SYNTHETIC_USERNAME:-}" ]]; then
     echo "SYNTHETIC_USERNAME is required" >&2

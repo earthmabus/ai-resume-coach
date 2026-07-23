@@ -13,9 +13,9 @@ Before editing, inspect the repository rather than relying on assumptions.
 - Current multi-site working context: `docs/engineering/CODEX_WORKING_CONTEXT.md`
 - Remaining multi-site roadmap: `docs/engineering/MULTI_SITE_COMPLETION_PLAN.md`
 - Terraform architecture contracts: `infra/tests/`
-- Platform validation: `tools/validate_platform_v2_foundation.sh`
+- Platform validation: `tools/validate/platform_v2_foundation.sh`
 - Application behavior: `src/` and `tests/`
-- Lambda package construction: `tools/build_lambda_packages.py`
+- Lambda package construction: `tools/build/lambda_packages.py`
 
 When documentation and executable tests conflict, stop and report the conflict. Do not silently choose one.
 
@@ -99,7 +99,7 @@ cd infra
 terraform fmt -recursive -check
 terraform validate
 cd ..
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 ```
 
 Use focused tests first, then the full suite. Report exact pass/fail counts.

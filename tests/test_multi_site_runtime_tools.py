@@ -5,10 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.multi_site.inspect_jwt_claims import claim_values, decode_payload, groups
+from tools.inspect.jwt_claims import claim_values, decode_payload, groups
 
 ROOT = Path(__file__).resolve().parents[1]
-HARNESS = ROOT / "tools/multi_site/mr009d3b_runtime_validation.sh"
+HARNESS = ROOT / "tools/validate/mr009d3b_runtime.sh"
 
 
 def _jwt(payload: dict) -> str:
@@ -27,7 +27,7 @@ def test_jwt_inspector_decodes_only_safe_summary_fields(tmp_path):
     })
     output = tmp_path / "claims.json"
     result = subprocess.run(
-        [sys.executable, str(ROOT / "tools/multi_site/inspect_jwt_claims.py"), "--token", token,
+        [sys.executable, str(ROOT / "tools/inspect/jwt_claims.py"), "--token", token,
          "--require-group", "synthetic-runtime-validation", "--output", str(output)],
         capture_output=True, text=True, check=False,
     )
@@ -41,7 +41,7 @@ def test_jwt_inspector_decodes_only_safe_summary_fields(tmp_path):
 def test_jwt_inspector_rejects_missing_required_group(tmp_path):
     token = _jwt({"sub": "user-1", "cognito:groups": ["users"]})
     result = subprocess.run(
-        [sys.executable, str(ROOT / "tools/multi_site/inspect_jwt_claims.py"), "--token", token,
+        [sys.executable, str(ROOT / "tools/inspect/jwt_claims.py"), "--token", token,
          "--require-group", "synthetic-runtime-validation"],
         capture_output=True, text=True, check=False,
     )

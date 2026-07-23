@@ -17,7 +17,7 @@ Publisher and worker persistence boundaries call `assert_transition(...)` before
 Run the contract validator with:
 
 ```bash
-./tools/multi_site/mr013_workflow_state_validation.sh
+./tools/validate/workflow_state.sh
 ```
 
 It writes:

@@ -49,7 +49,7 @@ identity where already supported.
 ## Validation
 
 ```bash
-python tools/build_lambda_packages.py
+python tools/build/lambda_packages.py
 python -m compileall src tests tools
 
 pytest -q tests/test_runtime_identity.py

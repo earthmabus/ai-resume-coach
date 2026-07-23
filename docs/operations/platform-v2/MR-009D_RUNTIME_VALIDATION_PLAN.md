@@ -81,7 +81,7 @@ terraform test -filter=tests/regional_compute.tftest.hcl
 terraform test -filter=tests/regional_api_gateway.tftest.hcl
 terraform test -filter=tests/resume_analysis_mrsc.tftest.hcl
 cd ..
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 git diff --check
 ```
 

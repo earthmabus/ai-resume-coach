@@ -37,7 +37,7 @@ pytest -q
 terraform -chdir=infra fmt -check -recursive
 terraform -chdir=infra validate
 terraform -chdir=infra test
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 ```
 
 Mutating multi-site certification remains explicitly approval-gated:
@@ -45,5 +45,5 @@ Mutating multi-site certification remains explicitly approval-gated:
 ```bash
 CONFIRM_MUTATION=YES \
 EXECUTE_CHAOS=YES \
-./tools/multi_site/mr014_chaos_validation.sh certify
+./tools/validate/chaos.sh certify
 ```

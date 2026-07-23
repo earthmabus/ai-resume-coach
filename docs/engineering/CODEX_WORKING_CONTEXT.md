@@ -25,7 +25,7 @@ At that checkpoint, the user reported:
 - 203 Python tests passing
 - 28 Terraform tests passing
 - `terraform validate` successful
-- `./tools/validate_platform_v2_foundation.sh` successful
+- `./tools/validate/platform_v2_foundation.sh` successful
 - Platform V2 multi-site production-readiness validation successful
 
 Re-run validation before relying on these counts because the repository may have changed.

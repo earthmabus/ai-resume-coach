@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-MODULE_PATH = ROOT / "tools" / "multi_site" / "mr012_operational_readiness.py"
+MODULE_PATH = ROOT / "tools" / "validate" / "operational_readiness.py"
 SPEC = importlib.util.spec_from_file_location("mr012_operational_readiness", MODULE_PATH)
 assert SPEC and SPEC.loader
 MODULE = importlib.util.module_from_spec(SPEC)
@@ -106,7 +106,7 @@ def test_wrong_health_region_fails_preflight():
 
 
 def test_wrapper_is_non_mutating_and_writes_evidence():
-    text = (ROOT / "tools" / "multi_site" / "mr012_operational_readiness.sh").read_text()
+    text = (ROOT / "tools" / "validate" / "operational_readiness.sh").read_text()
     assert "new_evidence_dir \"mr012\"" in text
     assert "report.json" in text
     assert "confirm_mutation" not in text

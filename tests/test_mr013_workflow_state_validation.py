@@ -14,7 +14,7 @@ from core.workflow_state import (
     allowed_targets,
     known_statuses,
 )
-from tools.multi_site.mr013_workflow_state_validation import build_report
+from tools.validate.workflow_state import build_report
 
 
 ROOT = Path(__file__).resolve().parents[1]
@@ -45,7 +45,7 @@ def test_cli_writes_machine_readable_evidence(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            str(ROOT / "tools/multi_site/mr013_workflow_state_validation.py"),
+            str(ROOT / "tools/validate/workflow_state.py"),
             "--output",
             str(output),
         ],

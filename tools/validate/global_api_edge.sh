@@ -1,6 +1,27 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+show_help() {
+  cat <<'EOF'
+Usage: tools/validate/global_api_edge.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Validate the deployed global API DNS and readiness endpoint.
+
+Environment variables:
+  TFVARS_FILE
+      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+
+  EXPECTED_DOMAIN
+      Set explicitly for the target environment.
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 ROOT_DIR="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
 TFVARS_FILE="${TFVARS_FILE:-$ROOT_DIR/infra/global-api-routing.generated.tfvars}"
 EXPECTED_DOMAIN="${EXPECTED_DOMAIN:-api.resume.michaelpopovich.com}"

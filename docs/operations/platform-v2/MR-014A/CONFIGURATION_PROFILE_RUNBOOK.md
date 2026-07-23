@@ -9,7 +9,7 @@ controls to defaults.
 ## Compose
 
 ```bash
-./tools/multi_site/prepare_mr014_certification.sh compose
+./tools/prepare/mr014_certification.sh compose
 export TFVARS_FILE="$PWD/infra/.terraform-build/mr014-certification.tfvars"
 ```
 
@@ -26,7 +26,7 @@ The command validates that the profile explicitly enables:
 Generate and inspect the plan:
 
 ```bash
-./tools/multi_site/prepare_mr014_certification.sh plan
+./tools/prepare/mr014_certification.sh plan
 ```
 
 The evidence directory contains `changes.tsv` and `plan.json`. Because an
@@ -38,14 +38,14 @@ Apply only after review:
 
 ```bash
 export CONFIRM_MUTATION=YES
-./tools/multi_site/prepare_mr014_certification.sh apply
+./tools/prepare/mr014_certification.sh apply
 ```
 
 ## Validate readiness
 
 ```bash
 export TFVARS_FILE="$PWD/infra/.terraform-build/mr014-certification.tfvars"
-./tools/multi_site/mr014_chaos_validation.sh preflight
+./tools/validate/chaos.sh preflight
 ```
 
 The preflight must again report all 19 checks as PASS.
@@ -55,11 +55,11 @@ The preflight must again report all 19 checks as PASS.
 Acquire a fresh ID token and identify a real synthetic PDF before running:
 
 ```bash
-./tools/acquire_auth_token.sh
+./tools/prepare/auth.sh
 export SYNTHETIC_PDF="$PWD/path/to/test-resume.pdf"
 export EXECUTE_CHAOS=YES
 export CONFIRM_MUTATION=YES
-./tools/multi_site/mr014_chaos_validation.sh certify
+./tools/validate/chaos.sh certify
 ```
 
 The certification wrapper and MR-009D4 both independently validate the

@@ -27,6 +27,23 @@ resource "aws_s3_bucket_public_access_block" "documents" {
   restrict_public_buckets = true
 }
 
+resource "aws_s3_bucket_cors_configuration" "documents" {
+  bucket = aws_s3_bucket.documents.id
+
+  cors_rule {
+    allowed_origins = var.storage.cors_allowed_origins
+    allowed_methods = ["GET", "HEAD", "PUT"]
+    allowed_headers = ["*"]
+
+    expose_headers = [
+      "ETag",
+      "x-amz-request-id",
+    ]
+
+    max_age_seconds = 3600
+  }
+}
+
 resource "aws_s3_bucket_versioning" "documents" {
   bucket = aws_s3_bucket.documents.id
 

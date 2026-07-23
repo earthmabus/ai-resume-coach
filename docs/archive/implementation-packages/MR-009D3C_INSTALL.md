@@ -1,5 +1,9 @@
 # MR-009D3C Option A Installation
 
+> **Taxonomy note:** This archived guide has been normalized to the repository's
+> current tooling taxonomy. The underlying MR remains historical, but all commands
+> below use supported canonical paths.
+
 ## Install
 
 Extract this ZIP from the repository root with overwrite enabled.
@@ -16,14 +20,14 @@ python -m compileall src tests tools
 terraform -chdir=infra fmt -check -recursive
 terraform -chdir=infra validate
 terraform -chdir=infra test
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 ```
 
 ## Request and validate external ACM certificates
 
 ```bash
 export AWS_PROFILE=<profile>
-tools/multi_site/prepare_external_acm_certificates.sh
+./tools/prepare/external_acm_certificates.sh
 ```
 
 The script creates:
@@ -50,7 +54,7 @@ terraform -chdir=infra apply global-api-routing.tfplan
 
 ```bash
 TFVARS_FILE="$PWD/infra/global-api-routing.generated.tfvars" \
-  tools/multi_site/validate_global_api_edge.sh
+  ./tools/validate/global_api_edge.sh
 
-tools/multi_site/mr009d4_runtime_validation.sh
+./tools/validate/mr009d4_runtime.sh
 ```

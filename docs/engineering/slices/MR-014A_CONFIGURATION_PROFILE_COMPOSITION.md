@@ -30,15 +30,15 @@ routing records before MR-014 may mutate routing.
 ## Operational sequence
 
 ```bash
-./tools/multi_site/prepare_mr014_certification.sh compose
+./tools/prepare/mr014_certification.sh compose
 
 export CONFIRM_MUTATION=YES
-./tools/multi_site/prepare_mr014_certification.sh plan
-./tools/multi_site/prepare_mr014_certification.sh apply
+./tools/prepare/mr014_certification.sh plan
+./tools/prepare/mr014_certification.sh apply
 
 export TFVARS_FILE="$PWD/infra/.terraform-build/mr014-certification.tfvars"
-./tools/multi_site/mr014_chaos_validation.sh preflight
-./tools/multi_site/mr014_chaos_validation.sh certify
+./tools/validate/chaos.sh preflight
+./tools/validate/chaos.sh certify
 ```
 
 The reconciliation plan is intentionally reviewed before apply. It may restore

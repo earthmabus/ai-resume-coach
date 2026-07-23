@@ -9,7 +9,7 @@ Provide one non-mutating gate that proves the deployed multi-site foundation is 
 Run:
 
 ```bash
-./tools/multi_site/mr012_operational_readiness.sh
+./tools/validate/operational_readiness.sh
 ```
 
 The command creates `evidence/mr012-<timestamp>/report.json` and exits nonzero when a required capability is unavailable or misconfigured.

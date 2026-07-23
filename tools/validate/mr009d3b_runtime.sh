@@ -1,6 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/common.sh"
+
+show_help() {
+  cat <<'EOF'
+Usage: tools/validate/mr009d3b_runtime.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Run MR-009D3B regional runtime validation and optional synthetic writes.
+
+Environment variables:
+  AWS_PROFILE
+      Optional. List values with: aws configure list-profiles
+
+  EVIDENCE_ROOT
+      Optional evidence destination; defaults under the repository.
+
+  EXECUTE_SYNTHETIC
+      Set explicitly for the target environment.
+
+  CONFIRM_MUTATION
+      Set CONFIRM_MUTATION=YES only after authorizing AWS mutations.
+
+  AUTH_TOKEN
+      Sensitive. Acquire with: source tools/prepare/auth.sh
+
+  SYNTHETIC_PDF
+      Path to an approved synthetic PDF; verify with: test -f "$SYNTHETIC_PDF"
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/multi_site.sh"
 
 for cmd in aws terraform curl python pytest jq; do
   require_cmd "$cmd"
@@ -49,7 +82,7 @@ confirm_mutation
 require_env AUTH_TOKEN
 require_env SYNTHETIC_PDF
 
-python "$ROOT_DIR/tools/multi_site/inspect_jwt_claims.py" \
+python "$ROOT_DIR/tools/inspect/jwt_claims.py" \
   --token "$AUTH_TOKEN" \
   --require-group "${SYNTHETIC_PLACEMENT_OVERRIDE_GROUP:-synthetic-runtime-validation}" \
   --output "$EVIDENCE_DIR/auth-token-claims.json"

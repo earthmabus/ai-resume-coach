@@ -1,6 +1,36 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/common.sh"
+
+show_help() {
+  cat <<'EOF'
+Usage: tools/inspect/multi_site_evidence.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Collect a read-only snapshot of multi-site AWS and Terraform state.
+
+Environment variables:
+  AWS_PROFILE
+      Optional. List values with: aws configure list-profiles
+
+  EVIDENCE_ROOT
+      Optional evidence destination; defaults under the repository.
+
+  DYNAMODB_TABLE_NAME
+      Set explicitly for the target environment.
+
+  EAST_REGION
+      Set explicitly for the target environment.
+
+  WEST_REGION
+      Set explicitly for the target environment.
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/multi_site.sh"
 
 for cmd in aws terraform curl python; do
   require_cmd "$cmd"

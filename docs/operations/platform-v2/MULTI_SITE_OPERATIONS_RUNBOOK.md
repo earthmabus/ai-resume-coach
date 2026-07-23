@@ -18,7 +18,7 @@ This is the authoritative operator procedure for Platform V2 multi-site health c
 Run the non-mutating gate:
 
 ```bash
-./tools/multi_site/mr012_operational_readiness.sh
+./tools/validate/operational_readiness.sh
 ```
 
 A healthy result verifies both regional readiness endpoints, publishers, APIs, workers, queues, DLQs, event-source mappings, the DynamoDB table, active replicas, and the MRSC witness contract.
@@ -35,7 +35,7 @@ export AUTH_TOKEN='<fresh Cognito ID token>'
 export EXECUTE_FAILOVER=YES
 export CONFIRM_MUTATION=YES
 
-./tools/multi_site/mr009d4_runtime_validation.sh
+./tools/validate/mr009d4_runtime.sh
 ```
 
 Expected behavior:
@@ -58,7 +58,7 @@ export AUTH_TOKEN='<fresh Cognito ID token>'
 export EXECUTE_CHAOS=YES
 export CONFIRM_MUTATION=YES
 
-./tools/multi_site/mr014_chaos_validation.sh worker-certification
+./tools/validate/chaos.sh worker-certification
 ```
 
 The procedure disables one event-source mapping, submits duplicate-idempotent work, waits for visible or in-flight backlog, restores the mapping, confirms state `Enabled`, waits for one workflow to complete, and verifies queue drain.
@@ -68,13 +68,13 @@ Do not declare recovery from the enable API response alone.
 ## Full certification
 
 ```bash
-source ./tools/acquire_auth_token.sh
+source ./tools/prepare/auth.sh
 export TFVARS_FILE="$PWD/infra/.terraform-build/mr014-certification.tfvars"
 
 set -o pipefail
 CONFIRM_MUTATION=YES \
 EXECUTE_CHAOS=YES \
-./tools/multi_site/mr014_chaos_validation.sh certify \
+./tools/validate/chaos.sh certify \
 2>&1 | tee "evidence/mr014-chaos-$(date +%Y%m%dT%H%M%S).log"
 
 status=$?

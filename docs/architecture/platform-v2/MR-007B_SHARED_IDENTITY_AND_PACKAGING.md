@@ -46,7 +46,7 @@ MR-007B does not create:
 Extract the bundle and run:
 
 ```bash
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 ```
 
 The validator creates placeholder package directories, initializes Terraform

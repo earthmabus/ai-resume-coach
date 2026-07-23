@@ -8,7 +8,7 @@ evidence.
 
 ## Deployment sequence
 
-1. Run `tools/multi_site/collect_evidence.sh pre-deploy`.
+1. Run `tools/inspect/multi_site_evidence.sh pre-deploy`.
 2. Keep global routing unchanged during application rollout.
 3. Deploy the first regional application.
 4. Verify its direct `/health/live` and `/health/ready` endpoints, alarms,
@@ -16,7 +16,7 @@ evidence.
 5. Deploy the peer regional application.
 6. Repeat direct verification.
 7. Review and apply global-routing changes separately.
-8. Run `tools/multi_site/collect_evidence.sh post-deploy`.
+8. Run `tools/inspect/multi_site_evidence.sh post-deploy`.
 
 ## Abort conditions
 

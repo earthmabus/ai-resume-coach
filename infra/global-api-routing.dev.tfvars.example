@@ -1,6 +1,6 @@
 # Example external-certificate deployment inputs.
 #
-# 1. Run tools/multi_site/prepare_external_acm_certificates.sh.
+# 1. Run tools/prepare/external_acm_certificates.sh.
 # 2. Replace the certificate ARN placeholders.
 # 3. Pass the resulting local file explicitly:
 #

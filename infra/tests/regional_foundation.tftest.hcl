@@ -33,6 +33,32 @@ run "regional_storage_and_messaging_are_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.document_bucket.cors.allowed_origins
+      == output.regional_foundations.west.document_bucket.cors.allowed_origins
+      && contains(
+        output.regional_foundations.east.document_bucket.cors.allowed_origins,
+        "https://resume.michaelpopovich.com",
+      )
+    )
+    error_message = "Both regional document buckets must trust the deployed frontend origin."
+  }
+
+  assert {
+    condition = (
+      toset(output.regional_foundations.east.document_bucket.cors.allowed_methods)
+      == toset(["GET", "HEAD", "PUT"])
+      && toset(output.regional_foundations.west.document_bucket.cors.allowed_methods)
+      == toset(["GET", "HEAD", "PUT"])
+      && output.regional_foundations.east.document_bucket.cors.allowed_headers == ["*"]
+      && output.regional_foundations.west.document_bucket.cors.allowed_headers == ["*"]
+      && output.regional_foundations.east.document_bucket.cors.max_age_seconds == 3600
+      && output.regional_foundations.west.document_bucket.cors.max_age_seconds == 3600
+    )
+    error_message = "Regional document-bucket CORS must remain symmetric and support signed browser uploads."
+  }
+
+  assert {
+    condition = (
       output.regional_foundations.east.processing_queue.name
       == "ai-resume-coach-dev-use1-processing"
     )

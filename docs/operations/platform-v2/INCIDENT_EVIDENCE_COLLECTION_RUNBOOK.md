@@ -1,6 +1,6 @@
 # Incident Evidence Collection Runbook
 
-Use `tools/multi_site/collect_evidence.sh` for a read-only snapshot.
+Use `tools/inspect/multi_site_evidence.sh` for a read-only snapshot.
 
 Collect UTC timestamps, approved AWS identity, Terraform outputs and no-drift
 result, regional health, Lambda mappings, queue and DLQ attributes, alarms,

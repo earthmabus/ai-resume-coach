@@ -7,8 +7,8 @@ from pathlib import Path
 
 import pytest
 
-from tools.build_pdf_dependency_layer import build_pdf_dependency_layer
-from tools.build_lambda_packages import build_all_packages
+from tools.build.pdf_dependency_layer import build_pdf_dependency_layer
+from tools.build.lambda_packages import build_all_packages
 
 
 ROOT = Path(__file__).resolve().parents[1]

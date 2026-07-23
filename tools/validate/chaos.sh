@@ -1,10 +1,43 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/common.sh"
+
+show_help() {
+  cat <<'EOF'
+Usage: tools/validate/chaos.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Run MR-014 controlled-chaos certification commands.
+
+Environment variables:
+  AWS_PROFILE
+      Optional. List values with: aws configure list-profiles
+
+  EVIDENCE_ROOT
+      Optional evidence destination; defaults under the repository.
+
+  TFVARS_FILE
+      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+
+  AUTH_TOKEN
+      Sensitive. Acquire with: source tools/prepare/auth.sh
+
+  SYNTHETIC_PDF
+      Path to an approved synthetic PDF; verify with: test -f "$SYNTHETIC_PDF"
+
+  CONFIRM_MUTATION
+      Set CONFIRM_MUTATION=YES only after authorizing AWS mutations.
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/multi_site.sh"
 ROOT_DIR="$(cd "$(dirname "$0")/../.." && pwd)"
 action="${1:-catalog}"
 new_evidence_dir "mr014-${action}"
-python "$ROOT_DIR/tools/multi_site/mr014_chaos_validation.py" catalog --output "$EVIDENCE_DIR/catalog.json" >/dev/null
+python "$ROOT_DIR/tools/validate/chaos.py" catalog --output "$EVIDENCE_DIR/catalog.json" >/dev/null
 
 require_chaos_authorization(){ [[ "${EXECUTE_CHAOS:-NO}" == YES ]] || { echo 'Set EXECUTE_CHAOS=YES' >&2; exit 2; }; [[ "${CONFIRM_MUTATION:-NO}" == YES ]] || { echo 'Set CONFIRM_MUTATION=YES' >&2; exit 2; }; }
 latest_evidence(){
@@ -37,7 +70,7 @@ PY
 case "$action" in
  certify)
    require_chaos_authorization; require_env TFVARS_FILE; require_env AUTH_TOKEN; require_env SYNTHETIC_PDF
-   "$ROOT_DIR/tools/multi_site/prepare_mr014_certification.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
+   "$ROOT_DIR/tools/prepare/mr014_certification.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
    combined="$EVIDENCE_DIR/results.json"; printf '{"scenarios":{}}\n' > "$combined"
    mkdir -p "$EVIDENCE_DIR/steps"
    for step in guard routing-certification worker-certification post-recovery; do
@@ -50,18 +83,18 @@ import json,sys
 a=json.load(open(sys.argv[1])); b=json.load(open(sys.argv[2])); a['scenarios'].update(b.get('scenarios',{})); open(sys.argv[1],'w').write(json.dumps(a,indent=2,sort_keys=True)+'\n')
 PYMERGE
    done
-   python "$ROOT_DIR/tools/multi_site/mr014_chaos_validation.py" evaluate --results "$combined" --output "$EVIDENCE_DIR/report.json"
+   python "$ROOT_DIR/tools/validate/chaos.py" evaluate --results "$combined" --output "$EVIDENCE_DIR/report.json"
    ;;
  catalog) cat "$EVIDENCE_DIR/catalog.json" ;;
- preflight) "$ROOT_DIR/tools/multi_site/mr012_operational_readiness.sh" | tee "$EVIDENCE_DIR/preflight.txt" ;;
+ preflight) "$ROOT_DIR/tools/validate/operational_readiness.sh" | tee "$EVIDENCE_DIR/preflight.txt" ;;
  guard)
-   "$ROOT_DIR/tools/multi_site/mr010_failover_recovery.sh" prove-both-disabled-rejected | tee "$EVIDENCE_DIR/guard.txt"
+   "$ROOT_DIR/tools/operations/failover_recovery.sh" prove-both-disabled-rejected | tee "$EVIDENCE_DIR/guard.txt"
    ev="$(latest_evidence mr010-prove-both-disabled-rejected)"
    write_result guard-both-sites PASS false "$ev" '{"terraform_rejected_both_disabled":true}' ;;
  routing-certification)
    require_chaos_authorization; require_env TFVARS_FILE; require_env AUTH_TOKEN; require_env SYNTHETIC_PDF
-   "$ROOT_DIR/tools/multi_site/prepare_mr014_certification.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
-   EXECUTE_FAILOVER=YES CONFIRM_MUTATION=YES "$ROOT_DIR/tools/multi_site/mr009d4_runtime_validation.sh" | tee "$EVIDENCE_DIR/routing-certification.txt"
+   "$ROOT_DIR/tools/prepare/mr014_certification.sh" validate | tee "$EVIDENCE_DIR/profile-validation.txt"
+   EXECUTE_FAILOVER=YES CONFIRM_MUTATION=YES "$ROOT_DIR/tools/validate/mr009d4_runtime.sh" | tee "$EVIDENCE_DIR/routing-certification.txt"
    ev="$(latest_evidence mr009d4)"
    grep -q 'MR-009D4 PASSED' "$ev/execution.log"
    write_result bidirectional-routing PASS true "$ev" '{"dns_convergence":true,"authenticated_survivor_writes":true,"owner_region_correct":true,"cross_region_reads":true,"routing_restored":true}' ;;
@@ -144,13 +177,13 @@ PYMERGE
    record "PASSED: worker queue drained"
    write_result worker-backlog PASS true "$EVIDENCE_DIR" '{"worker_disabled":true,"backlog_retained":true,"duplicate_idempotent":true,"worker_restored":true,"workflow_completed":true,"queue_drained":true}' ;;
  post-recovery)
-   "$ROOT_DIR/tools/multi_site/mr012_operational_readiness.sh" | tee "$EVIDENCE_DIR/readiness.txt"
+   "$ROOT_DIR/tools/validate/operational_readiness.sh" | tee "$EVIDENCE_DIR/readiness.txt"
    require_env AUTH_TOKEN; regional_endpoints
    curl --fail-with-body -sS -H "Authorization: Bearer $AUTH_TOKEN" "$EAST_API/target-career" > "$EVIDENCE_DIR/east-target-career.json"
    curl --fail-with-body -sS -H "Authorization: Bearer $AUTH_TOKEN" "$WEST_API/target-career" > "$EVIDENCE_DIR/west-target-career.json"
    write_result post-recovery PASS false "$EVIDENCE_DIR" '{"both_regions_ready":true,"mrsc_healthy":true,"authenticated_reads":true,"restoration_clear":true}' ;;
  evaluate)
-   require_env MR014_RESULTS_FILE; python "$ROOT_DIR/tools/multi_site/mr014_chaos_validation.py" evaluate --results "$MR014_RESULTS_FILE" --output "$EVIDENCE_DIR/report.json" ;;
+   require_env MR014_RESULTS_FILE; python "$ROOT_DIR/tools/validate/chaos.py" evaluate --results "$MR014_RESULTS_FILE" --output "$EVIDENCE_DIR/report.json" ;;
  *) echo "Usage: $0 {catalog|preflight|certify|guard|routing-certification|worker-certification|post-recovery|evaluate}" >&2; exit 2 ;;
 esac
 printf '%s\n' "$EVIDENCE_DIR"

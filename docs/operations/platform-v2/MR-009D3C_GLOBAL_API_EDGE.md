@@ -35,7 +35,7 @@ From the repository root:
 ```bash
 export AWS_PROFILE=<profile>
 
-tools/multi_site/prepare_external_acm_certificates.sh
+tools/prepare/external_acm_certificates.sh
 ```
 
 The helper:
@@ -84,13 +84,13 @@ The plan should not replace the active Regional APIs, shared identity, DynamoDB,
 
 ```bash
 TFVARS_FILE="$PWD/infra/global-api-routing.generated.tfvars" \
-  tools/multi_site/validate_global_api_edge.sh
+  tools/validate/global_api_edge.sh
 ```
 
 Then rerun the MR-009D4 read-only preflight:
 
 ```bash
-tools/multi_site/mr009d4_runtime_validation.sh
+tools/validate/mr009d4_runtime.sh
 ```
 
 ## Rollback

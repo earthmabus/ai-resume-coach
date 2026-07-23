@@ -78,11 +78,11 @@ jobs:
 
       - name: Build PDF Lambda layer
         working-directory: ${{ github.workspace }}
-        run: python tools/build_pdf_dependency_layer.py
+        run: python tools/build/pdf_dependency_layer.py
 
       - name: Build Lambda packages
         working-directory: ${{ github.workspace }}
-        run: python tools/build_lambda_packages.py
+        run: python tools/build/lambda_packages.py
 
       - name: Set up Terraform
         uses: hashicorp/setup-terraform@v3
@@ -106,3 +106,44 @@ jobs:
         if: github.ref == 'refs/heads/main'
         run: terraform apply -input=false -auto-approve tfplan
 
+      - name: Generate frontend runtime configuration
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          API_ENDPOINT="$(terraform -chdir=infra output -json primary_frontend_site | jq -r '.api_endpoint')"
+          USER_POOL_ID="$(terraform -chdir=infra output -raw cognito_user_pool_id)"
+          USER_POOL_CLIENT_ID="$(terraform -chdir=infra output -raw cognito_user_pool_client_id)"
+
+          cat > frontend/config.js <<EOF
+          window.APP_CONFIG = {
+            apiEndpoint: "${API_ENDPOINT}",
+            cognitoUserPoolId: "${USER_POOL_ID}",
+            cognitoUserPoolClientId: "${USER_POOL_CLIENT_ID}"
+          };
+          EOF
+
+      - name: Deploy frontend to S3
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          FRONTEND_BUCKET="$(terraform -chdir=infra output -raw frontend_bucket_name)"
+          aws s3 sync frontend/ "s3://${FRONTEND_BUCKET}/" --delete
+
+      - name: Invalidate CloudFront cache
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          DISTRIBUTION_ID="$(terraform -chdir=infra output -raw cloudfront_distribution_id)"
+          aws cloudfront create-invalidation \
+            --distribution-id "${DISTRIBUTION_ID}" \
+            --paths "/*"
+
+      - name: Display deployment URLs
+        if: github.ref == 'refs/heads/main'
+        working-directory: ${{ github.workspace }}
+        run: |
+          echo "Frontend URL: $(terraform -chdir=infra output -raw frontend_url)"
+          echo "CloudFront domain: https://$(terraform -chdir=infra output -raw cloudfront_distribution_domain_name)"
+          echo "Primary API: $(terraform -chdir=infra output -json primary_frontend_site | jq -r '.api_endpoint')"
+          echo "Regional APIs:"
+          terraform -chdir=infra output -json regional_api_endpoints | jq .

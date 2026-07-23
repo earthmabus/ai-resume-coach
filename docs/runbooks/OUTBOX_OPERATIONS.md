@@ -146,7 +146,7 @@ Expected stops:
 Replay does not send directly to SQS. It conditionally moves a terminal event back to `PENDING`, resets `deliveryAttempts`, restores the GSI fields, and lets the scheduled publisher dispatch it.
 
 ```bash
-python tools/replay_outbox.py \
+python tools/operations/replay_outbox.py \
   --event-id EVENT_ID \
   --table-name ai-resume-coach-dev-resume-analysis \
   --region us-east-1 \

@@ -30,7 +30,7 @@ def test_global_edge_contract_requires_both_external_arns():
 
 
 def test_certificate_helper_requests_both_regions_and_writes_tfvars():
-    text = (ROOT / "tools/multi_site/prepare_external_acm_certificates.sh").read_text()
+    text = (ROOT / "tools/prepare/external_acm_certificates.sh").read_text()
     assert "certificate_arn us-east-1" in text
     assert "certificate_arn us-west-2" in text
     assert "aws route53 change-resource-record-sets" in text
@@ -40,7 +40,7 @@ def test_certificate_helper_requests_both_regions_and_writes_tfvars():
 
 
 def test_global_edge_validation_script_is_read_only():
-    text = (ROOT / "tools/multi_site/validate_global_api_edge.sh").read_text()
+    text = (ROOT / "tools/validate/global_api_edge.sh").read_text()
     assert " output -json global_api_routing" in text
     assert "terraform apply" not in text
     assert "terraform plan" not in text

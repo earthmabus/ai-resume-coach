@@ -59,7 +59,7 @@ export SYNTHETIC_PDF="$PWD/<synthetic-file>.pdf"
 export EXECUTE_FAILOVER=YES
 export CONFIRM_MUTATION=YES
 
-./tools/multi_site/mr009d4_runtime_validation.sh
+./tools/validate/mr009d4_runtime.sh
 ```
 
 Optional controls:

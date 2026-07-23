@@ -1,5 +1,9 @@
 # MR-013 Overlay Installation
 
+> **Taxonomy note:** This archived guide has been normalized to the repository's
+> current tooling taxonomy. The underlying MR remains historical, but all commands
+> below use supported canonical paths.
+
 Overlay this package at the repository root:
 
 ```bash
@@ -16,13 +20,13 @@ terraform -chdir=infra fmt -check -recursive
 terraform -chdir=infra validate
 python -m compileall src tests tools
 pytest -q tests
-bash -n tools/multi_site/mr013_workflow_state_validation.sh
+bash -n tools/validate/workflow_state.sh
 ```
 
 Generate MR-013 evidence:
 
 ```bash
-./tools/multi_site/mr013_workflow_state_validation.sh
+./tools/validate/workflow_state.sh
 ```
 
 Expected result:

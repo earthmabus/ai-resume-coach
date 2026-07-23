@@ -50,7 +50,7 @@ Platform V1 has been destroyed using the current configuration.
 From the extracted bundle:
 
 ```bash
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 ```
 
 Expected:

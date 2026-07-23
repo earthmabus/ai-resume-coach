@@ -42,6 +42,6 @@ this slice unless provider support is verified in the deployed toolchain.
 
 ## Evidence
 
-Run `./tools/multi_site/mr013_workflow_state_validation.sh` to export the
+Run `./tools/validate/workflow_state.sh` to export the
 complete status vocabulary, legal transition graph, terminal-state set, and
 contract-validation result under `evidence/mr013-<timestamp>/`.

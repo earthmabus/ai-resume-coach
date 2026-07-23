@@ -42,7 +42,7 @@ Report each run name and result.
 From the repository root:
 
 ```bash
-./tools/validate_platform_v2_foundation.sh
+./tools/validate/platform_v2_foundation.sh
 ```
 
 The known checkpoint reported:

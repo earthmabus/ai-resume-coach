@@ -5,10 +5,10 @@ import subprocess
 import sys
 from pathlib import Path
 
-from tools.multi_site.inspect_jwt_claims import remaining_lifetime
+from tools.inspect.jwt_claims import remaining_lifetime
 
 ROOT = Path(__file__).resolve().parents[1]
-HARNESS = ROOT / "tools/multi_site/mr009d4_runtime_validation.sh"
+HARNESS = ROOT / "tools/validate/mr009d4_runtime.sh"
 
 
 def _jwt(payload: dict) -> str:
@@ -29,7 +29,7 @@ def test_jwt_inspector_rejects_expired_or_short_lived_token(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            str(ROOT / "tools/multi_site/inspect_jwt_claims.py"),
+            str(ROOT / "tools/inspect/jwt_claims.py"),
             "--token", token,
             "--require-token-use", "id",
             "--min-remaining-seconds", "900",
@@ -53,7 +53,7 @@ def test_jwt_inspector_rejects_wrong_token_use(tmp_path):
     result = subprocess.run(
         [
             sys.executable,
-            str(ROOT / "tools/multi_site/inspect_jwt_claims.py"),
+            str(ROOT / "tools/inspect/jwt_claims.py"),
             "--token", token,
             "--require-token-use", "id",
         ],
@@ -141,7 +141,7 @@ def test_mr009d4_validates_safety_restore_plan_before_apply():
 
 def test_mr009d4_aligns_routing_plans_to_deployed_runtime_inputs():
     harness = HARNESS.read_text()
-    common = (ROOT / "tools/multi_site/common.sh").read_text()
+    common = (ROOT / "tools/lib/multi_site.sh").read_text()
 
     assert "prepare_deployed_runtime_alignment" in common
     assert "get-function-configuration" in common

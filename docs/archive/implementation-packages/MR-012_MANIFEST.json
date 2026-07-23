@@ -2,11 +2,12 @@
   "slice": "MR-012",
   "title": "Operational Readiness and Final Reconciliation",
   "overlay": true,
+  "taxonomy_normalized": true,
   "files": [
     "MR-012_INSTALL.md",
     "MR-012_MANIFEST.json",
-    "tools/multi_site/mr012_operational_readiness.py",
-    "tools/multi_site/mr012_operational_readiness.sh",
+    "tools/validate/operational_readiness.py",
+    "tools/validate/operational_readiness.sh",
     "tests/test_mr012_operational_readiness.py",
     "docs/engineering/slices/MR-012_OPERATIONAL_READINESS_AND_FINAL_RECONCILIATION.md",
     "docs/architecture/platform-v2/MR-012_MULTI_SITE_FINAL_RECONCILIATION.md"

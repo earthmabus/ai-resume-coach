@@ -140,23 +140,23 @@ Passed before planning/apply:
 - `terraform test -filter=tests/regional_compute.tftest.hcl`: 1 passed, 0 failed.
 - `terraform test -filter=tests/regional_api_gateway.tftest.hcl`: 2 passed, 0 failed.
 - `terraform test -filter=tests/resume_analysis_mrsc.tftest.hcl`: 2 passed, 0 failed.
-- `./tools/validate_platform_v2_foundation.sh`: 28 passed, 0 failed.
+- `./tools/validate/platform_v2_foundation.sh`: 28 passed, 0 failed.
 - `git diff --check`.
 
 Additional D2B validation before repair deployments:
 
 - `python -m compileall src tests tools`.
 - Full Python suite: 274 passed.
-- `python tools/build_pdf_dependency_layer.py`.
-- `python tools/build_lambda_packages.py`.
-- `python tools/validate_lambda_artifacts.py`.
+- `python tools/build/pdf_dependency_layer.py`.
+- `python tools/build/lambda_packages.py`.
+- `python tools/validate/lambda_artifacts.py`.
 - `terraform fmt -recursive -check`.
 - `terraform validate`.
 - `terraform test -filter=tests/observability.tftest.hcl`: 5 passed, 0 failed.
 - `terraform test -filter=tests/regional_compute.tftest.hcl`: 1 passed, 0 failed.
 - `terraform test -filter=tests/regional_api_gateway.tftest.hcl`: 2 passed, 0 failed.
 - `terraform test -filter=tests/resume_analysis_mrsc.tftest.hcl`: 2 passed, 0 failed.
-- `./tools/validate_platform_v2_foundation.sh`: 28 passed, 0 failed.
+- `./tools/validate/platform_v2_foundation.sh`: 28 passed, 0 failed.
 - `git diff --check`.
 
 ## Reviewed Terraform Plan
@@ -241,7 +241,7 @@ Selected packaging model:
   notification.
 
 The layer is built from `lambda_layer/requirements.txt` by
-`tools/build_pdf_dependency_layer.py` for Python 3.13 arm64 Lambda
+`tools/build/pdf_dependency_layer.py` for Python 3.13 arm64 Lambda
 compatibility and includes `python/pypdf/`.
 
 Additional artifact validation now proves:

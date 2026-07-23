@@ -4,7 +4,7 @@ import sys
 from pathlib import Path
 
 ROOT = Path(__file__).resolve().parents[1]
-TOOL = ROOT / "tools/multi_site/compose_mr014_tfvars.py"
+TOOL = ROOT / "tools/prepare/mr014_tfvars.py"
 spec = importlib.util.spec_from_file_location("mr014_profile", TOOL)
 module = importlib.util.module_from_spec(spec)
 spec.loader.exec_module(module)
@@ -106,7 +106,7 @@ def test_repository_runtime_and_routing_profiles_compose(tmp_path):
 
 
 def test_chaos_harness_validates_profile_before_mutation():
-    chaos = (ROOT / "tools/multi_site/mr014_chaos_validation.sh").read_text()
-    runtime = (ROOT / "tools/multi_site/mr009d4_runtime_validation.sh").read_text()
-    assert "prepare_mr014_certification.sh\" validate" in chaos
-    assert "compose_mr014_tfvars.py\" validate" in runtime
+    chaos = (ROOT / "tools/validate/chaos.sh").read_text()
+    runtime = (ROOT / "tools/validate/mr009d4_runtime.sh").read_text()
+    assert "mr014_certification.sh\" validate" in chaos
+    assert "mr014_tfvars.py\" validate" in runtime

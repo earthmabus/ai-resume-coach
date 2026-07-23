@@ -515,10 +515,10 @@ Validation before deployment:
 - `python -m compileall src tests tools`: passed.
 - `pytest -q tests`: 295 passed.
 - Focused publisher/package tests: 41 passed.
-- `python tools/build_pdf_dependency_layer.py`: passed after network approval
+- `python tools/build/pdf_dependency_layer.py`: passed after network approval
   for pinned dependency retrieval.
-- `python tools/build_lambda_packages.py`: passed.
-- `python tools/validate_lambda_artifacts.py`: passed.
+- `python tools/build/lambda_packages.py`: passed.
+- `python tools/validate/lambda_artifacts.py`: passed.
 - `terraform fmt -recursive -check`: passed.
 - `terraform validate`: passed.
 - Terraform tests:
@@ -527,7 +527,7 @@ Validation before deployment:
   - `tests/regional_api_gateway.tftest.hcl`: 4 passed.
   - `tests/resume_analysis_mrsc.tftest.hcl`: 2 passed.
   - `tests/regional_foundation.tftest.hcl`: 1 passed.
-- `./tools/validate_platform_v2_foundation.sh`: 32 passed, 0 failed.
+- `./tools/validate/platform_v2_foundation.sh`: 32 passed, 0 failed.
 - `git diff --check`: passed.
 
 Plan and apply evidence:
@@ -639,13 +639,13 @@ Completed:
 
 - `python -m compileall src tests tools`: passed.
 - `pytest -q tests`: 295 passed.
-- `python tools/build_pdf_dependency_layer.py`: passed.
-- `python tools/build_lambda_packages.py`: passed.
-- `python tools/validate_lambda_artifacts.py`: passed.
+- `python tools/build/pdf_dependency_layer.py`: passed.
+- `python tools/build/lambda_packages.py`: passed.
+- `python tools/validate/lambda_artifacts.py`: passed.
 - `terraform fmt -recursive -check`: passed.
 - `terraform validate`: passed.
 - Required Terraform tests listed in the MR-009D3C section: passed.
-- `./tools/validate_platform_v2_foundation.sh`: 32 passed, 0 failed.
+- `./tools/validate/platform_v2_foundation.sh`: 32 passed, 0 failed.
 - `git diff --check`: passed.
 - Final Terraform no-drift plan with
   `enable_outbox_publisher_schedule=false`: exit code 0, no changes.
@@ -750,7 +750,7 @@ Implementation validation completed before deployment planning:
 - Lambda package builds and artifact validation: passed.
 - Required Terraform tests for observability, regional compute, regional
   foundation, regional API Gateway, and MRSC table contract: passed.
-- `./tools/validate_platform_v2_foundation.sh`: 32 passed, 0 failed.
+- `./tools/validate/platform_v2_foundation.sh`: 32 passed, 0 failed.
 - `git diff --check`: passed.
 
 Phase 1 plan must use `enable_outbox_publisher_schedule=false` and must show an

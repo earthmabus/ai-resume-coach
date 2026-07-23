@@ -82,12 +82,18 @@ variable "identity" {
 }
 
 variable "storage" {
-  description = "Regional document-storage configuration."
+  description = "Regional document-storage configuration, including trusted browser origins."
 
   type = object({
     force_destroy                      = bool
     noncurrent_version_expiration_days = number
+    cors_allowed_origins               = list(string)
   })
+
+  validation {
+    condition     = length(var.storage.cors_allowed_origins) > 0
+    error_message = "storage.cors_allowed_origins must contain at least one trusted browser origin."
+  }
 }
 
 variable "messaging" {

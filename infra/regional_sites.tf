@@ -29,6 +29,7 @@ module "east" {
   storage = {
     force_destroy                      = var.document_bucket_force_destroy
     noncurrent_version_expiration_days = var.document_noncurrent_version_expiration_days
+    cors_allowed_origins               = var.api_cors_allowed_origins
   }
 
   messaging = {
@@ -153,6 +154,7 @@ module "west" {
   storage = {
     force_destroy                      = var.document_bucket_force_destroy
     noncurrent_version_expiration_days = var.document_noncurrent_version_expiration_days
+    cors_allowed_origins               = var.api_cors_allowed_origins
   }
 
   messaging = {

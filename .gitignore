@@ -31,7 +31,7 @@ build/*
 
 # Local runtime-validation evidence
 evidence/
-tools/multi_site/*.env
+tools/validate/*.env
 
 # Python caches and tooling
 **/__pycache__/

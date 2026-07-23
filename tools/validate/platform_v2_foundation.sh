@@ -1,6 +1,24 @@
 #!/usr/bin/env bash
 set -euo pipefail
 
+show_help() {
+  cat <<'EOF'
+Usage: tools/validate/platform_v2_foundation.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Validate Platform V2 Terraform in an isolated temporary workspace.
+
+Environment variables:
+  TMPDIR
+      Set explicitly for the target environment.
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+
 BUNDLE_ROOT="$(
   cd "$(dirname "${BASH_SOURCE[0]}")/.." &&
   pwd

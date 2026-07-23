@@ -32,6 +32,13 @@ output "document_bucket" {
   value = {
     name = aws_s3_bucket.documents.bucket
     arn  = aws_s3_bucket.documents.arn
+    cors = {
+      allowed_origins = var.storage.cors_allowed_origins
+      allowed_methods = ["GET", "HEAD", "PUT"]
+      allowed_headers = ["*"]
+      expose_headers  = ["ETag", "x-amz-request-id"]
+      max_age_seconds = 3600
+    }
   }
 }
 

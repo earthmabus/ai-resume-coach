@@ -1,6 +1,42 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/common.sh"
+
+show_help() {
+  cat <<'EOF'
+Usage: tools/validate/mr009d4_runtime.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Run MR-009D4 routing and failover runtime validation.
+
+Environment variables:
+  AWS_PROFILE
+      Optional. List values with: aws configure list-profiles
+
+  EVIDENCE_ROOT
+      Optional evidence destination; defaults under the repository.
+
+  TFVARS_FILE
+      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+
+  EXECUTE_FAILOVER
+      Set explicitly for the target environment.
+
+  CONFIRM_MUTATION
+      Set CONFIRM_MUTATION=YES only after authorizing AWS mutations.
+
+  AUTH_TOKEN
+      Sensitive. Acquire with: source tools/prepare/auth.sh
+
+  SYNTHETIC_PDF
+      Path to an approved synthetic PDF; verify with: test -f "$SYNTHETIC_PDF"
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/multi_site.sh"
 
 for cmd in aws terraform curl python pytest jq; do
   require_cmd "$cmd"
@@ -61,11 +97,11 @@ require_env AUTH_TOKEN
 require_env SYNTHETIC_PDF
 TFVARS_FILE="$(realpath "$TFVARS_FILE")"
 [[ -f "$TFVARS_FILE" ]] || { echo "TFVARS_FILE not found" >&2; exit 2; }
-python "$ROOT_DIR/tools/multi_site/compose_mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/tfvars-profile-validation.json"
+python "$ROOT_DIR/tools/prepare/mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/tfvars-profile-validation.json"
 record "PASSED: complete MR-014 Terraform input profile validated"
 [[ -f "$SYNTHETIC_PDF" ]] || { echo "SYNTHETIC_PDF not found" >&2; exit 2; }
 
-python "$ROOT_DIR/tools/multi_site/inspect_jwt_claims.py" \
+python "$ROOT_DIR/tools/inspect/jwt_claims.py" \
   --token "$AUTH_TOKEN" \
   --require-token-use id \
   --min-remaining-seconds "${MIN_TOKEN_LIFETIME_SECONDS:-1800}" \

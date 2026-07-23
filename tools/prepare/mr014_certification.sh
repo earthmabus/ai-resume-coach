@@ -1,6 +1,39 @@
 #!/usr/bin/env bash
 set -euo pipefail
-source "$(dirname "$0")/common.sh"
+
+show_help() {
+  cat <<'EOF'
+Usage: tools/prepare/mr014_certification.sh [COMMAND] [OPTIONS]
+
+Purpose:
+  Compose, validate, plan, or apply the MR-014 certification profile.
+
+Environment variables:
+  RUNTIME_TFVARS_FILE
+      Set explicitly for the target environment.
+
+  ROUTING_TFVARS_FILE
+      Set explicitly for the target environment.
+
+  MR014_CERTIFICATION_TFVARS_FILE
+      Set explicitly for the target environment.
+
+  TFVARS_FILE
+      Path to a complete tfvars profile. Compose with: tools/prepare/mr014_certification.sh compose
+
+  CONFIRM_MUTATION
+      Set CONFIRM_MUTATION=YES only after authorizing AWS mutations.
+
+  EVIDENCE_ROOT
+      Optional evidence destination; defaults under the repository.
+
+Safety:
+  --help performs no validation, file creation, AWS calls, or mutations.
+EOF
+}
+
+case "${1:-}" in -h|--help) show_help; exit 0 ;; esac
+source "$(cd "$(dirname "${BASH_SOURCE[0]}")/../lib" && pwd)/multi_site.sh"
 
 action="${1:-compose}"
 require_cmd python
@@ -14,7 +47,7 @@ ROUTING_TFVARS_FILE="${ROUTING_TFVARS_FILE:-$INFRA_DIR/global-api-routing.genera
 MR014_CERTIFICATION_TFVARS_FILE="${MR014_CERTIFICATION_TFVARS_FILE:-$INFRA_DIR/.terraform-build/mr014-certification.tfvars}"
 
 compose_profile() {
-  python "$ROOT_DIR/tools/multi_site/compose_mr014_tfvars.py" compose \
+  python "$ROOT_DIR/tools/prepare/mr014_tfvars.py" compose \
     --input "$RUNTIME_TFVARS_FILE" \
     --input "$ROUTING_TFVARS_FILE" \
     --output "$MR014_CERTIFICATION_TFVARS_FILE" \
@@ -46,7 +79,7 @@ case "$action" in
     ;;
   validate)
     require_env TFVARS_FILE
-    python "$ROOT_DIR/tools/multi_site/compose_mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/profile-validation.json"
+    python "$ROOT_DIR/tools/prepare/mr014_tfvars.py" validate --file "$TFVARS_FILE" --report "$EVIDENCE_DIR/profile-validation.json"
     record "PASSED: TFVARS_FILE is a complete MR-014 certification profile"
     ;;
   *) echo "Usage: $0 {compose|plan|apply|validate}" >&2; exit 2 ;;
