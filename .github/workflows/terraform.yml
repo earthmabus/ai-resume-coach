@@ -73,38 +73,6 @@ jobs:
         working-directory: ${{ github.workspace }}
         run: python -m compileall src tools tests
 
-      - name: Debug repository layout
-        run: |
-          pwd
-
-          echo "----- ls -----"
-          ls -la
-
-          echo "----- tools -----"
-          ls -la tools || true
-
-          echo "----- build -----"
-          ls -la tools/build || true
-
-          python - <<'PY'
-          import os
-          import sys
-
-          print("cwd =", os.getcwd())
-          print()
-
-          print("sys.path")
-          for p in sys.path:
-              print(" ", p)
-
-          print()
-
-          print("tools exists:", os.path.exists("tools"))
-          print("tools init:", os.path.exists("tools/__init__.py"))
-          print("tools build:", os.path.exists("tools/build"))
-          print("tools build init:", os.path.exists("tools/build/__init__.py"))
-          PY
-
       - name: Run unit tests
         working-directory: ${{ github.workspace }}
         run: python -m pytest -q
