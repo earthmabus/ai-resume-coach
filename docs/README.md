@@ -20,6 +20,9 @@
 - [Deployment runbook](operations/platform-v2/MULTI_SITE_DEPLOYMENT_RUNBOOK.md)
 - [Regional isolation and recovery](operations/platform-v2/REGIONAL_ISOLATION_AND_RECOVERY_RUNBOOK.md)
 - [Queue backlog and DLQ operations](operations/platform-v2/QUEUE_BACKLOG_AND_DLQ_RUNBOOK.md)
+- [Production operating model](operations/production/README.md)
+- [Service objectives and KPI catalog](operations/production/SERVICE_OBJECTIVES_AND_KPIS.md)
+- [Incident response and review](operations/production/INCIDENT_RESPONSE_AND_REVIEW.md)
 
 ## Engineering
 
@@ -28,9 +31,11 @@
 - [AI-assisted engineering playbook](engineering/ai-assisted-development/README.md)
 - [Implementation slices](engineering/slices/)
 
-## Portfolio visuals
+## Portfolio
 
+- [Director portfolio](../portfolio/README.md)
 - [Multi-site architecture posters](mvp2-disaster-recovery/README.md)
+- [Video walkthrough talking points](../portfolio/VIDEO_WALKTHROUGH_TALKING_POINTS.md)
 
 ## Historical material
 

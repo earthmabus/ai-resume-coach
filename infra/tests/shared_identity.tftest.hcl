@@ -15,6 +15,12 @@ mock_provider "archive" {}
 run "shared_identity_is_created_once" {
   command = plan
 
+  # Keep this contract deterministic even when a developer has exported
+  # TF_VAR_registration_notification_email for runtime validation or deployment.
+  variables {
+    registration_notification_email = ""
+  }
+
   assert {
     condition = (
       module.shared_foundation.identity.name

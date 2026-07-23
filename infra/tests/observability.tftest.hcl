@@ -144,8 +144,18 @@ run "dashboard_and_alarm_contracts_cover_both_regions" {
       output.observability.dashboard.includes_lambda_throttles
       &&
       output.observability.dashboard.includes_dlq_depth
+      &&
+      output.observability.dashboard.includes_regional_error_logs
+      &&
+      output.observability.dashboard.includes_api_client_errors
+      &&
+      output.observability.dashboard.includes_lambda_activity
+      &&
+      output.observability.dashboard.includes_async_throughput
+      &&
+      output.observability.dashboard.includes_dynamodb_capacity
     )
-    error_message = "The operations dashboard must represent both active sites, reserve the business metric namespace, and expose key failure, throttle, and DLQ signals."
+    error_message = "The operations dashboard must represent both active sites, reserve the business metric namespace, and expose key failure, throttle, DLQ, usage, throughput, and capacity signals."
   }
 
   assert {

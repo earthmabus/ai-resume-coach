@@ -1,6 +1,6 @@
 # AI Resume Coach
 
-AI Resume Coach is a serverless portfolio application for resume analysis, job matching, resume tailoring, and interview preparation.
+AI Resume Coach is a serverless application for resume analysis, job matching, resume tailoring, and interview preparation.
 
 ## Platform status
 
@@ -71,6 +71,10 @@ Inspect available operator commands:
 See [`docs/README.md`](docs/README.md) for the architecture, certification, operations, engineering, and historical-documentation index.
 
 Architecture diagram portfolio: [`docs/mvp2-disaster-recovery/README.md`](docs/mvp2-disaster-recovery/README.md).
+
+Director portfolio: [`portfolio/README.md`](portfolio/README.md).
+
+Production operating model and KPI catalog: [`docs/operations/production/README.md`](docs/operations/production/README.md).
 
 ## Authoritative documentation
 

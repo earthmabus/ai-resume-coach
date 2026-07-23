@@ -225,7 +225,7 @@ resource "aws_cloudwatch_dashboard" "platform_operations" {
         width  = 12
         height = 6
         properties = {
-          title  = "Recent Regional Application Errors"
+          title  = "Recent East Application Errors"
           region = local.sites.east.region
           query = join(
             "\n",
@@ -238,6 +238,126 @@ resource "aws_cloudwatch_dashboard" "platform_operations" {
             ],
           )
           view = "table"
+        }
+      },
+      {
+        type   = "log"
+        x      = 0
+        y      = 32
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Recent West Application Errors"
+          region = local.sites.west.region
+          query = join(
+            "\n",
+            [
+              "SOURCE '${module.west.compute.api.log_group}' | SOURCE '${module.west.compute.worker.log_group}'",
+              "| fields @timestamp, level, service, operation, requestId, correlationId, result, errorCode, @message",
+              "| filter level = 'ERROR' or result = 'FAILURE'",
+              "| sort @timestamp desc",
+              "| limit 50",
+            ],
+          )
+          view = "table"
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 32
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Regional API 4XX"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 60
+          metrics = [
+            ["AWS/ApiGateway", "4xx", "ApiId", module.east.api_gateway.id, "Stage", module.east.api_gateway.stage.name, { label = "East 4XX" }],
+            ["AWS/ApiGateway", "4xx", "ApiId", module.west.api_gateway.id, "Stage", module.west.api_gateway.stage.name, { label = "West 4XX", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 38
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Invocation Volume"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 300
+          metrics = [
+            ["AWS/Lambda", "Invocations", "FunctionName", module.east.compute.api.name, { label = "East API" }],
+            [".", ".", ".", module.east.compute.worker.name, { label = "East worker" }],
+            [".", ".", ".", module.east.compute.outbox_publisher.name, { label = "East publisher" }],
+            ["AWS/Lambda", "Invocations", "FunctionName", module.west.compute.api.name, { label = "West API", region = local.sites.west.region }],
+            [".", ".", ".", module.west.compute.worker.name, { label = "West worker", region = local.sites.west.region }],
+            [".", ".", ".", module.west.compute.outbox_publisher.name, { label = "West publisher", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 38
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Lambda Duration p95"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          stat   = "p95"
+          period = 300
+          metrics = [
+            ["AWS/Lambda", "Duration", "FunctionName", module.east.compute.api.name, { label = "East API" }],
+            [".", ".", ".", module.east.compute.worker.name, { label = "East worker" }],
+            [".", ".", ".", module.east.compute.outbox_publisher.name, { label = "East publisher" }],
+            ["AWS/Lambda", "Duration", "FunctionName", module.west.compute.api.name, { label = "West API", region = local.sites.west.region }],
+            [".", ".", ".", module.west.compute.worker.name, { label = "West worker", region = local.sites.west.region }],
+            [".", ".", ".", module.west.compute.outbox_publisher.name, { label = "West publisher", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 0
+        y      = 44
+        width  = 12
+        height = 6
+        properties = {
+          title  = "Asynchronous Work Throughput"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 300
+          metrics = [
+            ["AWS/SQS", "NumberOfMessagesSent", "QueueName", module.east.processing_queue.name, { label = "East submitted" }],
+            [".", "NumberOfMessagesDeleted", ".", ".", { label = "East completed delivery" }],
+            ["AWS/SQS", "NumberOfMessagesSent", "QueueName", module.west.processing_queue.name, { label = "West submitted", region = local.sites.west.region }],
+            [".", "NumberOfMessagesDeleted", ".", ".", { label = "West completed delivery", region = local.sites.west.region }],
+          ]
+        }
+      },
+      {
+        type   = "metric"
+        x      = 12
+        y      = 44
+        width  = 12
+        height = 6
+        properties = {
+          title  = "DynamoDB Consumed Capacity"
+          view   = "timeSeries"
+          region = local.sites.east.region
+          period = 300
+          metrics = [
+            ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", module.shared_foundation.resume_analysis.name, { label = "East reads" }],
+            [".", "ConsumedWriteCapacityUnits", ".", ".", { label = "East writes" }],
+            ["AWS/DynamoDB", "ConsumedReadCapacityUnits", "TableName", module.shared_foundation.resume_analysis.name, { label = "West reads", region = local.sites.west.region }],
+            [".", "ConsumedWriteCapacityUnits", ".", ".", { label = "West writes", region = local.sites.west.region }],
+          ]
         }
       },
     ]

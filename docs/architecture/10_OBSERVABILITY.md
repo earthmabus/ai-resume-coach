@@ -102,10 +102,17 @@ is interpreted through the MRSC data contract, Terraform validation, DynamoDB
 service metrics, and runbook checks; no witness application endpoint or full
 regional monitoring stack is created by this architecture.
 
-The operations dashboard compares both active regions and includes API errors
-and latency, Lambda errors and throttles, queue health, custom worker/outbox
-failure metrics, DynamoDB throttles, synthetic health success when enabled,
-and a regional error-log query.
+The operations dashboard compares both active regions and includes API request
+volume, 4XX, 5XX, and p95 latency; Lambda errors, throttles, invocation volume,
+and p95 duration; queue depth, oldest-message age, messages sent, and messages
+deleted; custom worker/outbox failure metrics; DLQ depth; DynamoDB throttles
+and consumed capacity; synthetic health success when enabled; and separate
+east and west application-error queries.
+
+These AWS-native metrics describe platform activity and capacity, but they do
+not measure feature adoption, active users, workflow completion rates, or
+provider cost. The proposed bounded product metrics are documented in
+`docs/operations/production/SERVICE_OBJECTIVES_AND_KPIS.md`.
 
 Regional health does not change ownership, routing, placement, transport,
 retry, replay, queue draining, or failover behavior.
