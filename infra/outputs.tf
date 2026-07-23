@@ -253,11 +253,11 @@ output "observability" {
       includes_worker_outbox_failures    = true
       includes_lambda_throttles          = true
       includes_dlq_depth                 = true
-      includes_regional_error_logs        = true
-      includes_api_client_errors          = true
-      includes_lambda_activity            = true
-      includes_async_throughput            = true
-      includes_dynamodb_capacity           = true
+      includes_regional_error_logs       = true
+      includes_api_client_errors         = true
+      includes_lambda_activity           = true
+      includes_async_throughput          = true
+      includes_dynamodb_capacity         = true
     }
 
     alarms = {
