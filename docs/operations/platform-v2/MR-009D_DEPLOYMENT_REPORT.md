@@ -1,5 +1,15 @@
 # MR-009D Development Deployment Report
 
+> **Historical and superseded**
+>
+> This report records an intermediate MR-009D checkpoint. Statements below that
+> describe MR-009D or MR-009D3B as open are historically accurate for that
+> checkpoint but are no longer current. Subsequent prerequisite work completed,
+> and MR-014 certified the end-to-end multi-site behavior on July 22, 2026.
+> Current status is defined by `docs/engineering/MULTI_SITE_COMPLETION_PLAN.md`,
+> `docs/certification/MR-014_MULTI_SITE_CERTIFICATION.md`, and
+> `docs/architecture/platform-v2/MR-016_FINAL_ACCEPTANCE.md`.
+
 ## Status
 
 Development deployment prerequisite verified on 2026-07-18T16:58Z.

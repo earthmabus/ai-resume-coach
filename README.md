@@ -70,6 +70,8 @@ Inspect available operator commands:
 
 See [`docs/README.md`](docs/README.md) for the architecture, certification, operations, engineering, and historical-documentation index.
 
+Architecture diagram portfolio: [`docs/mvp2-disaster-recovery/README.md`](docs/mvp2-disaster-recovery/README.md).
+
 ## Authoritative documentation
 
 - `docs/architecture/platform-v2/PLATFORM_V2_ARCHITECTURE.md`

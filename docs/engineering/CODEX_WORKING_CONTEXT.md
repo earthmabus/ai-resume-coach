@@ -1,5 +1,18 @@
 # Codex Working Context
 
+> **Completion notice — July 23, 2026**
+>
+> The multi-site active-active program is complete and runtime-certified. The
+> checkpoint narrative below is retained as historical working context and must
+> not be used to infer that MR-009D3B or any other multi-site implementation
+> slice remains open. The authoritative current records are:
+>
+> - `docs/engineering/MULTI_SITE_COMPLETION_PLAN.md`
+> - `docs/certification/MR-014_MULTI_SITE_CERTIFICATION.md`
+> - `docs/architecture/platform-v2/MR-016_FINAL_ACCEPTANCE.md`
+>
+> MR-014 supersedes the incomplete intermediate MR-009D3B evidence attempts.
+
 ## Purpose
 
 This document captures decisions that were previously discussed outside the repository so a coding agent can work from durable, reviewable context.

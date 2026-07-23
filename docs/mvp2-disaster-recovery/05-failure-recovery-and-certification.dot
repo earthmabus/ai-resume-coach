@@ -1,0 +1,34 @@
+digraph G {
+
+graph [bgcolor="white", pad="0.35", nodesep="0.42", ranksep="0.65", fontname="DejaVu Sans", fontsize=18, labelloc=t, labeljust=l, compound=true, splines=ortho];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, color="#334155", penwidth=1.3, fillcolor="#F8FAFC", fontcolor="#0F172A", margin="0.16,0.10"];
+edge [fontname="DejaVu Sans", fontsize=9, color="#64748B", fontcolor="#334155", penwidth=1.3, arrowsize=0.75];
+
+label="Certified Failure Envelope and Recovery Paths";
+rankdir=TB;
+normal [label="Normal: East + West Enabled
+Latency routing, symmetric application peers", fillcolor="#DCFCE7", penwidth=2];
+routefail [label="Routing Isolation
+Disable one Route 53 record", fillcolor="#FEF3C7"];
+survivor [label="Survivor Site Continues
+Authenticated requests + new ownerRegion", fillcolor="#DBEAFE"];
+read [label="Cross-Region Read
+Result remains readable through active replica", fillcolor="#F3E8FF"];
+restoreRoute [label="Restore Routing
+Verify direct site, then global health", fillcolor="#DCFCE7"];
+workerstop [label="Worker Interruption
+Disable event-source mapping", fillcolor="#FDE68A"];
+backlog [label="Durable SQS Backlog
+No silent loss or reassignment", fillcolor="#DBEAFE"];
+replay [label="Restore Consumer
+Idempotent replay + conditional claims", fillcolor="#DCFCE7"];
+reconcile [label="Final Reconciliation
+Workflow complete, queues drained, both sites healthy", fillcolor="#DCFCE7", penwidth=2];
+nonGoal [label="Accepted Non-Goal
+No automatic ownership reassignment
+No automatic cross-region queue draining", shape=note, fillcolor="#FEE2E2"];
+normal -> routefail -> survivor -> read -> restoreRoute -> reconcile;
+normal -> workerstop -> backlog -> replay -> reconcile;
+routefail -> nonGoal [style=dashed, constraint=false];
+workerstop -> nonGoal [style=dashed, constraint=false];
+}

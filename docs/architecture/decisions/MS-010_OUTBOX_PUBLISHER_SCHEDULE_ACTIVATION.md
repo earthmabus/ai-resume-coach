@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted for development runtime validation.
+Accepted and implemented for the certified development baseline.
 
 ## Context
 
@@ -99,3 +99,7 @@ apply `enable_outbox_publisher_schedule=true` to observe empty scheduled cycles.
 Deployment ID `2b87e4d` completed those phases successfully in development. If
 future empty cycles fail, schedules must be disabled again through Terraform
 before MR-009D3B is retried.
+
+## Final resolution
+
+The `gsi1` prerequisite and schedule-activation sequence were completed after the intermediate MR-009D3C observation. The normal scheduled outbox path was subsequently exercised as part of the implemented platform, and MR-014 certified durable dispatch and worker recovery behavior. References above to retrying MR-009D3B describe the historical sequencing at that time and do not represent open work.

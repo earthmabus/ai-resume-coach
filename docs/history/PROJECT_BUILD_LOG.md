@@ -45,3 +45,13 @@ OpenAI
 
 Other
   * Accessible via http://ai-resume-coach-dev-frontend-940827434048.s3-website-us-east-1.amazonaws.com
+
+
+Platform V2 Multi-Site Closeout — July 2026
+* Implemented active application sites in us-east-1 and us-west-2
+* Implemented DynamoDB MRSC with us-east-2 witness responsibility
+* Added deterministic work ownership, transactional outbox dispatch, regional SQS workers, explicit workflow state, regional health, and global routing controls
+* Completed MR-014 controlled failure certification: 4 scenarios executed, 4 passed
+* Published final operations runbook and architecture poster series
+* Completed MR-015/MR-016 closeout and final acceptance
+* Revalidated the complete GitHub Actions delivery pipeline after build-tooling repository-root corrections

@@ -30,6 +30,18 @@ Accepted because:
 - queue drain and final reconciliation were observed;
 - the operator runbook reflects the commands and safeguards used in the successful run.
 
+## Delivery-pipeline acceptance
+
+Accepted because the post-closeout GitHub Actions run on July 23, 2026 successfully completed:
+
+- Python source and tooling compilation;
+- the full automated test suite (576 passed and one environment-specific skip in CI; all 577 passed in the subsequent local verification);
+- PDF dependency-layer construction;
+- API, worker, outbox-publisher, and registration-notification packaging;
+- Terraform formatting, initialization, validation, planning, and apply.
+
+The run also confirmed that the repository-root assumptions used by build, validation, and operational tooling are correct in a clean CI checkout.
+
 ## Residual risks accepted
 
 - existing work is not automatically reassigned during owner-region impairment;

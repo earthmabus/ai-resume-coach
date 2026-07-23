@@ -1,0 +1,47 @@
+digraph G {
+
+graph [bgcolor="white", pad="0.35", nodesep="0.42", ranksep="0.65", fontname="DejaVu Sans", fontsize=18, labelloc=t, labeljust=l, compound=true, splines=ortho];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, color="#334155", penwidth=1.3, fillcolor="#F8FAFC", fontcolor="#0F172A", margin="0.16,0.10"];
+edge [fontname="DejaVu Sans", fontsize=9, color="#64748B", fontcolor="#334155", penwidth=1.3, arrowsize=0.75];
+
+label="Data Ownership, Consistency, and Regional Boundaries";
+rankdir=LR;
+subgraph cluster_shared { label="Shared Strongly Consistent State"; color="#7C3AED"; penwidth=2; style=rounded;
+  state [label="Workflow State
+request fingerprint
+idempotency + version
+ownerRegion + status", fillcolor="#F3E8FF"];
+  outbox [label="Deterministic Outbox
+PENDING → DISPATCHED", fillcolor="#F3E8FF"];
+  replicas [label="DynamoDB MRSC
+East + West active replicas
+East-2 witness", fillcolor="#F3E8FF"];
+  state -> replicas; outbox -> replicas;
+}
+subgraph cluster_east { label="East Ownership Boundary"; color="#2563EB"; style=rounded;
+  es3 [label="S3 Documents
+us-east-1"];
+  eq [label="SQS + Worker
+us-east-1"];
+}
+subgraph cluster_west { label="West Ownership Boundary"; color="#0F766E"; style=rounded;
+  ws3 [label="S3 Documents
+us-west-2"];
+  wq [label="SQS + Worker
+us-west-2"];
+}
+placement [label="Deterministic Placement
+ownerRegion is durable
+and not changed by routing health", fillcolor="#FEF3C7", penwidth=2];
+placement -> state;
+placement -> es3 [label="east-owned work"];
+placement -> eq [label="east transport"];
+placement -> ws3 [label="west-owned work"];
+placement -> wq [label="west transport"];
+eq -> state [label="conditional claims / results"];
+wq -> state [label="conditional claims / results"];
+warning [label="Regional S3 is not MRSC
+Document locality and recovery
+remain explicit operating concerns", shape=note, fillcolor="#FEE2E2"];
+es3 -> warning [style=dashed]; ws3 -> warning [style=dashed];
+}

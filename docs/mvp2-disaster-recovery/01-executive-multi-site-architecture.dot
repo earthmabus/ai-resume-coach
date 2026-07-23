@@ -1,0 +1,67 @@
+digraph G {
+
+graph [bgcolor="white", pad="0.35", nodesep="0.42", ranksep="0.65", fontname="DejaVu Sans", fontsize=18, labelloc=t, labeljust=l, compound=true, splines=ortho];
+node [shape=box, style="rounded,filled", fontname="DejaVu Sans", fontsize=11, color="#334155", penwidth=1.3, fillcolor="#F8FAFC", fontcolor="#0F172A", margin="0.16,0.10"];
+edge [fontname="DejaVu Sans", fontsize=9, color="#64748B", fontcolor="#334155", penwidth=1.3, arrowsize=0.75];
+
+label="AI Resume Coach — Certified Multi-Site Active-Active Architecture";
+subgraph cluster_users { label="Experience"; color="#CBD5E1"; style="rounded,dashed"; user [label="User / Browser", fillcolor="#E0F2FE"]; }
+subgraph cluster_global { label="Global Edge & Shared Services"; color="#94A3B8"; style="rounded";
+  r53 [label="Route 53
+Latency Routing + Health Checks", fillcolor="#FEF3C7"];
+  cf [label="CloudFront", fillcolor="#FEF3C7"];
+  fe [label="S3 Frontend", fillcolor="#FEF3C7"];
+  cog [label="Cognito
+Shared Identity", fillcolor="#F3E8FF"];
+}
+subgraph cluster_east { label="Active Site — us-east-1"; color="#2563EB"; penwidth=2; style="rounded";
+  eapi [label="API Gateway"];
+  elam [label="API Lambda"];
+  epub [label="Outbox Publisher
+1-minute schedule"];
+  eq [label="SQS Processing Queue"];
+  ew [label="Worker Lambda"];
+  es3 [label="Regional S3
+Documents"];
+}
+subgraph cluster_west { label="Active Site — us-west-2"; color="#0F766E"; penwidth=2; style="rounded";
+  wapi [label="API Gateway"];
+  wlam [label="API Lambda"];
+  wpub [label="Outbox Publisher
+1-minute schedule"];
+  wq [label="SQS Processing Queue"];
+  ww [label="Worker Lambda"];
+  ws3 [label="Regional S3
+Documents"];
+}
+subgraph cluster_data { label="Strongly Consistent System of Record"; color="#7C3AED"; penwidth=2; style="rounded";
+  dbe [label="DynamoDB MRSC
+Active Replica — us-east-1", fillcolor="#F3E8FF"];
+  dbw [label="DynamoDB MRSC
+Active Replica — us-west-2", fillcolor="#F3E8FF"];
+  witness [label="Witness — us-east-2
+No application compute", shape=ellipse, fillcolor="#FAE8FF"];
+}
+user -> cf [label="HTTPS frontend"];
+cf -> fe;
+user -> r53 [label="Global API"];
+r53 -> eapi [label="healthy site"];
+r53 -> wapi [label="healthy site"];
+user -> cog [label="authenticate"];
+cog -> eapi [style=dashed, label="JWT"];
+cog -> wapi [style=dashed, label="JWT"];
+eapi -> elam; wapi -> wlam;
+elam -> dbe [label="transactional state + outbox"];
+wlam -> dbw [label="transactional state + outbox"];
+elam -> es3 [label="regional documents"];
+wlam -> ws3 [label="regional documents"];
+dbe -> epub [label="pending outbox"];
+dbw -> wpub [label="pending outbox"];
+epub -> eq; wpub -> wq;
+eq -> ew; wq -> ww;
+ew -> dbe [label="claim + result"];
+ww -> dbw [label="claim + result"];
+dbe -> dbw [dir=both, label="MRSC replication", color="#7C3AED", penwidth=2];
+witness -> dbe [dir=none, style=dashed, color="#7C3AED"];
+witness -> dbw [dir=none, style=dashed, color="#7C3AED"];
+}

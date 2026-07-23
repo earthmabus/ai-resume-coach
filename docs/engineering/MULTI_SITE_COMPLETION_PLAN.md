@@ -30,6 +30,16 @@ The final report recorded four of four scenarios passing:
 
 The permanent certification summary is `docs/certification/MR-014_MULTI_SITE_CERTIFICATION.md`.
 
+## MR-009D3B resolution
+
+MR-009D3B was an intermediate runtime-evidence slice, not an outstanding implementation dependency. Its early attempts exposed route, placement-testability, outbox-index, and validation-harness prerequisites. Those prerequisites were resolved by later MR-009D3C/MR-009D3D work and were superseded by the broader MR-014 end-to-end certification.
+
+MR-014 provides the authoritative completion evidence for authenticated survivor-region work, deterministic owner-region placement, replicated reads, durable queue backlog, idempotent duplicate submission, worker recovery, workflow completion, queue drain, and final reconciliation. MR-009D3B must not be treated as open work.
+
+## CI/CD closeout evidence
+
+On July 23, 2026, the main Terraform workflow completed successfully after repository-root and packaging defects in the build tooling were corrected. The successful run exercised Python compilation, 576 passing tests with one environment-specific skip in CI, PDF Lambda-layer packaging, all four Lambda packages, Terraform format validation, initialization, validation, plan, and apply. A subsequent local verification completed all 577 tests successfully.
+
 ## Closeout milestones
 
 ### MR-015 — Multi-Site Closeout

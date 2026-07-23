@@ -2,7 +2,7 @@
 
 ## Status
 
-Accepted direction; implementation pending
+Accepted and implemented
 
 ## Decision
 
@@ -53,3 +53,7 @@ Inspect before choosing an abstraction:
 - related Python and Terraform tests
 
 Do not introduce a logging or telemetry framework unless the current implementation demonstrates a concrete need.
+
+## Implementation outcome
+
+Runtime identity is implemented through centralized configuration and runtime abstractions and is exercised by regional health responses, request context, structured diagnostics, and the certified multi-site validation tooling. MR-014 used deployment and regional identity evidence during routing-isolation and post-recovery reconciliation.
