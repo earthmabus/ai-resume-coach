@@ -1,0 +1,18 @@
+{
+    "EventSourceMappings": [
+        {
+            "UUID": "b7ec8dce-c031-4904-9b5d-fb8dd74262b2",
+            "BatchSize": 5,
+            "MaximumBatchingWindowInSeconds": 5,
+            "EventSourceArn": "arn:aws:sqs:us-west-2:940827434048:ai-resume-coach-dev-usw2-processing",
+            "FunctionArn": "arn:aws:lambda:us-west-2:940827434048:function:ai-resume-coach-dev-usw2-worker",
+            "LastModified": "2026-07-22T08:51:27.671000-04:00",
+            "State": "Enabled",
+            "StateTransitionReason": "USER_INITIATED",
+            "FunctionResponseTypes": [
+                "ReportBatchItemFailures"
+            ],
+            "EventSourceMappingArn": "arn:aws:lambda:us-west-2:940827434048:event-source-mapping:b7ec8dce-c031-4904-9b5d-fb8dd74262b2"
+        }
+    ]
+}

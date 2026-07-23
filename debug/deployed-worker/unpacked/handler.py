@@ -451,19 +451,6 @@ def claim_job(identity: dict) -> dict:
 
     else:
         allowed_statuses = claimable_statuses(job_type)
-        logger.error(
-            "CLAIM DEBUG: "
-            "status=%r "
-            "type=%s "
-            "allowed=%r "
-            "known=%s "
-            "can_transition=%s",
-            current_status,
-            type(current_status).__name__,
-            sorted(allowed_statuses),
-            known_status(current_status),
-            can_transition(current_status, STATUS_WORKER_PROCESSING),
-        )
         if current_status not in allowed_statuses:
             raise RuntimeError(
                 f"{identity['recordType']} is not claimable "

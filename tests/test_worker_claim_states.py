@@ -338,3 +338,23 @@ def test_nonconditional_storage_error_propagates(monkeypatch):
         worker.claim_job(IDENTITY)
 
     assert captured.value is error
+
+
+def test_literal_queued_status_is_claimable_for_resume_analysis():
+    """Regression: production workers must claim the persisted QUEUED value."""
+    assert "QUEUED" in worker.claimable_statuses("resumeAnalysis")
+    assert worker.can_transition("QUEUED", worker.STATUS_WORKER_PROCESSING)
+
+
+def test_claim_error_reports_job_type_and_authorized_statuses(monkeypatch):
+    table = MagicMock()
+    table.get_item.return_value = {"Item": item("MYSTERY")}
+    monkeypatch.setattr(worker, "table", table)
+
+    with pytest.raises(RuntimeError) as captured:
+        worker.claim_job(IDENTITY)
+
+    message = str(captured.value)
+    assert "jobType='resumeAnalysis'" in message
+    assert "claimableStatuses=" in message
+    assert "QUEUED" in message

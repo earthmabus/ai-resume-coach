@@ -1,0 +1,81 @@
+{
+    "Configuration": {
+        "FunctionName": "ai-resume-coach-dev-usw2-worker",
+        "FunctionArn": "arn:aws:lambda:us-west-2:940827434048:function:ai-resume-coach-dev-usw2-worker",
+        "Runtime": "python3.13",
+        "Role": "arn:aws:iam::940827434048:role/ai-resume-coach-dev-usw2-worker-role",
+        "Handler": "handler.lambda_handler",
+        "CodeSize": 53733,
+        "Description": "Regional Resume Analysis asynchronous worker.",
+        "Timeout": 120,
+        "MemorySize": 1024,
+        "LastModified": "2026-07-23T23:07:31.000+0000",
+        "CodeSha256": "DfH0Ixc5TrabRR3EC5rDzXZMQKX18x+owYQcfHqBiss=",
+        "Version": "$LATEST",
+        "Environment": {
+            "Variables": {
+                "DOCUMENT_BUCKET": "ai-resume-coach-dev-usw2-documents",
+                "REGIONAL_PROCESSING_QUEUE_NAMES": "{\"us-east-1\":\"ai-resume-coach-dev-use1-processing\",\"us-west-2\":\"ai-resume-coach-dev-usw2-processing\"}",
+                "SECONDARY_REGIONS": "us-west-2",
+                "REGION_ROLE": "active",
+                "ENABLE_SYNTHETIC_PLACEMENT_OVERRIDE": "false",
+                "RESUME_ANALYSIS_QUEUE_URL": "https://sqs.us-west-2.amazonaws.com/940827434048/ai-resume-coach-dev-usw2-processing",
+                "ENVIRONMENT": "dev",
+                "WITNESS_REGION": "us-east-2",
+                "ANALYSIS_PROVIDER": "openai",
+                "AWS_REGION_NAME": "us-west-2",
+                "PRIMARY_REGION": "us-east-1",
+                "APP_VERSION": "0.1.0",
+                "SITE_NAME": "west",
+                "PROJECT_NAME": "ai-resume-coach",
+                "TERMINAL_FAILURE_QUEUE_URL": "https://sqs.us-west-2.amazonaws.com/940827434048/ai-resume-coach-dev-usw2-terminal-failure-dlq",
+                "FUNCTION_ROLE": "worker",
+                "SYNTHETIC_PLACEMENT_OVERRIDE_GROUP": "synthetic-runtime-validation",
+                "RESUME_ANALYSIS_TABLE": "ai-resume-coach-dev-resume-analysis",
+                "DEPLOYMENT_ID": "f8c422ce9de4b9bdb55b530f39764e4c432a854f",
+                "OPENAI_MODEL": "gpt-5.5",
+                "LOG_LEVEL": "INFO"
+            }
+        },
+        "TracingConfig": {
+            "Mode": "PassThrough"
+        },
+        "RevisionId": "66964bc3-fd6b-4184-b229-1812fe6e6606",
+        "State": "Active",
+        "LastUpdateStatus": "Successful",
+        "PackageType": "Zip",
+        "Architectures": [
+            "arm64"
+        ],
+        "EphemeralStorage": {
+            "Size": 512
+        },
+        "SnapStart": {
+            "ApplyOn": "None",
+            "OptimizationStatus": "Off"
+        },
+        "RuntimeVersionConfig": {
+            "RuntimeVersionArn": "arn:aws:lambda:us-west-2::runtime:6eb3fa9b98670ae8cce33d1f81f820336aadd399a58dadd2f24ffd08925f4074"
+        },
+        "LoggingConfig": {
+            "LogFormat": "Text",
+            "LogGroup": "/aws/lambda/ai-resume-coach-dev-usw2-worker"
+        }
+    },
+    "Code": {
+        "RepositoryType": "S3",
+        "Location": "https://awslambda-us-west-2-tasks.s3.us-west-2.amazonaws.com/snapshots/940827434048/ai-resume-coach-dev-usw2-worker-77fe91d2-16b3-43dd-966b-dfbed04dc0d7?versionId=0bu7F0w3cYHvASKu513NQHM_A46F8IcG&X-Amz-Security-Token=IQoJb3JpZ2luX2VjEC8aCXVzLXdlc3QtMiJHMEUCIQD86729InNpritWetj0ERaV8jS%2FlfjsH12n%2FM31Bix5UgIgUIGGpNs9LtRUQFZaRY7hW0AQpGxaUCFNkbsybqpUeNQqlAII%2BP%2F%2F%2F%2F%2F%2F%2F%2F%2F%2FARAFGgw1MDIyOTcwNzYxNjMiDFtvKskP65yJOMucMyroAc1AAKS3atPtD2TYWt96H%2B%2Bc%2FwlWcVW1Tx9HXYCDqFJSc16gj9299ituLj7g0mb6NmuN02AYKBNhDi6WCdlm0E6VHbBB0Pdrrq8veWQlZj8JWPe0mvwMB4WE4vZHcnnbbFtKL0J9z1TlquZkXLucVM2DtmC8mvPMqn6BM25Kd2xFP5P4yBLfkqxuRDjbP6S9N1eMrWDmN%2FsdRb31l8ad1jx02oGk68JwN4DBLkPs0FSRa%2B1QL0z4aIkgVFE1wt2UxCkoqu8%2FrWgAEsldhPJq4b39dzGrRNoNjf%2F75xa2KFXogOlNsBlN%2FFkw77uK0wY6jQEjpjZA5CuphlkUNg8bwxkvBRg3c7EzZ%2BQWCel2r%2B3tqbQuXmA1db%2BGJGYR2SPpu9k%2Bcz2Cw3WYjre0hU5gso%2Fgi%2BkiZ6JJK0TSCp54gHCfCtY0Bc8L0r3xgs6CGbIwJEfQSE6hkCAvUUXUkrtYa6DHkR3GYajLlvNjNhvlLgOZBZoRCj8J1l%2B2tfDhOsI%3D&X-Amz-Algorithm=AWS4-HMAC-SHA256&X-Amz-Date=20260723T231403Z&X-Amz-SignedHeaders=host&X-Amz-Expires=600&X-Amz-Credential=ASIAXJ4Z5EHBTYY7XX6N%2F20260723%2Fus-west-2%2Fs3%2Faws4_request&X-Amz-Signature=d05d5306b6459913bf35ca26647699ffd290fa29a13b5be9a42e7e540552d3f5"
+    },
+    "Tags": {
+        "Site": "west",
+        "Project": "ai-resume-coach",
+        "Repository": "earthmabus/ai-resume-coach",
+        "ManagedBy": "Terraform",
+        "Capability": "resume-analysis-worker",
+        "RegionCode": "usw2",
+        "Scope": "regional",
+        "RegionRole": "active",
+        "Environment": "dev",
+        "ArchitectureVersion": "platform-v2"
+    }
+}

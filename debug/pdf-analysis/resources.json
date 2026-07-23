@@ -1,0 +1,27 @@
+{
+  "api_endpoints": {
+    "east": "https://4xgaaazgse.execute-api.us-east-1.amazonaws.com",
+    "west": "https://4ztx6ar3bi.execute-api.us-west-2.amazonaws.com"
+  },
+  "table": "ai-resume-coach-dev-resume-analysis",
+  "east": {
+    "api": "ai-resume-coach-dev-use1-api",
+    "api_log": "/aws/lambda/ai-resume-coach-dev-use1-api",
+    "worker": "ai-resume-coach-dev-use1-worker",
+    "worker_log": "/aws/lambda/ai-resume-coach-dev-use1-worker",
+    "publisher": "ai-resume-coach-dev-use1-outbox-publisher",
+    "publisher_log": "/aws/lambda/ai-resume-coach-dev-use1-outbox-publisher",
+    "queue_url": "https://sqs.us-east-1.amazonaws.com/940827434048/ai-resume-coach-dev-use1-processing",
+    "dlq_url": "https://sqs.us-east-1.amazonaws.com/940827434048/ai-resume-coach-dev-use1-processing-dlq"
+  },
+  "west": {
+    "api": "ai-resume-coach-dev-usw2-api",
+    "api_log": "/aws/lambda/ai-resume-coach-dev-usw2-api",
+    "worker": "ai-resume-coach-dev-usw2-worker",
+    "worker_log": "/aws/lambda/ai-resume-coach-dev-usw2-worker",
+    "publisher": "ai-resume-coach-dev-usw2-outbox-publisher",
+    "publisher_log": "/aws/lambda/ai-resume-coach-dev-usw2-outbox-publisher",
+    "queue_url": "https://sqs.us-west-2.amazonaws.com/940827434048/ai-resume-coach-dev-usw2-processing",
+    "dlq_url": "https://sqs.us-west-2.amazonaws.com/940827434048/ai-resume-coach-dev-usw2-processing-dlq"
+  }
+}
