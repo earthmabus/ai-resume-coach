@@ -69,6 +69,13 @@ let activeAnalysisPollToken = 0;
 let activeAnalysisId = null;
 let analysisTransitionTimer = null;
 
+const JOB_MATCH_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+const JOB_MATCH_POLL_DELAYS_MS = [0, 2000, 4000, 6000, 10000];
+const JOB_MATCH_POLL_INTERVAL_MS = 10000;
+let activeJobMatchPollToken = 0;
+let activeJobMatchId = null;
+let jobMatchTransitionTimer = null;
+
 const ANALYSIS_STATUS_PRESENTATION = {
   queued_pending_dispatch: {
     label: "Preparing your resume analysis…",
@@ -117,6 +124,55 @@ const ANALYSIS_STATUS_PRESENTATION = {
   }
 };
 
+const JOB_MATCH_STATUS_PRESENTATION = {
+  queued_pending_dispatch: {
+    label: "Preparing your job match…",
+    historyLabel: "Preparing",
+    category: "processing"
+  },
+  queued: {
+    label: "Your job match is waiting to begin…",
+    historyLabel: "Waiting",
+    category: "processing"
+  },
+  worker_processing: {
+    label: "Comparing your resume with the job…",
+    historyLabel: "Matching",
+    category: "processing"
+  },
+  processing: {
+    label: "Comparing your resume with the job…",
+    historyLabel: "Matching",
+    category: "processing"
+  },
+  failed_retryable: {
+    label: "Your job match is taking longer than expected. We’re retrying…",
+    historyLabel: "Retrying",
+    category: "processing"
+  },
+  result_ready_pending_child_dispatch: {
+    label: "Preparing your match recommendations…",
+    historyLabel: "Finishing",
+    category: "processing"
+  },
+  completed: {
+    label: "Job match complete",
+    historyLabel: "Complete",
+    category: "completed"
+  },
+  failed_permanent: {
+    label: "We couldn’t complete this job match. Please try again.",
+    historyLabel: "Needs attention",
+    category: "failed"
+  },
+  failed: {
+    label: "We couldn’t complete this job match. Please try again.",
+    historyLabel: "Needs attention",
+    category: "failed"
+  }
+};
+
+
 function normalizeWorkflowStatus(status) {
   return String(status || "unknown")
     .trim()
@@ -144,6 +200,27 @@ function isAnalysisCompleted(status) {
 
 function isAnalysisFailed(status) {
   return analysisStatusPresentation(status).category === "failed";
+}
+
+function jobMatchStatusPresentation(status) {
+  const normalized = normalizeWorkflowStatus(status);
+  return JOB_MATCH_STATUS_PRESENTATION[normalized] || {
+    label: "Processing your job match…",
+    historyLabel: "In progress",
+    category: "processing"
+  };
+}
+
+function isJobMatchInProgress(status) {
+  return jobMatchStatusPresentation(status).category === "processing";
+}
+
+function isJobMatchCompleted(status) {
+  return jobMatchStatusPresentation(status).category === "completed";
+}
+
+function isJobMatchFailed(status) {
+  return jobMatchStatusPresentation(status).category === "failed";
 }
 
 function wait(delayMs) {
@@ -175,6 +252,44 @@ function renderAnalysisProgress(status, message) {
   }
 
   const presentation = analysisStatusPresentation(status);
+  const detail = message || "This normally takes less than a minute. We’ll update this page automatically.";
+
+  result.innerHTML = `
+    <div class="analysis-progress" role="status" aria-live="polite" aria-atomic="true">
+      <div class="progress-spinner" aria-hidden="true"></div>
+      <div>
+        <h3>${escapeHtml(presentation.label)}</h3>
+        <p>${escapeHtml(detail)}</p>
+      </div>
+    </div>
+  `;
+}
+
+function stopJobMatchPolling() {
+  activeJobMatchPollToken += 1;
+  activeJobMatchId = null;
+}
+
+function transitionToJobMatchResult(delayMs = 2500) {
+  if (jobMatchTransitionTimer) {
+    clearTimeout(jobMatchTransitionTimer);
+  }
+
+  setAccordionOpen("jobResultCard", true);
+
+  jobMatchTransitionTimer = setTimeout(() => {
+    setAccordionOpen("matchJobCard", false);
+    focusAccordionCard("jobResultCard", true);
+    jobMatchTransitionTimer = null;
+  }, delayMs);
+}
+
+function renderJobMatchProgress(status, message) {
+  if (!result) {
+    return;
+  }
+
+  const presentation = jobMatchStatusPresentation(status);
   const detail = message || "This normally takes less than a minute. We’ll update this page automatically.";
 
   result.innerHTML = `
@@ -725,45 +840,84 @@ async function pollAnalysisUntilComplete(analysisId) {
   }
 }
 
-async function pollJobMatchUntilComplete(matchId, maxAttempts = 30, delayMs = 3000) {
+async function pollJobMatchUntilComplete(matchId) {
   if (!matchId) {
     return;
   }
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-
-    const response = await fetch(`${API_BASE_URL}/job-match/${matchId}`, {
-      headers: await authHeaders()
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Could not refresh job match detail");
-    }
-
-    renderJobMatch(data);
-    await loadJobMatches();
-
-    if (data.status !== "processing") {
-      const tailoring = await fetchTailoringForMatch(matchId);
-      const interviewPrep = await fetchInterviewPrepForMatch(matchId);
-
-      renderJobMatch(data, tailoring, interviewPrep);
-      await loadJobMatches();
-      return;
-    }
+  if (activeJobMatchId === matchId) {
+    return;
   }
 
-  result.insertAdjacentHTML(
-    "afterbegin",
-    `
-      <div class="status-banner status-pending">
-        Job match is still processing. It is taking longer than expected.
+  stopJobMatchPolling();
+  activeJobMatchId = matchId;
+  const pollToken = activeJobMatchPollToken;
+  const startedAt = Date.now();
+  let attempt = 0;
+
+  while (
+    pollToken === activeJobMatchPollToken
+    && activeJobMatchId === matchId
+    && Date.now() - startedAt < JOB_MATCH_POLL_TIMEOUT_MS
+  ) {
+    const delayMs = attempt < JOB_MATCH_POLL_DELAYS_MS.length
+      ? JOB_MATCH_POLL_DELAYS_MS[attempt]
+      : JOB_MATCH_POLL_INTERVAL_MS;
+
+    if (delayMs > 0) {
+      await wait(delayMs);
+    }
+
+    if (pollToken !== activeJobMatchPollToken || activeJobMatchId !== matchId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/job-match/${encodeURIComponent(matchId)}`, {
+        headers: await authHeaders()
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error?.message || data.error || "Could not refresh job match detail");
+      }
+
+      renderJobMatch(data);
+      await loadJobMatches({ resumeActiveMatch: false });
+
+      if (!isJobMatchInProgress(data.status)) {
+        stopJobMatchPolling();
+
+        if (isJobMatchCompleted(data.status)) {
+          const tailoring = await fetchTailoringForMatch(matchId);
+          const interviewPrep = await fetchInterviewPrepForMatch(matchId);
+          renderJobMatch(data, tailoring, interviewPrep);
+          focusAccordionCard("jobResultCard", true);
+          await loadJobMatches({ resumeActiveMatch: false });
+        }
+        return;
+      }
+    } catch (error) {
+      console.warn("Could not refresh job match:", error);
+      renderJobMatchProgress(
+        "failed_retryable",
+        "We couldn’t refresh the status just now. We’ll try again automatically.",
+      );
+    }
+
+    attempt += 1;
+  }
+
+  if (pollToken === activeJobMatchPollToken && activeJobMatchId === matchId) {
+    stopJobMatchPolling();
+    result.innerHTML = `
+      <div class="status-banner status-warning" role="status" aria-live="polite">
+        <h3>This job match is taking longer than usual.</h3>
+        <p>You may leave this page and check Job Match History later. Use Refresh Matches to check again.</p>
       </div>
-    `
-  );
+    `;
+    await loadJobMatches({ resumeActiveMatch: false });
+  }
 }
 
 async function loadAnalysisDetail(analysisId) {
@@ -809,6 +963,24 @@ function showPanel(panelName) {
 }
 
 function renderJobMatch(data, tailoring = null, interviewPrep = null) {
+  const status = normalizeWorkflowStatus(data.status);
+
+  if (isJobMatchInProgress(status)) {
+    renderJobMatchProgress(status);
+    return;
+  }
+
+  if (isJobMatchFailed(status)) {
+    const presentation = jobMatchStatusPresentation(status);
+    result.innerHTML = `
+      <div class="status-banner status-error" role="alert">
+        <h3>${escapeHtml(presentation.label)}</h3>
+        <p>${escapeHtml(data.errorMessage || data.message || "Please submit the job match again. If the problem continues, try a shorter job description.")}</p>
+      </div>
+    `;
+    return;
+  }
+
   const matchedKeywords = (data.matchedKeywords || [])
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
@@ -829,8 +1001,8 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
 
-  const isCompleted = data.status === "completed";
-  const statusClass = isCompleted ? "" : "status-pending";
+  const isCompleted = isJobMatchCompleted(status);
+  const statusClass = isCompleted ? "status-completed" : "status-processing";
   const resumePreview = data.resumeText
     ? escapeHtml(data.resumeText.slice(0, 2000))
     : "No resume text available.";
@@ -850,7 +1022,7 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
     </div>
 
     <div class="metrics">
-      <span class="metric ${statusClass}">Status: ${escapeHtml(data.status || "unknown")}</span>
+      <span class="metric ${statusClass}">Status: ${escapeHtml(jobMatchStatusPresentation(status).historyLabel)}</span>
       <span class="metric">Provider: ${escapeHtml(data.provider || "unknown")}</span>
       <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
       <span class="metric">Leadership: ${escapeHtml(data.leadershipMatchScore || 0)}</span>
@@ -952,23 +1124,22 @@ async function matchJobDescription() {
 
   if (!analysisId) {
     result.textContent = "Select a resume analysis first.";
+    focusAccordionCard("jobResultCard");
     return;
   }
 
   if (!jdText) {
     result.textContent = "Paste a job description first.";
+    focusAccordionCard("jobResultCard");
     return;
   }
 
-  /*
-   * Generate once for this user action. Any retry added inside this
-   * function must reuse this same value.
-   */
   const idempotencyKey = crypto.randomUUID();
 
-  setButtonLoading(matchJobButton, "Matching...");
-  focusAccordionCard("jobResultCard");
-  result.textContent = "Matching resume to job description...";
+  stopJobMatchPolling();
+  setButtonLoading(matchJobButton, "Submitting...");
+  renderJobMatchProgress("queued_pending_dispatch", "We’re submitting the job description and preparing your match.");
+  transitionToJobMatchResult();
 
   try {
     const headers = await jsonHeaders();
@@ -981,10 +1152,8 @@ async function matchJobDescription() {
         headers,
         body: JSON.stringify({
           analysisId,
-          jobName:
-            jobName.value.trim() || "Untitled Job",
-          jobUrl:
-            jobUrl?.value.trim() || "",
+          jobName: jobName.value.trim() || "Untitled Job",
+          jobUrl: jobUrl?.value.trim() || "",
           jobDescriptionText: jdText,
           analysisProvider: selectedProvider(),
         }),
@@ -994,44 +1163,40 @@ async function matchJobDescription() {
     const data = await response.json();
 
     if (!response.ok) {
-      const message =
-        data?.error?.message
-        || data?.error
-        || "Job match failed";
-
+      const message = data?.error?.message || data?.error || "Job match failed";
       throw new Error(message);
     }
 
-    renderJobMatch(data, null);
+    renderJobMatch(data);
     setAccordionOpen("jobResultCard", true);
+    await loadJobMatches({ resumeActiveMatch: false });
 
-    await loadJobMatches();
-
-    if (response.status === 202) {
-      result.insertAdjacentHTML(
-        "afterbegin",
-        `
-          <p class="status-pending">
-            Status: Job match queued for AI analysis.
-            Refresh matches in a moment to view the completed result.
-          </p>
-        `,
-      );
+    const matchId = data.matchId;
+    if (matchId && isJobMatchInProgress(data.status)) {
+      void pollJobMatchUntilComplete(matchId);
     }
 
-    setButtonSaved(matchJobButton, "Queued ✓");
+    setButtonSaved(matchJobButton, "Submitted ✓");
   } catch (error) {
-    result.textContent = `Error: ${error.message}`;
+    stopJobMatchPolling();
+    result.innerHTML = `
+      <div class="status-banner status-error" role="alert">
+        <h3>We couldn’t submit this job match.</h3>
+        <p>${escapeHtml(error.message)}</p>
+      </div>
+    `;
     resetButton(matchJobButton);
   }
 }
 
-async function loadJobMatches() {
+async function loadJobMatches({ resumeActiveMatch = true } = {}) {
   if (!jobMatches) {
     return;
   }
 
-  jobMatches.textContent = "Loading job matches...";
+  if (resumeActiveMatch || cachedJobMatches.length === 0) {
+    jobMatches.textContent = "Loading job matches...";
+  }
 
   try {
     const response = await fetch(`${API_BASE_URL}/job-matches`, {
@@ -1047,6 +1212,19 @@ async function loadJobMatches() {
     renderJobMatchHistory();
 
     applyDefaultJobAccordionState();
+
+    if (resumeActiveMatch && !deepLinkMatchId) {
+      const activeMatch = [...cachedJobMatches]
+        .filter(item => item.matchId && isJobMatchInProgress(item.status))
+        .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))[0];
+
+      if (activeMatch) {
+        setAccordionOpen("matchJobCard", false);
+        setAccordionOpen("jobResultCard", true);
+        renderJobMatch(activeMatch);
+        void pollJobMatchUntilComplete(activeMatch.matchId);
+      }
+    }
 
     if (deepLinkMatchId) {
       openJobDetailView();
@@ -1076,6 +1254,10 @@ async function loadJobMatchDetail(matchId) {
 
     renderJobMatch(data, tailoring, interviewPrep);
     setAccordionOpen("jobResultCard", true);
+
+    if (isJobMatchInProgress(data.status)) {
+      void pollJobMatchUntilComplete(matchId);
+    }
   } catch (error) {
     result.textContent = `Error: ${error.message}`;
   }
@@ -1341,14 +1523,14 @@ function countByStatus(items) {
   );
 }
 
-function renderStatusSummary(container, label, items) {
+function renderStatusSummary(container, label, items, presentationForStatus = analysisStatusPresentation) {
   if (!container) {
     return;
   }
 
   const counts = items.reduce(
     (summary, item) => {
-      const category = analysisStatusPresentation(item.status).category;
+      const category = presentationForStatus(item.status).category;
       summary.total += 1;
       summary[category] += 1;
       return summary;
@@ -1489,7 +1671,7 @@ function renderJobMatchHistory() {
 
   filtered = sortItems(filtered, sortValue, "matchScore");
 
-  renderStatusSummary(jobMatchSummary, "Total Matches", cachedJobMatches);
+  renderStatusSummary(jobMatchSummary, "Total Matches", cachedJobMatches, jobMatchStatusPresentation);
 
   if (filtered.length === 0) {
     jobMatches.textContent = "No job matches found.";
@@ -1507,7 +1689,7 @@ function renderJobMatchHistory() {
         <div class="job-match-left">
           <div>
             <span class="badge">job match</span>
-            <span class="badge status-${escapeHtml(analysisStatusPresentation(item.status).category)}">${escapeHtml(analysisStatusPresentation(item.status).historyLabel)}</span>
+            <span class="badge status-${escapeHtml(jobMatchStatusPresentation(item.status).category)}">${escapeHtml(jobMatchStatusPresentation(item.status).historyLabel)}</span>
             <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
           </div>
 
@@ -1905,8 +2087,12 @@ function resetButton(button) {
 
 window.addEventListener("pagehide", () => {
   stopAnalysisPolling();
+  stopJobMatchPolling();
   if (analysisTransitionTimer) {
     clearTimeout(analysisTransitionTimer);
+  }
+  if (jobMatchTransitionTimer) {
+    clearTimeout(jobMatchTransitionTimer);
   }
 });
 
