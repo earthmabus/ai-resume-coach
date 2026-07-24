@@ -1,35 +1,31 @@
-# MR-010A Resume Analysis Worker Claim Fix
+# MR-010A Known Status Import Fix
 
-This overlay contains full replacement files.
+This overlay contains a full replacement for:
 
-## Root cause addressed
+    src/lambdas/worker/handler.py
 
-The deployed worker rejected resume-analysis records whose persisted status was `QUEUED`, causing repeated SQS retries and eventual DLQ placement.
+It preserves the temporary CLAIM DEBUG diagnostics and adds the missing
+`known_status` import from `core.workflow_state`.
 
-The fix makes the authoritative workflow transition matrix the source of truth for claimability, while retaining job-specific restrictions. It also expands the runtime error message to include the job type and authorized claimable statuses.
+## Apply from the repository root
 
-## Files
+    unzip -o ~/Downloads/MR010A_known_status_full_replacement_overlay.zip -d .
 
-- `src/lambdas/worker/handler.py`
-- `tests/test_worker_claim_states.py`
+## Validate
 
-## Apply
+    python -m compileall src tests
+    python -m pytest -q
 
-From the repository root:
+After the tests pass, commit/push normally so GitHub Actions can deploy it.
 
-```bash
-unzip -o MR010A_resume_analysis_worker_claim_fix_overlay.zip -d .
-python -m compileall src tests
-pytest -q
-python tools/build/lambda_packages.py
-terraform -chdir=infra plan -input=false -out=tfplan
-terraform -chdir=infra apply -input=false tfplan
-```
+Then submit a NEW PDF analysis and inspect the worker logs for a line beginning:
 
-## Validation performed
+    CLAIM DEBUG:
 
-```text
-578 passed, 1 skipped
-```
+Capture these fields:
 
-After deployment, submit a fresh PDF analysis. Do not redrive old DLQ messages until the new worker deployment is confirmed healthy.
+- status
+- type
+- allowed
+- known
+- can_transition

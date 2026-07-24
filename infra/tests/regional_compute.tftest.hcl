@@ -15,6 +15,12 @@ mock_provider "archive" {}
 run "regional_compute_is_symmetric" {
   command = plan
 
+  # Pin the normal dev operating profile explicitly so local auto-loaded
+  # terraform.tfvars files cannot change this contract test's behavior.
+  variables {
+    enable_outbox_publisher_schedule = true
+  }
+
   assert {
     condition = (
       output.regional_foundations.east.compute.api.name
@@ -104,17 +110,22 @@ run "regional_compute_is_symmetric" {
 
   assert {
     condition = (
+      output.regional_foundations.east.compute.worker.dependency_layer_count == 1
+      &&
+      output.regional_foundations.west.compute.worker.dependency_layer_count == 1
+    )
+    error_message = "Each regional worker Lambda must receive the shared dependency layer used by its providers."
+  }
+
+  assert {
+    condition = (
       module.shared_foundation.registration_notification.dependency_layers == 0
-      &&
-      output.regional_foundations.east.compute.worker.dependency_layer_count == 0
-      &&
-      output.regional_foundations.west.compute.worker.dependency_layer_count == 0
       &&
       output.regional_foundations.east.compute.outbox_publisher.dependency_layer_count == 0
       &&
       output.regional_foundations.west.compute.outbox_publisher.dependency_layer_count == 0
     )
-    error_message = "The PDF dependency layer must be attached only to API Lambdas."
+    error_message = "The shared dependency layer must be attached to API and worker Lambdas only."
   }
 
   assert {
@@ -238,29 +249,6 @@ run "regional_compute_is_symmetric" {
   assert {
     condition = (
       output.regional_foundations.east.outbox_publisher_schedule.state
-      == "DISABLED"
-      &&
-      output.regional_foundations.west.outbox_publisher_schedule.state
-      == "DISABLED"
-      &&
-      !output.regional_foundations.east.outbox_publisher_schedule.enabled
-      &&
-      !output.regional_foundations.west.outbox_publisher_schedule.enabled
-    )
-    error_message = "Outbox publisher schedules must be disabled by default."
-  }
-}
-
-run "regional_outbox_publisher_schedules_can_be_enabled_for_dev" {
-  command = plan
-
-  variables {
-    enable_outbox_publisher_schedule = true
-  }
-
-  assert {
-    condition = (
-      output.regional_foundations.east.outbox_publisher_schedule.state
       == "ENABLED"
       &&
       output.regional_foundations.west.outbox_publisher_schedule.state
@@ -270,7 +258,32 @@ run "regional_outbox_publisher_schedules_can_be_enabled_for_dev" {
       &&
       output.regional_foundations.west.outbox_publisher_schedule.enabled
     )
-    error_message = "Outbox publisher schedules should be explicitly enableable for dev validation."
+    error_message = "The normal dev operating profile must enable both outbox publisher schedules so queued work is dispatched."
+  }
+}
+
+run "regional_outbox_publisher_schedules_can_be_disabled_for_dev" {
+  command = plan
+
+  # Exercise the explicit disabled mode independently from repository-local
+  # terraform.tfvars values.
+  variables {
+    enable_outbox_publisher_schedule = false
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.outbox_publisher_schedule.state
+      == "DISABLED"
+      &&
+      output.regional_foundations.west.outbox_publisher_schedule.state
+      == "DISABLED"
+      &&
+      !output.regional_foundations.east.outbox_publisher_schedule.enabled
+      &&
+      !output.regional_foundations.west.outbox_publisher_schedule.enabled
+    )
+    error_message = "Outbox publisher schedules must support an explicitly disabled dev mode."
   }
 
   assert {

@@ -145,8 +145,9 @@ variable "packages" {
     })
 
     worker = object({
-      filename         = string
-      source_code_hash = string
+      filename          = string
+      source_code_hash  = string
+      dependency_layers = list(string)
     })
 
     outbox_publisher = object({

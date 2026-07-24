@@ -58,6 +58,9 @@ module "east" {
     worker = {
       filename         = data.archive_file.worker_zip.output_path
       source_code_hash = data.archive_file.worker_zip.output_base64sha256
+      dependency_layers = [
+        aws_lambda_layer_version.pdf_dependencies_east.arn,
+      ]
     }
 
     outbox_publisher = {
@@ -183,6 +186,9 @@ module "west" {
     worker = {
       filename         = data.archive_file.worker_zip.output_path
       source_code_hash = data.archive_file.worker_zip.output_base64sha256
+      dependency_layers = [
+        aws_lambda_layer_version.pdf_dependencies_west.arn,
+      ]
     }
 
     outbox_publisher = {

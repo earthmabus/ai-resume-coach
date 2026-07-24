@@ -28,7 +28,7 @@ processing_queue_message_retention_seconds      = 345600
 processing_dlq_message_retention_seconds        = 1209600
 processing_queue_max_receive_count              = 5
 outbox_publisher_schedule_expression            = "rate(1 minute)"
-enable_outbox_publisher_schedule                = false
+enable_outbox_publisher_schedule                = true
 
 # Regional compute
 lambda_runtime                                 = "python3.13"

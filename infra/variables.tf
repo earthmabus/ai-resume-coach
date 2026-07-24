@@ -217,7 +217,7 @@ variable "outbox_publisher_schedule_expression" {
 variable "enable_outbox_publisher_schedule" {
   description = "Enable regional EventBridge schedules that invoke the outbox publishers."
   type        = bool
-  default     = false
+  default     = true
 
   validation {
     condition = (

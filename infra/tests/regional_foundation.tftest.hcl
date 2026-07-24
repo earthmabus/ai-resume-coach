@@ -15,6 +15,12 @@ mock_provider "archive" {}
 run "regional_storage_and_messaging_are_symmetric" {
   command = plan
 
+  variables {
+    # The dev composition intentionally runs the transactional-outbox publisher.
+    # Set this explicitly so local auto-loaded tfvars cannot change the contract.
+    enable_outbox_publisher_schedule = true
+  }
+
   assert {
     condition = (
       output.regional_foundations.east.document_bucket.name
@@ -108,16 +114,16 @@ run "regional_storage_and_messaging_are_symmetric" {
   assert {
     condition = (
       output.regional_foundations.east.outbox_publisher_schedule.state
-      == "DISABLED"
+      == "ENABLED"
       &&
       output.regional_foundations.west.outbox_publisher_schedule.state
-      == "DISABLED"
+      == "ENABLED"
       &&
-      !output.regional_foundations.east.outbox_publisher_schedule.enabled
+      output.regional_foundations.east.outbox_publisher_schedule.enabled
       &&
-      !output.regional_foundations.west.outbox_publisher_schedule.enabled
+      output.regional_foundations.west.outbox_publisher_schedule.enabled
     )
-    error_message = "Both outbox-publisher schedules must be disabled by default."
+    error_message = "Both outbox-publisher schedules must be enabled for the explicit dev composition."
   }
 
   assert {

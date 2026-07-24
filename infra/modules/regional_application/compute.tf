@@ -113,6 +113,7 @@ resource "aws_lambda_function" "worker" {
 
   filename         = var.packages.worker.filename
   source_code_hash = var.packages.worker.source_code_hash
+  layers           = var.packages.worker.dependency_layers
 
   memory_size = var.compute.worker_memory_mb
   timeout     = var.compute.worker_timeout_seconds
