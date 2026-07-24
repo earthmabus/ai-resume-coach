@@ -377,15 +377,71 @@ button.secondary:hover {
 }
 
 .status-pending {
-  color: #dc2626;
-  font-weight: bold;
-  animation: blink-status 1s step-start infinite;
+  color: #92400e;
+  font-weight: 600;
 }
 
-@keyframes blink-status {
-  50% {
-    opacity: 0.25;
+.analysis-progress {
+  display: flex;
+  align-items: center;
+  gap: 16px;
+  min-height: 110px;
+  padding: 20px;
+  border: 1px solid #dbeafe;
+  border-radius: 12px;
+  background: #eff6ff;
+}
+
+.analysis-progress h3,
+.analysis-progress p,
+.status-banner h3,
+.status-banner p {
+  margin-top: 0;
+}
+
+.analysis-progress p,
+.status-banner p {
+  margin-bottom: 0;
+}
+
+.progress-spinner {
+  width: 28px;
+  height: 28px;
+  flex: 0 0 auto;
+  border: 3px solid #bfdbfe;
+  border-top-color: #2563eb;
+  border-radius: 50%;
+  animation: spin-progress 0.9s linear infinite;
+}
+
+@keyframes spin-progress {
+  to {
+    transform: rotate(360deg);
   }
+}
+
+.status-completed {
+  color: #166534;
+}
+
+.status-processing {
+  color: #92400e;
+}
+
+.status-failed,
+.status-error {
+  color: #991b1b;
+}
+
+.status-warning {
+  color: #854d0e;
+  background: #fefce8;
+  border: 1px solid #fde68a;
+}
+
+.status-error {
+  background: #fef2f2;
+  border: 1px solid #fecaca;
 }
 
 .job-match-card {

@@ -62,6 +62,132 @@ const accordionConfigs = {
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
 
+const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
+const ANALYSIS_POLL_DELAYS_MS = [0, 2000, 4000, 6000, 10000];
+const ANALYSIS_POLL_INTERVAL_MS = 10000;
+let activeAnalysisPollToken = 0;
+let activeAnalysisId = null;
+let analysisTransitionTimer = null;
+
+const ANALYSIS_STATUS_PRESENTATION = {
+  queued_pending_dispatch: {
+    label: "Preparing your resume analysis…",
+    historyLabel: "Preparing",
+    category: "processing"
+  },
+  queued: {
+    label: "Your resume is waiting to be analyzed…",
+    historyLabel: "Waiting",
+    category: "processing"
+  },
+  worker_processing: {
+    label: "Analyzing your resume…",
+    historyLabel: "Analyzing",
+    category: "processing"
+  },
+  processing: {
+    label: "Analyzing your resume…",
+    historyLabel: "Analyzing",
+    category: "processing"
+  },
+  failed_retryable: {
+    label: "Analysis is taking longer than expected. We’re retrying…",
+    historyLabel: "Retrying",
+    category: "processing"
+  },
+  result_ready_pending_child_dispatch: {
+    label: "Preparing your recommendations…",
+    historyLabel: "Finishing",
+    category: "processing"
+  },
+  completed: {
+    label: "Resume analysis complete",
+    historyLabel: "Complete",
+    category: "completed"
+  },
+  failed_permanent: {
+    label: "We couldn’t analyze this resume. Please try again.",
+    historyLabel: "Needs attention",
+    category: "failed"
+  },
+  failed: {
+    label: "We couldn’t analyze this resume. Please try again.",
+    historyLabel: "Needs attention",
+    category: "failed"
+  }
+};
+
+function normalizeWorkflowStatus(status) {
+  return String(status || "unknown")
+    .trim()
+    .toLowerCase()
+    .replaceAll("-", "_")
+    .replaceAll(" ", "_");
+}
+
+function analysisStatusPresentation(status) {
+  const normalized = normalizeWorkflowStatus(status);
+  return ANALYSIS_STATUS_PRESENTATION[normalized] || {
+    label: "Processing your resume analysis…",
+    historyLabel: "In progress",
+    category: "processing"
+  };
+}
+
+function isAnalysisInProgress(status) {
+  return analysisStatusPresentation(status).category === "processing";
+}
+
+function isAnalysisCompleted(status) {
+  return analysisStatusPresentation(status).category === "completed";
+}
+
+function isAnalysisFailed(status) {
+  return analysisStatusPresentation(status).category === "failed";
+}
+
+function wait(delayMs) {
+  return new Promise(resolve => setTimeout(resolve, delayMs));
+}
+
+function stopAnalysisPolling() {
+  activeAnalysisPollToken += 1;
+  activeAnalysisId = null;
+}
+
+function transitionToAnalysisResult(delayMs = 2500) {
+  if (analysisTransitionTimer) {
+    clearTimeout(analysisTransitionTimer);
+  }
+
+  setAccordionOpen("resumeResultCard", true);
+
+  analysisTransitionTimer = setTimeout(() => {
+    setAccordionOpen("analyzeResumeCard", false);
+    focusAccordionCard("resumeResultCard", true);
+    analysisTransitionTimer = null;
+  }, delayMs);
+}
+
+function renderAnalysisProgress(status, message) {
+  if (!result) {
+    return;
+  }
+
+  const presentation = analysisStatusPresentation(status);
+  const detail = message || "This normally takes less than a minute. We’ll update this page automatically.";
+
+  result.innerHTML = `
+    <div class="analysis-progress" role="status" aria-live="polite" aria-atomic="true">
+      <div class="progress-spinner" aria-hidden="true"></div>
+      <div>
+        <h3>${escapeHtml(presentation.label)}</h3>
+        <p>${escapeHtml(detail)}</p>
+      </div>
+    </div>
+  `;
+}
+
 const protectedPages = ["resume-analysis", "job-matching"];
 
 if (protectedPages.includes(page) && !requireAuth()) {
@@ -157,6 +283,24 @@ function escapeHtml(value) {
 }
 
 function renderAnalysis(data) {
+  const status = normalizeWorkflowStatus(data.status);
+
+  if (isAnalysisInProgress(status)) {
+    renderAnalysisProgress(status);
+    return;
+  }
+
+  if (isAnalysisFailed(status)) {
+    const presentation = analysisStatusPresentation(status);
+    result.innerHTML = `
+      <div class="status-banner status-error" role="alert">
+        <h3>${escapeHtml(presentation.label)}</h3>
+        <p>${escapeHtml(data.errorMessage || data.message || "Please submit the resume again. If the problem continues, try another PDF.")}</p>
+      </div>
+    `;
+    return;
+  }
+
   const strengths = (data.strengths || [])
     .map(item => `<li>${escapeHtml(item)}</li>`)
     .join("");
@@ -170,23 +314,11 @@ function renderAnalysis(data) {
     ? escapeHtml(data.resumeText.slice(0, 2000))
     : "No resume text stored.";
 
-  const leadershipGaps = (data.leadershipGaps || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
-  const technicalGaps = (data.technicalGaps || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
-  const isCompleted = data.status === "completed";
-  const statusClass = isCompleted ? "" : "status-pending";
-
   result.innerHTML = `
     <div class="score-card">
       <div class="score-circle">${score}</div>
       <div>
         <h3>Resume Analysis Complete</h3>
-        <!-- <p><strong>Analysis ID:</strong> ${escapeHtml(data.analysisId)}</p> -->
         <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
         <p><strong>File:</strong> ${escapeHtml(data.fileName || "N/A")}</p>
       </div>
@@ -195,7 +327,7 @@ function renderAnalysis(data) {
     <div class="metrics">
       <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
       <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
-      <span class="metric ${statusClass}">Status: ${escapeHtml(data.status || "unknown")}</span>
+      <span class="metric">Status: ${escapeHtml(analysisStatusPresentation(status).historyLabel)}</span>
       <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
       <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
       <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
@@ -215,28 +347,30 @@ function renderAnalysis(data) {
     <h3>Role-Specific Gaps</h3>
     <ul>${listToHtml(data.roleSpecificGaps || [])}</ul>
 
-    ${isCompleted ? `
-      <h3>Executive Summary</h3>
-      <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
+    <h3>Executive Summary</h3>
+    <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
 
-      <div class="result-grid">
-        <div class="result-box">
-          <h3>Strengths</h3>
-          <ul>${strengths}</ul>
-        </div>
-
-        <div class="result-box">
-          <h3>Recommendations</h3>
-          <ul>${recommendations}</ul>
-        </div>
+    <div class="result-grid">
+      <div class="result-box">
+        <h3>Strengths</h3>
+        <ul>${strengths}</ul>
       </div>
- 
-      <h3>Resume Text Preview</h3>
-      <div class="resume-preview">${resumePreview}</div>
-  ` : `
-    <p><strong>Status:</strong> Resume analysis is still processing. Refresh history shortly.</p>
-  `}
+
+      <div class="result-box">
+        <h3>Recommendations</h3>
+        <ul>${recommendations}</ul>
+      </div>
+    </div>
+
+    <h3>Resume Text Preview</h3>
+    <div class="resume-preview">${resumePreview}</div>
   `;
+
+  const heading = result.querySelector("h3");
+  if (heading) {
+    heading.tabIndex = -1;
+    heading.focus({ preventScroll: true });
+  }
 }
 
 async function analyzeTextResume() {
@@ -343,10 +477,9 @@ async function uploadPdfResume() {
     "Uploading...",
   );
 
-  focusAccordionCard("resumeResultCard");
-
-  result.textContent =
-    "Uploading and analyzing PDF...";
+  stopAnalysisPolling();
+  setAccordionOpen("resumeResultCard", true);
+  renderAnalysisProgress("queued_pending_dispatch", "Uploading your PDF securely…");
 
   try {
     const uploadHeaders = await jsonHeaders();
@@ -377,7 +510,7 @@ async function uploadPdfResume() {
       );
     }
 
-    result.textContent = "Uploading PDF...";
+    renderAnalysisProgress("queued_pending_dispatch", "Uploading your PDF securely…");
 
     const uploadResponse = await fetch(
       uploadData.uploadUrl,
@@ -394,8 +527,10 @@ async function uploadPdfResume() {
       throw new Error("PDF upload failed");
     }
 
-    result.textContent =
-      "Saving PDF analysis metadata...";
+    renderAnalysisProgress(
+      "queued_pending_dispatch",
+      "Your PDF is uploaded. We’re preparing the analysis…",
+    );
 
     const analysisHeaders =
       await jsonHeaders();
@@ -437,36 +572,16 @@ async function uploadPdfResume() {
     }
 
     renderAnalysis(analysisData);
+    transitionToAnalysisResult();
+    await loadHistory({ resumeActiveAnalysis: false });
 
-    setAccordionOpen(
-      "resumeResultCard",
-      true,
-    );
-
-    await loadHistory();
-
-    if (
-      analysisData.status === "processing"
-      && analysisData.analysisId
-    ) {
-      result.insertAdjacentHTML(
-        "afterbegin",
-        `
-          <div class="status-banner status-pending">
-            PDF uploaded and queued for AI analysis.
-            This page will update automatically when complete.
-          </div>
-        `,
-      );
-
-      await pollAnalysisUntilComplete(
-        analysisData.analysisId,
-      );
+    if (analysisData.analysisId && isAnalysisInProgress(analysisData.status)) {
+      void pollAnalysisUntilComplete(analysisData.analysisId);
     }
 
     setButtonSaved(
       uploadButton,
-      "Complete ✓",
+      "Submitted ✓",
     );
   } catch (error) {
     result.textContent =
@@ -476,12 +591,12 @@ async function uploadPdfResume() {
   }
 }
 
-async function loadHistory() {
+async function loadHistory({ resumeActiveAnalysis = true } = {}) {
   if (!history && !resumeAnalysisSelect) {
     return;
   }
 
-  if (history) {
+  if (history && cachedResumeAnalyses.length === 0) {
     history.textContent = "Loading history...";
   }
 
@@ -516,6 +631,20 @@ async function loadHistory() {
       openResumeDetailView();
       await loadAnalysisDetail(deepLinkAnalysisId);
       window.history.replaceState({}, document.title, window.location.pathname);
+      return;
+    }
+
+    if (resumeActiveAnalysis) {
+      const activeAnalysis = cachedResumeAnalyses.find(item =>
+        item.analysisId && isAnalysisInProgress(item.status)
+      );
+
+      if (activeAnalysis) {
+        setAccordionOpen("analyzeResumeCard", false);
+        setAccordionOpen("resumeResultCard", true);
+        renderAnalysis(activeAnalysis);
+        void pollAnalysisUntilComplete(activeAnalysis.analysisId);
+      }
     }
   } catch (error) {
     if (history) {
@@ -524,40 +653,76 @@ async function loadHistory() {
   }
 }
 
-async function pollAnalysisUntilComplete(analysisId, maxAttempts = 30, delayMs = 3000) {
+async function pollAnalysisUntilComplete(analysisId) {
   if (!analysisId) {
     return;
   }
 
-  for (let attempt = 1; attempt <= maxAttempts; attempt += 1) {
-    await new Promise(resolve => setTimeout(resolve, delayMs));
-
-    const response = await fetch(`${API_BASE_URL}/analysis/${analysisId}`, {
-      headers: await authHeaders()
-    });
-
-    const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(data.error || "Could not refresh analysis detail");
-    }
-
-    renderAnalysis(data);
-    await loadHistory();
-
-    if (data.status !== "processing") {
-      return;
-    }
+  if (activeAnalysisId === analysisId) {
+    return;
   }
 
-  result.insertAdjacentHTML(
-    "afterbegin",
-    `
-      <div class="status-banner status-pending">
-        Analysis is still processing. It is taking longer than expected.
+  stopAnalysisPolling();
+  activeAnalysisId = analysisId;
+  const pollToken = activeAnalysisPollToken;
+  const startedAt = Date.now();
+  let attempt = 0;
+
+  while (
+    pollToken === activeAnalysisPollToken
+    && activeAnalysisId === analysisId
+    && Date.now() - startedAt < ANALYSIS_POLL_TIMEOUT_MS
+  ) {
+    const delayMs = attempt < ANALYSIS_POLL_DELAYS_MS.length
+      ? ANALYSIS_POLL_DELAYS_MS[attempt]
+      : ANALYSIS_POLL_INTERVAL_MS;
+
+    if (delayMs > 0) {
+      await wait(delayMs);
+    }
+
+    if (pollToken !== activeAnalysisPollToken || activeAnalysisId !== analysisId) {
+      return;
+    }
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/analysis/${encodeURIComponent(analysisId)}`, {
+        headers: await authHeaders()
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error?.message || data.error || "Could not refresh analysis detail");
+      }
+
+      renderAnalysis(data);
+      await loadHistory({ resumeActiveAnalysis: false });
+
+      if (!isAnalysisInProgress(data.status)) {
+        stopAnalysisPolling();
+        return;
+      }
+    } catch (error) {
+      console.warn("Could not refresh resume analysis:", error);
+      renderAnalysisProgress(
+        "failed_retryable",
+        "We couldn’t refresh the status just now. We’ll try again automatically.",
+      );
+    }
+
+    attempt += 1;
+  }
+
+  if (pollToken === activeAnalysisPollToken && activeAnalysisId === analysisId) {
+    stopAnalysisPolling();
+    result.innerHTML = `
+      <div class="status-banner status-warning" role="status" aria-live="polite">
+        <h3>This analysis is taking longer than usual.</h3>
+        <p>You may leave this page and check Analysis History later. Use Refresh History to check again.</p>
       </div>
-    `
-  );
+    `;
+    await loadHistory({ resumeActiveAnalysis: false });
+  }
 }
 
 async function pollJobMatchUntilComplete(matchId, maxAttempts = 30, delayMs = 3000) {
@@ -1181,13 +1346,21 @@ function renderStatusSummary(container, label, items) {
     return;
   }
 
-  const counts = countByStatus(items);
+  const counts = items.reduce(
+    (summary, item) => {
+      const category = analysisStatusPresentation(item.status).category;
+      summary.total += 1;
+      summary[category] += 1;
+      return summary;
+    },
+    { total: 0, completed: 0, processing: 0, failed: 0 },
+  );
 
   container.innerHTML = `
-    <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(counts.total ?? 0))}</span>
-    <span>Completed: ${escapeHtml(String(counts.completed ?? 0))}</span>
-    <span>Processing: ${escapeHtml(String(counts.processing ?? 0))}</span>
-    <span>Failed: ${escapeHtml(String(counts.failed ?? 0))}</span>
+    <span><strong>${escapeHtml(label)}:</strong> ${escapeHtml(String(counts.total))}</span>
+    <span>Complete: ${escapeHtml(String(counts.completed))}</span>
+    <span>In progress: ${escapeHtml(String(counts.processing))}</span>
+    <span>Needs attention: ${escapeHtml(String(counts.failed))}</span>
   `;
 }
 
@@ -1202,8 +1375,8 @@ function sortItems(items, sortValue, scoreField) {
     sorted.sort((a, b) => Number(a[scoreField] || 0) - Number(b[scoreField] || 0));
   } else if (sortValue === "processingFirst") {
     sorted.sort((a, b) => {
-      const aProcessing = a.status === "processing" ? 0 : 1;
-      const bProcessing = b.status === "processing" ? 0 : 1;
+      const aProcessing = isAnalysisInProgress(a.status) ? 0 : 1;
+      const bProcessing = isAnalysisInProgress(b.status) ? 0 : 1;
 
       if (aProcessing !== bProcessing) {
         return aProcessing - bProcessing;
@@ -1263,7 +1436,7 @@ function renderResumeHistory() {
         <div class="resume-history-left">
           <div>
             <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
-            <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
+            <span class="badge status-${escapeHtml(analysisStatusPresentation(item.status).category)}">${escapeHtml(analysisStatusPresentation(item.status).historyLabel)}</span>
             <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
           </div>
 
@@ -1334,7 +1507,7 @@ function renderJobMatchHistory() {
         <div class="job-match-left">
           <div>
             <span class="badge">job match</span>
-            <span class="badge ${item.status === "completed" ? "" : "status-pending"}">${escapeHtml(item.status || "unknown")}</span>
+            <span class="badge status-${escapeHtml(analysisStatusPresentation(item.status).category)}">${escapeHtml(analysisStatusPresentation(item.status).historyLabel)}</span>
             <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
           </div>
 
@@ -1666,7 +1839,7 @@ function listToHtml(items) {
     .join("");
 }
 
-function focusAccordionCard(cardId) {
+function focusAccordionCard(cardId, moveFocus = false) {
   setAccordionOpen(cardId, true);
 
   const card = document.getElementById(cardId);
@@ -1676,6 +1849,13 @@ function focusAccordionCard(cardId) {
       behavior: "smooth",
       block: "start"
     });
+
+    if (moveFocus) {
+      const summary = card.querySelector("summary");
+      if (summary) {
+        summary.focus({ preventScroll: true });
+      }
+    }
   }
 }
 
@@ -1722,6 +1902,13 @@ function resetButton(button) {
   button.disabled = false;
   button.textContent = button.dataset.originalText || button.textContent;
 }
+
+window.addEventListener("pagehide", () => {
+  stopAnalysisPolling();
+  if (analysisTransitionTimer) {
+    clearTimeout(analysisTransitionTimer);
+  }
+});
 
 setupAccordionPersistence();
 
