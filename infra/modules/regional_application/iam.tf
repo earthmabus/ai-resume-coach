@@ -36,8 +36,6 @@ locals {
     "dynamodb:GetItem",
     "dynamodb:PutItem",
     "dynamodb:Query",
-    "dynamodb:TransactGetItems",
-    "dynamodb:TransactWriteItems",
     "dynamodb:UpdateItem",
   ])
 
@@ -47,10 +45,16 @@ locals {
     local.api_runtime_data_actions,
   ))
 
+  worker_runtime_processing_queue_actions = sort([
+    "sqs:DeleteMessage",
+    "sqs:GetQueueAttributes",
+    "sqs:ReceiveMessage",
+    "sqs:SendMessage",
+  ])
+
   outbox_publisher_runtime_data_actions = sort([
     "dynamodb:GetItem",
     "dynamodb:Query",
-    "dynamodb:TransactWriteItems",
     "dynamodb:UpdateItem",
   ])
 
@@ -145,13 +149,9 @@ resource "aws_iam_role_policy" "worker_runtime" {
     Version = "2012-10-17"
     Statement = [
       {
-        Sid    = "ConsumeResumeAnalysisWork"
-        Effect = "Allow"
-        Action = [
-          "sqs:ReceiveMessage",
-          "sqs:DeleteMessage",
-          "sqs:GetQueueAttributes",
-        ]
+        Sid      = "ConsumeResumeAnalysisWork"
+        Effect   = "Allow"
+        Action   = local.worker_runtime_processing_queue_actions
         Resource = aws_sqs_queue.processing.arn
       },
       {
@@ -176,8 +176,6 @@ resource "aws_iam_role_policy" "worker_runtime" {
           "dynamodb:GetItem",
           "dynamodb:PutItem",
           "dynamodb:Query",
-          "dynamodb:TransactGetItems",
-          "dynamodb:TransactWriteItems",
           "dynamodb:UpdateItem",
         ]
         Resource = local.resume_analysis_table_resources

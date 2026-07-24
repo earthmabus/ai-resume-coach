@@ -28,6 +28,7 @@ infra/tfplan*
 
 # temporarily generated build directory
 build/*
+debug/*
 
 # Local runtime-validation evidence
 evidence/

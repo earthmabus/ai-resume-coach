@@ -504,3 +504,100 @@ def test_failed_record_emits_worker_failure_metric(
     assert "sensitive resume content" not in metric_messages[0]
     dimensions = metric["_aws"]["CloudWatchMetrics"][0]["Dimensions"]
     assert dimensions == [["FunctionName"]]
+
+
+def test_client_error_log_fields_are_bounded_and_safe():
+    error = ClientError(
+        {
+            "Error": {
+                "Code": "AccessDeniedException",
+                "Message": "Denied while sending message",
+            },
+            "ResponseMetadata": {
+                "RequestId": "aws-request-123",
+                "HTTPStatusCode": 403,
+            },
+        },
+        "SendMessage",
+    )
+
+    fields = worker.client_error_log_fields(error)
+
+    assert fields == {
+        "awsErrorCode": "AccessDeniedException",
+        "awsErrorMessage": "Denied while sending message",
+        "awsOperation": "SendMessage",
+        "awsRequestId": "aws-request-123",
+        "awsHttpStatusCode": "403",
+    }
+
+
+def test_job_match_failure_uses_reclaimed_attempt_and_logs_aws_details(
+    monkeypatch,
+    caplog,
+):
+    identity = {
+        "jobType": "jobMatch",
+        "recordType": "jobMatch",
+        "recordId": "match-123",
+        "key": {"pk": "USER#user-123", "sk": "MATCH#match-123"},
+    }
+    claim = {
+        "disposition": "CLAIMED",
+        "item": {"status": worker.STATUS_WORKER_PROCESSING},
+        "attemptId": "initial-attempt",
+        "priorStatus": worker.STATUS_QUEUED_PENDING_DISPATCH,
+    }
+    error = ClientError(
+        {
+            "Error": {
+                "Code": "AccessDeniedException",
+                "Message": "Denied while sending child message",
+            },
+            "ResponseMetadata": {
+                "RequestId": "aws-request-456",
+                "HTTPStatusCode": 403,
+            },
+        },
+        "SendMessage",
+    )
+
+    monkeypatch.setattr(worker, "derive_job_identity", MagicMock(return_value=identity))
+    monkeypatch.setattr(worker, "claim_job", MagicMock(return_value=claim))
+
+    def fail_after_reclaim(**kwargs):
+        kwargs["attempt_state"]["attemptId"] = "reclaimed-attempt"
+        raise error
+
+    monkeypatch.setattr(worker, "process_job_match", fail_after_reclaim)
+    mark_failed = MagicMock(return_value=None)
+    monkeypatch.setattr(worker, "mark_claim_failed", mark_failed)
+
+    record = {
+        "messageId": "message-456",
+        "body": json.dumps(
+            {
+                "jobType": "jobMatch",
+                "matchId": "match-123",
+                "requestId": "request-456",
+            }
+        ),
+    }
+
+    with caplog.at_level(logging.ERROR):
+        worker.process_record(record)
+
+    assert mark_failed.call_args.kwargs["attempt_id"] == "reclaimed-attempt"
+
+    payload = next(
+        json.loads(log_record.message)
+        for log_record in caplog.records
+        if log_record.message.startswith("{")
+        and '"result":"FAILURE"' in log_record.message
+    )
+    assert payload["processingAttemptId"] == "reclaimed-attempt"
+    assert payload["awsErrorCode"] == "AccessDeniedException"
+    assert payload["awsErrorMessage"] == "Denied while sending child message"
+    assert payload["awsOperation"] == "SendMessage"
+    assert payload["awsRequestId"] == "aws-request-456"
+    assert payload["awsHttpStatusCode"] == "403"

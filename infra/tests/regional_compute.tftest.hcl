@@ -151,6 +151,27 @@ run "regional_compute_is_symmetric" {
   assert {
     condition = (
       contains(
+        output.regional_foundations.east.compute.worker.processing_queue_policy_actions,
+        "sqs:SendMessage",
+      )
+      &&
+      contains(
+        output.regional_foundations.west.compute.worker.processing_queue_policy_actions,
+        "sqs:SendMessage",
+      )
+      &&
+      output.regional_foundations.east.compute.worker.processing_queue_policy_resource
+      == output.regional_foundations.east.processing_queue.arn
+      &&
+      output.regional_foundations.west.compute.worker.processing_queue_policy_resource
+      == output.regional_foundations.west.processing_queue.arn
+    )
+    error_message = "Regional worker roles must be able to publish child work to their local processing queues."
+  }
+
+  assert {
+    condition = (
+      contains(
         output.regional_foundations.east.compute.api.runtime_policy_actions,
         "dynamodb:DescribeTable",
       )
@@ -171,6 +192,31 @@ run "regional_compute_is_symmetric" {
       )
     )
     error_message = "API runtime roles must include only the read-only dependency checks required by /health/ready."
+  }
+
+  assert {
+    condition = (
+      !contains(
+        output.regional_foundations.east.compute.api.runtime_policy_actions,
+        "dynamodb:TransactWriteItems",
+      )
+      &&
+      !contains(
+        output.regional_foundations.west.compute.api.runtime_policy_actions,
+        "dynamodb:TransactWriteItems",
+      )
+      &&
+      !contains(
+        output.regional_foundations.east.compute.outbox_publisher.runtime_policy_actions,
+        "dynamodb:TransactWriteItems",
+      )
+      &&
+      !contains(
+        output.regional_foundations.west.compute.outbox_publisher.runtime_policy_actions,
+        "dynamodb:TransactWriteItems",
+      )
+    )
+    error_message = "MRSC runtime roles must not grant unsupported DynamoDB transaction writes."
   }
 
   assert {

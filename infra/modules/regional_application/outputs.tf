@@ -118,16 +118,18 @@ output "compute" {
     }
 
     worker = {
-      name                   = aws_lambda_function.worker.function_name
-      runtime                = aws_lambda_function.worker.runtime
-      architecture           = aws_lambda_function.worker.architectures[0]
-      handler                = aws_lambda_function.worker.handler
-      memory_mb              = aws_lambda_function.worker.memory_size
-      timeout                = aws_lambda_function.worker.timeout
-      log_group              = aws_cloudwatch_log_group.worker.name
-      batch_size             = aws_lambda_event_source_mapping.worker_processing_queue.batch_size
-      enabled                = aws_lambda_event_source_mapping.worker_processing_queue.enabled
-      dependency_layer_count = length(coalesce(aws_lambda_function.worker.layers, []))
+      name                             = aws_lambda_function.worker.function_name
+      runtime                          = aws_lambda_function.worker.runtime
+      architecture                     = aws_lambda_function.worker.architectures[0]
+      handler                          = aws_lambda_function.worker.handler
+      memory_mb                        = aws_lambda_function.worker.memory_size
+      timeout                          = aws_lambda_function.worker.timeout
+      log_group                        = aws_cloudwatch_log_group.worker.name
+      batch_size                       = aws_lambda_event_source_mapping.worker_processing_queue.batch_size
+      enabled                          = aws_lambda_event_source_mapping.worker_processing_queue.enabled
+      dependency_layer_count           = length(coalesce(aws_lambda_function.worker.layers, []))
+      processing_queue_policy_actions  = local.worker_runtime_processing_queue_actions
+      processing_queue_policy_resource = aws_sqs_queue.processing.arn
     }
 
     outbox_publisher = {

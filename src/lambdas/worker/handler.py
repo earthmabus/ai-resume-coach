@@ -198,6 +198,20 @@ def is_conditional_failure(error: ClientError) -> bool:
     )
 
 
+def client_error_log_fields(error: ClientError) -> dict[str, str]:
+    """Return bounded, non-sensitive AWS error diagnostics for logs."""
+    response = error.response or {}
+    error_details = response.get("Error", {}) or {}
+    metadata = response.get("ResponseMetadata", {}) or {}
+    return {
+        "awsErrorCode": str(error_details.get("Code") or ""),
+        "awsErrorMessage": str(error_details.get("Message") or "")[:2000],
+        "awsOperation": str(getattr(error, "operation_name", "") or ""),
+        "awsRequestId": str(metadata.get("RequestId") or ""),
+        "awsHttpStatusCode": str(metadata.get("HTTPStatusCode") or ""),
+    }
+
+
 def get_entity_by_id(
     entity_id,
     expected_record_type=None,
@@ -1070,6 +1084,7 @@ def process_job_match(
     item: dict,
     attempt_id: str,
     prior_status: str,
+    attempt_state: dict[str, str] | None = None,
 ) -> str:
     match_id = identity["recordId"]
 
@@ -1216,6 +1231,8 @@ def process_job_match(
 
         item = claim["item"]
         attempt_id = claim["attemptId"]
+        if attempt_state is not None:
+            attempt_state["attemptId"] = attempt_id
 
     dispatch_job_match_children(
         match_item=item,
@@ -1492,6 +1509,8 @@ def process_record(
         )
     )
 
+    attempt_state = {"attemptId": attempt_id}
+
     try:
         if identity["jobType"] == "jobMatch":
             attempt_id = process_job_match(
@@ -1499,6 +1518,7 @@ def process_record(
                 item=item,
                 attempt_id=attempt_id,
                 prior_status=prior_status,
+                attempt_state=attempt_state,
             )
 
         elif identity["jobType"] == "resumeTailoring":
@@ -1540,6 +1560,7 @@ def process_record(
         )
 
     except Exception as error:
+        active_attempt_id = attempt_state.get("attemptId") or attempt_id
         processing_attempt = receive_attempt(record)
         decision = decide_retry(
             error,
@@ -1548,7 +1569,7 @@ def process_record(
         )
         failure_item = mark_claim_failed(
             key=identity["key"],
-            attempt_id=attempt_id,
+            attempt_id=active_attempt_id,
             error_message=str(error),
             failure_category=decision.category.value,
             retryable=decision.retryable,
@@ -1566,7 +1587,12 @@ def process_record(
                 key=identity["key"],
                 failure_id=failure_id,
             )
-        logger.error(
+        error_fields = (
+            client_error_log_fields(error)
+            if isinstance(error, ClientError)
+            else {"errorMessage": str(error)[:2000]}
+        )
+        logger.exception(
             json.dumps(
                 {
                     **message_context.as_log_fields(),
@@ -1574,13 +1600,14 @@ def process_record(
                     "result": "FAILURE",
                     "message": "Worker job failed",
                     "recordId": identity["recordId"],
-                    "processingAttemptId": attempt_id,
+                    "processingAttemptId": active_attempt_id,
                     "processingAttempt": decision.attempt,
                     "maxProcessingAttempts": decision.max_attempts,
                     "failureCategory": decision.category.value,
                     "failureRetryable": decision.retryable,
                     "processingAttemptsExhausted": decision.exhausted,
                     "errorType": type(error).__name__,
+                    **error_fields,
                 },
                 separators=(",", ":"),
             )
