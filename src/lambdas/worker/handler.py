@@ -100,6 +100,7 @@ def work_id_from_body(body: dict[str, Any]) -> str:
         or body.get("matchId")
         or body.get("tailoringId")
         or body.get("interviewPrepId")
+        or body.get("generationId")
         or ""
     )
 
@@ -189,6 +190,10 @@ def tailoring_sk(tailoring_id):
 
 def interview_sk(interview_prep_id):
     return f"INTERVIEW#{interview_prep_id}"
+
+
+def target_career_generation_sk(generation_id):
+    return f"TARGET_CAREER_GENERATION#{generation_id}"
 
 
 def is_conditional_failure(error: ClientError) -> bool:
@@ -312,6 +317,19 @@ def derive_job_identity(body: dict) -> dict:
                 },
             }
 
+    elif job_type == "targetCareerGeneration":
+        record_id = str(body.get("generationId") or "").strip()
+        if user_id and record_id:
+            return {
+                "jobType": job_type,
+                "recordType": "targetCareerGeneration",
+                "recordId": record_id,
+                "key": {
+                    "pk": user_pk(user_id),
+                    "sk": target_career_generation_sk(record_id),
+                },
+            }
+
     else:
         raise ValueError(
             f"Unsupported jobType: {job_type}"
@@ -322,6 +340,7 @@ def derive_job_identity(body: dict) -> dict:
         or body.get("matchId")
         or body.get("tailoringId")
         or body.get("interviewPrepId")
+        or body.get("generationId")
     )
 
     if not record_id:
@@ -336,6 +355,7 @@ def derive_job_identity(body: dict) -> dict:
         "interviewPreparation": (
             "interviewPreparation"
         ),
+        "targetCareerGeneration": "targetCareerGeneration",
     }[job_type]
 
     item = get_entity_by_id(
@@ -742,6 +762,46 @@ def mark_terminal_failure_published(*, key: dict, failure_id: str) -> None:
             ":exhausted": STATUS_FAILED_RETRY_EXHAUSTED,
         },
     )
+
+def process_target_career_generation(
+    *,
+    identity: dict,
+    item: dict,
+    attempt_id: str,
+):
+    requested_provider = item.get("provider") or "openai"
+    provider = get_analysis_provider(requested_provider)
+    started = time.perf_counter()
+    result = provider.generate_target_career_details({
+        "roleTitle": item.get("roleTitle", ""),
+        "industry": item.get("industry", ""),
+        "seniorityLevel": item.get("seniorityLevel", ""),
+        "workEnvironment": item.get("workEnvironment", ""),
+        "careerGoalSummary": item.get("careerGoalSummary", ""),
+    })
+    duration_ms = int((time.perf_counter() - started) * 1000)
+    update_claimed_record(
+        key=identity["key"],
+        attempt_id=attempt_id,
+        status=STATUS_COMPLETED,
+        fields={
+            "provider": result.get("provider", requested_provider),
+            "model": result.get("model", ""),
+            "analysisVersion": result.get("analysisVersion", ""),
+            "analysisDurationMs": duration_ms,
+            "keyResponsibilities": result.get("keyResponsibilities", ""),
+            "requiredSkills": result.get("requiredSkills", ""),
+            "certifications": result.get("certifications", ""),
+            "physicalRequirements": result.get("physicalRequirements", ""),
+            "technicalRequirements": result.get("technicalRequirements", ""),
+            "leadershipRequirements": result.get("leadershipRequirements", ""),
+            "completedAt": utc_now(),
+            "processedAt": utc_now(),
+            "processedRegion": AWS_REGION,
+            "processedByDeploymentId": DEPLOYMENT_ID,
+        },
+    )
+
 
 def process_resume_analysis(
     *,
@@ -1538,6 +1598,13 @@ def process_record(
                 attempt_id=attempt_id,
             )
 
+        elif identity["jobType"] == "targetCareerGeneration":
+            process_target_career_generation(
+                identity=identity,
+                item=item,
+                attempt_id=attempt_id,
+            )
+
         else:
             process_resume_analysis(
                 identity=identity,
@@ -1641,6 +1708,7 @@ def emit_worker_failure_metric(
             or body.get("matchId")
             or body.get("tailoringId")
             or body.get("interviewPrepId")
+        or body.get("generationId")
             or "unknown"
         )
         request_id = str(

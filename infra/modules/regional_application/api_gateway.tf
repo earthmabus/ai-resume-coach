@@ -22,6 +22,7 @@ locals {
     "DELETE /target-careers/{id}",
     "GET /target-careers",
     "GET /target-careers/{id}",
+    "GET /target-careers/generations/{id}",
     "POST /analyze-resume",
     "POST /analyze-uploaded-resume",
     "POST /match-job-description",
@@ -29,6 +30,7 @@ locals {
     "POST /tailor-resume",
     "PUT /profile",
     "POST /target-careers",
+    "POST /target-careers/generate-details",
     "PUT /target-careers/{id}",
   ])
 

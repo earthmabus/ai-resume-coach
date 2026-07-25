@@ -60,6 +60,22 @@ class RuleBasedProvider(AnalysisProvider):
             "executiveSummary": f"This resume was evaluated for {role_title} in {industry}.",
         }
 
+    def generate_target_career_details(self, target_career_inputs: dict) -> dict:
+        role = target_career_inputs.get("roleTitle") or "the target role"
+        industry = target_career_inputs.get("industry") or "the selected field"
+        seniority = target_career_inputs.get("seniorityLevel") or "the desired level"
+        return {
+            "provider": self.provider_name,
+            "model": "rule-based",
+            "analysisVersion": "target-career-generation-rule-based-v1",
+            "keyResponsibilities": f"Lead the core responsibilities associated with {role}.\nCollaborate with stakeholders across {industry}.\nOwn delivery, quality, and measurable outcomes appropriate to {seniority}.",
+            "requiredSkills": "Communication\nProblem solving\nDomain knowledge\nPlanning and execution\nStakeholder collaboration",
+            "certifications": "Confirm role-specific certifications and licenses from current job postings.",
+            "physicalRequirements": "Confirm physical and travel requirements from current job postings; do not assume requirements that are not consistently stated.",
+            "technicalRequirements": f"Apply the tools, platforms, methods, and domain practices commonly required for {role} in {industry}.",
+            "leadershipRequirements": f"Demonstrate leadership scope, decision-making, coaching, stakeholder influence, and accountability appropriate to {seniority}.",
+        }
+
     def match_job_description(self, resume_text: str, job_description_text: str) -> dict:
         resume_words = set(resume_text.lower().replace(",", " ").replace(".", " ").split())
         jd_words = set(job_description_text.lower().replace(",", " ").replace(".", " ").split())

@@ -6,9 +6,9 @@ ROOT = Path(__file__).resolve().parents[2]
 def test_resume_and_job_results_group_related_content_into_panels():
     app = (ROOT / "frontend" / "app.js").read_text()
     assert 'aria-labelledby="roleSpecificScoresHeading"' in app
-    assert 'aria-labelledby="resumePreviewHeading"' in app
+    assert 'headingId: "resumePreviewHeading"' in app
     assert 'aria-labelledby="jobExecutiveSummaryHeading"' in app
-    assert 'aria-labelledby="jobResumePreviewHeading"' in app
+    assert 'headingId: "jobResumePreviewHeading"' in app
     assert app.count('class="result-section-panel') >= 4
 
 

@@ -2039,7 +2039,7 @@ input[readonly] {
 
 /* Result grouping and dashboard activity parity refinements. */
 .result-section-panel {
-  margin-top: 18px;
+  margin-top: 24px;
   padding: 16px;
   border: 1px solid #e5e7eb;
   border-radius: 10px;
@@ -2052,6 +2052,14 @@ input[readonly] {
 
 .result-section-panel > :last-child {
   margin-bottom: 0;
+}
+
+.result-section-panel > .result-grid {
+  margin-top: 16px;
+}
+
+.role-assessment-grid {
+  margin-top: 24px;
 }
 
 .result-preview-panel .resume-preview,
@@ -2120,4 +2128,63 @@ input[readonly] {
   .dashboard-context-grid {
     grid-template-columns: 1fr;
   }
+}
+
+
+/* Keep top-level AI result panels visually separated while preserving compact nested cards. */
+.result-section-panel + .result-section-panel {
+  margin-top: 24px;
+}
+
+.result-preview-panel .pdf-thumbnail {
+  margin-top: 12px;
+}
+
+.result-preview-panel .resume-download-section {
+  margin-top: 12px;
+}
+
+
+.target-career-ai-assist {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr) auto;
+  gap: 12px 20px;
+  align-items: center;
+  margin: 20px 0;
+  padding: 18px;
+  border: 1px solid #bfdbfe;
+  border-radius: 10px;
+  background: #eff6ff;
+}
+
+.target-career-ai-assist h3,
+.target-career-ai-assist p { margin: 0; }
+.target-career-ai-assist p { margin-top: 6px; color: #475569; }
+.target-career-generation-status {
+  grid-column: 1 / -1;
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  color: #1e3a8a;
+  font-weight: 600;
+}
+.target-career-generation-status.hidden {
+  display: none;
+}
+.target-career-generation-status.is-complete {
+  color: #166534;
+}
+.target-career-generation-status.is-complete::before {
+  content: "✓";
+  font-weight: 700;
+}
+.processing-indicator {
+  width: 16px; height: 16px; border-radius: 50%;
+  border: 2px solid #bfdbfe; border-top-color: #2563eb;
+  animation: target-career-spin .8s linear infinite;
+}
+@keyframes target-career-spin { to { transform: rotate(360deg); } }
+@media (max-width: 700px) {
+  .target-career-ai-assist { grid-template-columns: 1fr; }
+  .target-career-ai-assist button { width: 100%; }
 }

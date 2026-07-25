@@ -17,5 +17,5 @@ def test_resume_analysis_requires_explicit_target_career_selection():
 def test_resume_analysis_assets_are_cache_busted_for_ra003():
     html = (ROOT / "frontend" / "resume-analysis.html").read_text()
 
-    assert "./styles.css?v=23" in html
-    assert "./app.js?v=22" in html
+    assert "./styles.css?v=24" in html
+    assert "./app.js?v=24" in html

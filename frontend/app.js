@@ -457,15 +457,60 @@ function analysisContextPanelMarkup(data, orientation = "horizontal") {
   `;
 }
 
-function analysisPreviewMarkup(data, compact = false) {
-  if (data?.documentBucket && data?.documentKey && data?.analysisId) {
-    return `<div class="pdf-thumbnail${compact ? " compact" : ""}" data-pdf-analysis-id="${escapeHtml(data.analysisId)}"><div class="pdf-thumbnail-loading">Loading PDF preview…</div></div>`;
+function resumePreviewModel(data) {
+  const isJobMatch = Boolean(data?.matchId || data?.recordType === "jobMatch");
+
+  return {
+    // Job-match records have both an analysisId (the match) and a
+    // resumeAnalysisId (the source resume). PDF download/preview routes must
+    // use the source resume identifier.
+    analysisId: isJobMatch
+      ? (data?.resumeAnalysisId || "")
+      : (data?.analysisId || data?.resumeAnalysisId || ""),
+    documentBucket: data?.documentBucket || data?.resumeDocumentBucket || "",
+    documentKey: data?.documentKey || data?.resumeDocumentKey || "",
+    resumeText: data?.resumeText || "",
+  };
+}
+
+function resumePreviewMarkup(data, { compact = false } = {}) {
+  const previewData = resumePreviewModel(data);
+
+  if (previewData.documentBucket && previewData.documentKey && previewData.analysisId) {
+    return `<div class="pdf-thumbnail${compact ? " compact" : ""}" data-pdf-analysis-id="${escapeHtml(previewData.analysisId)}"><div class="pdf-thumbnail-loading">Loading PDF preview…</div></div>`;
   }
 
-  const preview = data?.resumeText
-    ? escapeHtml(data.resumeText.slice(0, compact ? 800 : 2000))
+  const preview = previewData.resumeText
+    ? escapeHtml(previewData.resumeText.slice(0, compact ? 800 : 2000))
     : "No resume text stored.";
   return `<div class="resume-preview${compact ? " small-preview" : ""}">${preview}</div>`;
+}
+
+function resumePreviewSectionMarkup(data, {
+  headingId,
+  compact = false,
+  includeDownload = false,
+} = {}) {
+  const previewData = resumePreviewModel(data);
+  const isPdf = Boolean(
+    previewData.documentBucket && previewData.documentKey && previewData.analysisId,
+  );
+  const heading = isPdf ? "Resume PDF Preview" : "Resume Text Preview";
+  const downloadMarkup = includeDownload && isPdf
+    ? `<div class="resume-download-section"><button class="secondary" onclick="downloadResumeDocument('${escapeHtml(previewData.analysisId)}')">Download Resume PDF</button></div>`
+    : "";
+
+  return `
+    <section class="result-section-panel result-preview-panel" aria-labelledby="${escapeHtml(headingId)}">
+      <h3 id="${escapeHtml(headingId)}">${heading}</h3>
+      ${resumePreviewMarkup(data, { compact })}
+      ${downloadMarkup}
+    </section>
+  `;
+}
+
+function analysisPreviewMarkup(data, compact = false) {
+  return resumePreviewMarkup(data, { compact });
 }
 
 function atsScoreToneClass(score) {
@@ -526,36 +571,42 @@ function renderAnalysis(data) {
       </div>
     </div>
 
+    <section class="result-section-panel" aria-labelledby="analysisExecutiveSummaryHeading">
+      <h3 id="analysisExecutiveSummaryHeading">Executive Summary</h3>
+      <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
+    </section>
+
     <section class="result-section-panel" aria-labelledby="roleSpecificScoresHeading">
       <h3 id="roleSpecificScoresHeading">Role-Specific Scores</h3>
       ${renderDynamicScores(data.dynamicScores)}
+      <div class="result-grid role-assessment-grid">
+        <div class="result-box">
+          <h3>Role Fit Summary</h3>
+          <p>${escapeHtml(data.roleFitSummary || "No role fit summary available.")}</p>
+        </div>
+        <div class="result-box">
+          <h3>Role-Specific Gaps</h3>
+          <ul>${listToHtml(data.roleSpecificGaps || [])}</ul>
+        </div>
+      </div>
     </section>
 
-    <h3>Role Fit Summary</h3>
-    <p>${escapeHtml(data.roleFitSummary || "")}</p>
+    <section class="result-section-panel" aria-labelledby="strengthsRecommendationsHeading">
+      <h3 id="strengthsRecommendationsHeading">Strengths &amp; Recommendations</h3>
+      <div class="result-grid">
+        <div class="result-box">
+          <h3>Strengths</h3>
+          <ul>${strengths}</ul>
+        </div>
 
-    <h3>Role-Specific Gaps</h3>
-    <ul>${listToHtml(data.roleSpecificGaps || [])}</ul>
-
-    <h3>Executive Summary</h3>
-    <p>${escapeHtml(data.executiveSummary || "No executive summary available.")}</p>
-
-    <div class="result-grid">
-      <div class="result-box">
-        <h3>Strengths</h3>
-        <ul>${strengths}</ul>
+        <div class="result-box">
+          <h3>Recommendations</h3>
+          <ul>${recommendations}</ul>
+        </div>
       </div>
-
-      <div class="result-box">
-        <h3>Recommendations</h3>
-        <ul>${recommendations}</ul>
-      </div>
-    </div>
-
-    <section class="result-section-panel result-preview-panel" aria-labelledby="resumePreviewHeading">
-      <h3 id="resumePreviewHeading">${data.documentBucket && data.documentKey ? "Resume PDF Preview" : "Resume Text Preview"}</h3>
-      ${analysisPreviewMarkup(data)}
     </section>
+
+    ${resumePreviewSectionMarkup(data, { headingId: "resumePreviewHeading" })}
   `;
 
   hydrateResumePdfPreviews();
@@ -1238,7 +1289,6 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
   const technicalGaps = (data.technicalGaps || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
   const recommendedChanges = (data.recommendedResumeChanges || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
   const isCompleted = isJobMatchCompleted(status);
-  const resumePreview = data.resumeText ? escapeHtml(data.resumeText.slice(0, 2000)) : "No resume text available.";
   const score = Number(data.matchScore) || 0;
 
   result.innerHTML = `
@@ -1274,15 +1324,16 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
           <div class="result-box"><h3>Recommended Resume Changes</h3><ul>${recommendedChanges}</ul></div>
         </div>
       </section>
-      <section class="result-section-panel result-preview-panel" aria-labelledby="jobResumePreviewHeading">
-        <h3 id="jobResumePreviewHeading">Resume Text Preview</h3>
-        <div class="resume-preview">${resumePreview}</div>
-        ${data.resumeDocumentBucket && data.resumeDocumentKey ? `<div class="resume-download-section"><button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button></div>` : ""}
-      </section>
+      ${resumePreviewSectionMarkup(data, {
+        headingId: "jobResumePreviewHeading",
+        includeDownload: true,
+      })}
       ${renderTailoringSection(tailoring)}
       ${renderInterviewPrepSection(interviewPrep)}
     ` : `<p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>`}
   `;
+
+  hydrateResumePdfPreviews();
 }
 
 function jobMatchMissingRequirements() {
@@ -2131,7 +2182,7 @@ async function fetchTailoringForMatch(matchId) {
 function renderTailoringSection(tailoring) {
   if (!tailoring) {
     return `
-      <section class="result-box">
+      <section class="result-section-panel">
         <h3>Resume Tailoring</h3>
         <p>No tailoring result found yet. Refresh this job match shortly.</p>
       </section>
@@ -2142,7 +2193,7 @@ function renderTailoringSection(tailoring) {
   const statusClass = isCompleted ? "" : "status-pending";
 
   return `
-    <section class="result-box">
+    <section class="result-section-panel">
       <h3>Resume Tailoring</h3>
 
       <div class="metrics">
@@ -2237,7 +2288,7 @@ function renderInterviewQuestionSection(title, questions) {
 function renderInterviewPrepSection(interviewPrep) {
   if (!interviewPrep) {
     return `
-      <section class="result-box">
+      <section class="result-section-panel">
         <h3>Interview Preparation</h3>
         <p>No interview preparation result found yet. Refresh this job match shortly.</p>
       </section>
@@ -2248,7 +2299,7 @@ function renderInterviewPrepSection(interviewPrep) {
   const statusClass = isCompleted ? "" : "status-pending";
 
   return `
-    <section class="result-box">
+    <section class="result-section-panel">
       <h3>Interview Preparation</h3>
 
       <div class="metrics">

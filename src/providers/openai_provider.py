@@ -100,6 +100,59 @@ Resume:
             "executiveSummary": parsed.get("executiveSummary", ""),
         }
 
+    def generate_target_career_details(self, target_career_inputs: dict) -> dict:
+        prompt = f"""
+You are an expert career strategist. Draft editable target-career details from the user's stated direction.
+
+Role Title: {target_career_inputs.get('roleTitle', '')}
+Industry / Field: {target_career_inputs.get('industry', '')}
+Seniority Level: {target_career_inputs.get('seniorityLevel', '')}
+Work Environment: {target_career_inputs.get('workEnvironment', '')}
+Career Goal Summary: {target_career_inputs.get('careerGoalSummary', '')}
+
+Return only valid JSON with this exact shape:
+{{
+  "keyResponsibilities": ["string"],
+  "requiredSkills": ["string"],
+  "certifications": ["string"],
+  "physicalRequirements": ["string"],
+  "technicalRequirements": ["string"],
+  "leadershipRequirements": ["string"]
+}}
+
+Rules:
+- Produce practical, concise drafts suitable for editing in a career profile.
+- Do not imply that every listed item is universally required.
+- Be conservative with certifications, licenses, clearance, travel, and physical requirements.
+- Use phrases such as "commonly preferred", "may require", or "confirm from specific postings" when uncertainty exists.
+- Match the role, industry, seniority, environment, and goal supplied by the user.
+- Do not invent personal experience or qualifications.
+"""
+        response = self.client.responses.create(
+            model=self.model,
+            input=prompt,
+            text={"format": {"type": "json_object"}},
+        )
+        parsed = json.loads(response.output_text)
+
+        def lines(name):
+            value = parsed.get(name, [])
+            if isinstance(value, list):
+                return "\n".join(f"• {str(item).strip()}" for item in value if str(item).strip())
+            return str(value or "").strip()
+
+        return {
+            "provider": self.provider_name,
+            "model": self.model,
+            "analysisVersion": f"target-career-generation-{self.model}-v1",
+            "keyResponsibilities": lines("keyResponsibilities"),
+            "requiredSkills": lines("requiredSkills"),
+            "certifications": lines("certifications"),
+            "physicalRequirements": lines("physicalRequirements"),
+            "technicalRequirements": lines("technicalRequirements"),
+            "leadershipRequirements": lines("leadershipRequirements"),
+        }
+
     def match_job_description(self, resume_text: str, job_description_text: str) -> dict:
         prompt = f"""
 You are an expert career coach for senior software engineering managers, cloud architects, and director-level engineering candidates.

@@ -24,10 +24,32 @@ const editor = document.getElementById("targetCareerEditor");
 const editorTitle = document.getElementById("targetCareerEditorTitle");
 const editorDescription = document.getElementById("targetCareerEditorDescription");
 const saveButton = document.getElementById("saveTargetCareerButton");
+const generateDetailsButton = document.getElementById("generateTargetCareerDetailsButton");
+const generationStatus = document.getElementById("targetCareerGenerationStatus");
+const generationStatusText = document.getElementById("targetCareerGenerationStatusText");
+const generatedDetailFields = [
+  "keyResponsibilities",
+  "requiredSkills",
+  "certifications",
+  "physicalRequirements",
+  "technicalRequirements",
+  "leadershipRequirements",
+];
+const activeGenerationStatuses = new Set(["queued", "worker_processing"]);
+const terminalFailureGenerationStatuses = new Set([
+  "failed_permanent",
+  "failed_retry_exhausted",
+]);
+const GENERATION_POLL_INTERVAL_MS = 2500;
+const GENERATION_SUCCESS_DISPLAY_MS = 2000;
 
 let targetCareers = [];
 let editingTargetCareerId = null;
 let editingVersion = null;
+let activeGenerationId = null;
+let generationPollTimer = null;
+let generationSuccessTimer = null;
+let generationRequestToken = 0;
 
 function getErrorMessage(data, fallback) {
   if (typeof data?.error === "string") return data.error;
@@ -69,8 +91,167 @@ function escapeHtml(value) {
   return element.innerHTML;
 }
 
+
+function hasGeneratedDetailContent() {
+  return generatedDetailFields.some((id) => document.getElementById(id).value.trim());
+}
+
+function clearGenerationSuccessTimer() {
+  if (generationSuccessTimer) window.clearTimeout(generationSuccessTimer);
+  generationSuccessTimer = null;
+}
+
+function setGenerationState(state, message = "") {
+  const inProgress = state === "queued" || state === "processing";
+  const succeeded = state === "completed";
+
+  generateDetailsButton.disabled = inProgress;
+  generateDetailsButton.textContent = inProgress
+    ? "Generating Career Details…"
+    : succeeded
+      ? "Career Details Generated"
+      : "Generate Career Details";
+
+  generationStatus.classList.toggle("hidden", state === "idle");
+  generationStatus.classList.toggle("is-complete", succeeded);
+  generationStatus.classList.toggle("is-processing", inProgress);
+
+  const indicator = generationStatus.querySelector(".processing-indicator");
+  if (indicator) indicator.classList.toggle("hidden", !inProgress);
+
+  if (state === "queued") {
+    generationStatusText.textContent = message || "Career detail generation is queued…";
+  } else if (state === "processing") {
+    generationStatusText.textContent = message || "AI is drafting your career details…";
+  } else if (state === "completed") {
+    generationStatusText.textContent = message || "Career details generated. Review them before saving.";
+  } else {
+    generationStatusText.textContent = "";
+  }
+}
+
+function stopGenerationPolling() {
+  generationRequestToken += 1;
+  if (generationPollTimer) window.clearTimeout(generationPollTimer);
+  generationPollTimer = null;
+}
+
+function resetGenerationState() {
+  activeGenerationId = null;
+  stopGenerationPolling();
+  clearGenerationSuccessTimer();
+  setGenerationState("idle");
+}
+
+function showGenerationCompleted() {
+  clearGenerationSuccessTimer();
+  setGenerationState("completed");
+  generationSuccessTimer = window.setTimeout(() => {
+    generationSuccessTimer = null;
+    setGenerationState("idle");
+  }, GENERATION_SUCCESS_DISPLAY_MS);
+}
+
+function applyGeneratedDetails(data) {
+  generatedDetailFields.forEach((field) => {
+    document.getElementById(field).value = data[field] || "";
+  });
+}
+
+async function pollTargetCareerGeneration(requestToken = generationRequestToken) {
+  if (!activeGenerationId || requestToken !== generationRequestToken) return;
+
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/target-careers/generations/${encodeURIComponent(activeGenerationId)}`,
+      { headers: await authHeaders() },
+    );
+    const data = await response.json();
+    if (requestToken !== generationRequestToken) return;
+    if (!response.ok) throw new Error(getErrorMessage(data, "Could not check generation status"));
+
+    const status = String(data.status || "").trim().toLowerCase();
+    if (status === "completed") {
+      applyGeneratedDetails(data);
+      activeGenerationId = null;
+      stopGenerationPolling();
+      showGenerationCompleted();
+      showNotice("AI-generated career details are ready. Review them before saving.");
+      document.getElementById("keyResponsibilities").scrollIntoView({ behavior: "smooth", block: "center" });
+      return;
+    }
+
+    if (terminalFailureGenerationStatuses.has(status)) {
+      throw new Error(data.errorMessage || "Career detail generation did not complete.");
+    }
+
+    if (!activeGenerationStatuses.has(status)) {
+      throw new Error(`Career detail generation returned an unexpected status: ${data.status || "unknown"}.`);
+    }
+
+    setGenerationState(status === "worker_processing" ? "processing" : "queued");
+    generationPollTimer = window.setTimeout(
+      () => pollTargetCareerGeneration(requestToken),
+      GENERATION_POLL_INTERVAL_MS,
+    );
+  } catch (error) {
+    if (requestToken !== generationRequestToken) return;
+    activeGenerationId = null;
+    stopGenerationPolling();
+    clearGenerationSuccessTimer();
+    setGenerationState("idle");
+    showError(error.message || "Unable to generate career details.");
+  }
+}
+
+async function generateTargetCareerDetails() {
+  if (activeGenerationId) return;
+
+  clearError();
+  clearGenerationSuccessTimer();
+  const payload = readForm();
+  if (!payload.roleTitle) {
+    showError("Enter a Target Role Title before generating career details.");
+    document.getElementById("roleTitle").focus();
+    return;
+  }
+  if (hasGeneratedDetailContent() && !window.confirm("Some detail fields already contain content. Replace them with a new AI-generated draft?")) return;
+
+  stopGenerationPolling();
+  const requestToken = generationRequestToken;
+  setGenerationState("queued", "Starting career detail generation…");
+  try {
+    const response = await fetch(`${API_BASE_URL}/target-careers/generate-details`, {
+      method: "POST",
+      headers: await jsonHeaders(),
+      body: JSON.stringify({
+        roleTitle: payload.roleTitle,
+        industry: payload.industry,
+        seniorityLevel: payload.seniorityLevel,
+        workEnvironment: payload.workEnvironment,
+        careerGoalSummary: payload.careerGoalSummary,
+        analysisProvider: "openai",
+      }),
+    });
+    const data = await response.json();
+    if (!response.ok) throw new Error(getErrorMessage(data, "Could not start career detail generation"));
+    activeGenerationId = data.generationId;
+    setGenerationState("queued");
+    generationPollTimer = window.setTimeout(
+      () => pollTargetCareerGeneration(requestToken),
+      500,
+    );
+  } catch (error) {
+    activeGenerationId = null;
+    stopGenerationPolling();
+    setGenerationState("idle");
+    showError(error.message || "Unable to generate career details.");
+  }
+}
+
 function openCreateEditor() {
   clearError();
+  resetGenerationState();
   editingTargetCareerId = null;
   editingVersion = null;
   writeForm();
@@ -87,6 +268,7 @@ function openEditEditor(targetCareerId) {
   if (!career) return;
 
   clearError();
+  resetGenerationState();
   editingTargetCareerId = career.targetCareerId;
   editingVersion = Number(career.version);
   writeForm(career);
@@ -99,6 +281,7 @@ function openEditEditor(targetCareerId) {
 }
 
 function closeEditor() {
+  resetGenerationState();
   editor.classList.add("hidden");
   editingTargetCareerId = null;
   editingVersion = null;
@@ -225,5 +408,7 @@ document.getElementById("emptyCreateTargetCareerButton").addEventListener("click
 document.getElementById("refreshTargetCareersButton").addEventListener("click", loadTargetCareers);
 document.getElementById("cancelTargetCareerButtonBottom").addEventListener("click", closeEditor);
 saveButton.addEventListener("click", saveTargetCareer);
+generateDetailsButton.addEventListener("click", generateTargetCareerDetails);
 
+resetGenerationState();
 loadTargetCareers();

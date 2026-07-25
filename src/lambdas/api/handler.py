@@ -21,6 +21,10 @@ from features.target_career import (
     list_target_careers,
     update_target_career,
 )
+from features.target_career_generation import (
+    generate_target_career_details,
+    get_target_career_generation,
+)
 from features.job_matching import match_job_description, list_job_matches, get_job_match, delete_job_match, delete_all_job_matches
 from features.resume_analysis import analyze_resume, analyze_uploaded_resume, create_resume_upload_url, delete_all_analyses, delete_analysis, get_analysis, get_resume_download_url, list_analyses
 from features.resume_tailoring import tailor_resume, get_resume_tailoring, get_resume_tailoring_by_match, get_interview_prep_by_match
@@ -97,6 +101,8 @@ def build_routes():
         "POST /target-careers": create_target_career,
         "PUT /target-careers/{id}": update_target_career,
         "DELETE /target-careers/{id}": delete_target_career,
+        "POST /target-careers/generate-details": generate_target_career_details,
+        "GET /target-careers/generations/{id}": get_target_career_generation,
     }
 
     if tuple(sorted(routes)) != handler_route_contract():

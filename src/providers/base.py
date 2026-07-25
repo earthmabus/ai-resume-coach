@@ -20,3 +20,7 @@ def analyze(self, resume_text: str, target_career: dict) -> dict:
 
 def analyze(self, resume_text: str, target_career: dict) -> dict:
     raise NotImplementedError
+
+
+def generate_target_career_details(self, target_career_inputs: dict) -> dict:
+    raise NotImplementedError("Provider does not support target career generation")

@@ -160,6 +160,9 @@ run "health_is_public_and_application_routes_are_protected" {
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /tailor-resume"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "PUT /profile"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /target-careers"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /target-careers/generate-details"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /target-careers/generations/{id}"),
+
     ])
     error_message = "The east Region protected routes must match the application route contract."
   }
@@ -187,6 +190,9 @@ run "health_is_public_and_application_routes_are_protected" {
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /tailor-resume"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "PUT /profile"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /target-careers"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /target-careers/generate-details"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /target-careers/generations/{id}"),
+
     ])
     error_message = "The west Region protected routes must match the application route contract."
   }

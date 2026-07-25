@@ -40,4 +40,27 @@ def test_job_match_history_refreshes_and_resumes_active_work():
 
 def test_job_matching_cache_buster_is_updated():
     html = JOB_MATCHING_HTML.read_text(encoding="utf-8")
-    assert '<script src="./app.js?v=14"></script>' in html
+    assert '<script src="./app.js?v=16"></script>' in html
+
+
+def test_job_match_uses_shared_resume_preview_renderer_and_spaced_result_panels():
+    source = APP_JS.read_text(encoding="utf-8")
+    styles = (REPO_ROOT / "frontend" / "styles.css").read_text(encoding="utf-8")
+
+    assert "function resumePreviewModel(data)" in source
+    assert "function resumePreviewMarkup(data, { compact = false } = {})" in source
+    assert "function resumePreviewSectionMarkup(data" in source
+    assert 'headingId: "jobResumePreviewHeading"' in source
+    assert "includeDownload: true" in source
+    assert "hydrateResumePdfPreviews();" in source
+    assert source.count('<section class="result-section-panel">') >= 4
+    assert ".result-section-panel + .result-section-panel" in styles
+    assert "margin-top: 24px" in styles
+
+
+def test_job_match_pdf_preview_uses_source_resume_analysis_id():
+    source = APP_JS.read_text(encoding="utf-8")
+
+    assert 'const isJobMatch = Boolean(data?.matchId || data?.recordType === "jobMatch")' in source
+    assert '? (data?.resumeAnalysisId || "")' in source
+    assert 'data?.analysisId || data?.resumeAnalysisId' in source
