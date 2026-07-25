@@ -130,9 +130,9 @@ run "health_is_public_and_application_routes_are_protected" {
 
   assert {
     condition = (
-      length(output.regional_foundations.east.api_gateway.routes.protected) == 21
+      length(output.regional_foundations.east.api_gateway.routes.protected) == 24
       &&
-      length(output.regional_foundations.west.api_gateway.routes.protected) == 21
+      length(output.regional_foundations.west.api_gateway.routes.protected) == 24
     )
     error_message = "Each regional API must expose the authoritative protected route inventory."
   }
@@ -152,14 +152,14 @@ run "health_is_public_and_application_routes_are_protected" {
       contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /job-matches"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /profile"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /resume-tailoring/{id}"),
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /target-career"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "GET /target-careers"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /analyze-resume"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /analyze-uploaded-resume"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /match-job-description"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /resume-upload-url"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /tailor-resume"),
       contains(output.regional_foundations.east.api_gateway.routes.protected, "PUT /profile"),
-      contains(output.regional_foundations.east.api_gateway.routes.protected, "PUT /target-career"),
+      contains(output.regional_foundations.east.api_gateway.routes.protected, "POST /target-careers"),
     ])
     error_message = "The east Region protected routes must match the application route contract."
   }
@@ -179,14 +179,14 @@ run "health_is_public_and_application_routes_are_protected" {
       contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /job-matches"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /profile"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /resume-tailoring/{id}"),
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /target-career"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "GET /target-careers"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /analyze-resume"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /analyze-uploaded-resume"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /match-job-description"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /resume-upload-url"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /tailor-resume"),
       contains(output.regional_foundations.west.api_gateway.routes.protected, "PUT /profile"),
-      contains(output.regional_foundations.west.api_gateway.routes.protected, "PUT /target-career"),
+      contains(output.regional_foundations.west.api_gateway.routes.protected, "POST /target-careers"),
     ])
     error_message = "The west Region protected routes must match the application route contract."
   }

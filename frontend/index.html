@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <title>AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=20" />
 </head>
 <body data-page="home">
   <nav class="top-nav">
     <a class="brand" href="./index.html">AI Resume Coach</a>
     <div class="nav-links">
-      <a href="./target-career.html">Target Career</a>
+      <a href="./target-career.html">Target Careers</a>
       <a href="./resume-analysis.html">Resume Analysis</a>
       <a href="./job-matching.html">Job Matching</a>
       <a class="disabled" href="#">Notifications</a>
@@ -27,7 +27,7 @@
 
     <section class="dashboard-grid">
       <a class="card nav-card dashboard-action-card" href="./target-career.html">
-        <h2>Target Career</h2>
+        <h2>Target Careers</h2>
         <p>Define the role, industry, responsibilities, and requirements you want your resume evaluated against.</p>
         <span class="card-action">Open Target Career →</span>
       </a>
@@ -54,15 +54,15 @@
       <div id="dashboardStats" class="stats-grid">
         <div class="stat-card">
           <span class="stat-value">--</span>
+          <span class="stat-label">Target Careers</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
           <span class="stat-label">Resumes</span>
         </div>
         <div class="stat-card">
           <span class="stat-value">--</span>
           <span class="stat-label">Job Matches</span>
-        </div>
-        <div class="stat-card">
-          <span class="stat-value">--</span>
-          <span class="stat-label">Completed Matches</span>
         </div>
         <div class="stat-card">
           <span class="stat-value">--</span>
@@ -85,6 +85,6 @@
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js?v=3"></script>
   <script src="./auth.js?v=3"></script>
-  <script src="./dashboard.js?v=3"></script>
+  <script src="./dashboard.js?v=5"></script>
 </body>
 </html>

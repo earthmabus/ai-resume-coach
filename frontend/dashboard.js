@@ -37,15 +37,20 @@ function statusBadge(status) {
   return `<span class="badge ${statusClass}">${escapeHtml(status || "unknown")}</span>`;
 }
 
-function renderStats(analyses, matches) {
+function renderStats(targetCareers, analyses, matches) {
+  const totalTargetCareers = targetCareers.length;
   const totalResumes = analyses.length;
   const totalMatches = matches.length;
-  const completedMatches = matches.filter(item => item.status === "completed").length;
   const processing =
     analyses.filter(item => item.status === "processing").length +
     matches.filter(item => item.status === "processing").length;
 
   dashboardStats.innerHTML = `
+    <div class="stat-card">
+      <span class="stat-value">${escapeHtml(totalTargetCareers)}</span>
+      <span class="stat-label">Target Careers</span>
+    </div>
+
     <div class="stat-card">
       <span class="stat-value">${escapeHtml(totalResumes)}</span>
       <span class="stat-label">Resumes</span>
@@ -56,10 +61,6 @@ function renderStats(analyses, matches) {
       <span class="stat-label">Job Matches</span>
     </div>
 
-    <div class="stat-card">
-      <span class="stat-value">${escapeHtml(completedMatches)}</span>
-      <span class="stat-label">Completed Matches</span>
-    </div>
 
     <div class="stat-card">
       <span class="stat-value">${escapeHtml(processing)}</span>
@@ -132,7 +133,10 @@ async function loadDashboard() {
   recentJobActivity.textContent = "Loading recent job matching activities...";
 
   try {
-    const [analysesResponse, matchesResponse] = await Promise.all([
+    const [targetCareersResponse, analysesResponse, matchesResponse] = await Promise.all([
+      fetch(`${API_BASE_URL}/target-careers`, {
+        headers: await authHeaders()
+      }),
       fetch(`${API_BASE_URL}/analyses`, {
         headers: await authHeaders()
       }),
@@ -141,8 +145,13 @@ async function loadDashboard() {
       })
     ]);
 
+    const targetCareersData = await targetCareersResponse.json();
     const analysesData = await analysesResponse.json();
     const matchesData = await matchesResponse.json();
+
+    if (!targetCareersResponse.ok) {
+      console.warn("Could not load target careers:", targetCareersData);
+    }
 
     if (!analysesResponse.ok) {
       console.warn("Could not load analyses:", analysesData);
@@ -152,10 +161,11 @@ async function loadDashboard() {
       console.warn("Could not load job matches:", matchesData);
     }
 
+    const targetCareers = targetCareersResponse.ok ? targetCareersData.targetCareers || [] : [];
     const analyses = analysesResponse.ok ? analysesData.analyses || [] : [];
     const matches = matchesResponse.ok ? matchesData.jobMatches || [] : [];
 
-    renderStats(analyses, matches);
+    renderStats(targetCareers, analyses, matches);
     renderRecentActivity(analyses, matches);
   } catch (error) {
     console.error("Dashboard load failed:", error);

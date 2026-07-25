@@ -14,6 +14,13 @@ Environment variables:
   SYNTHETIC_PASSWORD
       Set explicitly for the target environment.
 
+  COGNITO_USER_POOL_CLIENT_ID
+      Optional override. When omitted, read cognito_user_pool_client_id from
+      Terraform output in TERRAFORM_DIR.
+
+  TERRAFORM_DIR
+      Optional Terraform root directory (default: <repository>/infra).
+
   AWS_PROFILE
       Optional. List values with: aws configure list-profiles
 
@@ -37,12 +44,27 @@ acquire_auth_token() {
 
   unset AUTH_TOKEN
 
-  local response challenge new_auth_token jwt_parts
+  local response challenge new_auth_token jwt_parts client_id terraform_dir root_dir
+
+  root_dir="$(cd "$(dirname "${BASH_SOURCE[0]}")/../.." && pwd)"
+  terraform_dir="${TERRAFORM_DIR:-$root_dir/infra}"
+  client_id="${COGNITO_USER_POOL_CLIENT_ID:-}"
+
+  if [[ -z "$client_id" ]]; then
+    command -v terraform >/dev/null 2>&1 || {
+      echo "terraform is required when COGNITO_USER_POOL_CLIENT_ID is not set" >&2
+      return 1
+    }
+    client_id="$(terraform -chdir="$terraform_dir" output -raw cognito_user_pool_client_id)" || {
+      echo "Unable to read cognito_user_pool_client_id from Terraform outputs" >&2
+      return 1
+    }
+  fi
 
   response="$(
     aws cognito-idp initiate-auth \
       --region us-east-1 \
-      --client-id 6vhud9ve4t9acijtugqaf338mp \
+      --client-id "$client_id" \
       --auth-flow USER_PASSWORD_AUTH \
       --auth-parameters \
         "USERNAME=${SYNTHETIC_USERNAME},PASSWORD=${SYNTHETIC_PASSWORD}" \

@@ -8,6 +8,8 @@ const page = document.body.dataset.page;
 
 const analyzeButton = document.getElementById("analyzeButton");
 const uploadButton = document.getElementById("uploadButton");
+const analyzeButtonTooltip = document.getElementById("analyzeButtonTooltip");
+const uploadButtonTooltip = document.getElementById("uploadButtonTooltip");
 const refreshHistoryButton = document.getElementById("refreshHistoryButton");
 const deleteAllAnalysesButton = document.getElementById("deleteAllAnalysesButton");
 
@@ -33,6 +35,11 @@ const jobDescriptionText = document.getElementById("jobDescriptionText");
 const jobMatches = document.getElementById("jobMatches");
 
 const resumeName = document.getElementById("resumeName");
+const resumeTargetCareerList = document.getElementById("resumeTargetCareerList");
+const resumeTargetCareerLoading = document.getElementById("resumeTargetCareerLoading");
+const resumeTargetCareerEmpty = document.getElementById("resumeTargetCareerEmpty");
+const resumeTargetCareerError = document.getElementById("resumeTargetCareerError");
+const resumeAnalysisInputs = document.getElementById("resumeAnalysisInputs");
 
 const resumeSummary = document.getElementById("resumeSummary");
 const resumeSearchInput = document.getElementById("resumeSearchInput");
@@ -61,6 +68,8 @@ const accordionConfigs = {
 
 let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
+let resumeTargetCareers = [];
+let selectedResumeTargetCareerId = "";
 
 const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const ANALYSIS_POLL_DELAYS_MS = [0, 2000, 4000, 6000, 10000];
@@ -397,6 +406,63 @@ function escapeHtml(value) {
     .replaceAll("'", "&#039;");
 }
 
+
+function targetCareerVersionLabel(career) {
+  return `v${Number(career?.version || 1)}`;
+}
+
+function targetCareerLastUpdated(career) {
+  return formatEastern(career?.updatedAt || career?.createdAt);
+}
+
+function analysisTargetCareer(data) {
+  return data?.targetCareer || {};
+}
+
+function analysisContextPanelMarkup(data, orientation = "horizontal") {
+  const career = analysisTargetCareer(data);
+  const roleTitle = career.roleTitle || data?.targetRoleTitle || "Target Career unavailable";
+  const version = targetCareerVersionLabel(career);
+  const name = data?.resumeName || "Untitled Resume";
+  const fileName = data?.fileName || "";
+
+  return `
+    <div class="analysis-context-panels ${escapeHtml(orientation)}">
+      <div class="analysis-context-panel">
+        <span class="analysis-context-label">Target Career</span>
+        <strong>${escapeHtml(roleTitle)} <span class="analysis-context-version">${escapeHtml(version)}</span></strong>
+      </div>
+      <div class="analysis-context-panel">
+        <span class="analysis-context-label">Resume</span>
+        <strong>${escapeHtml(name)}</strong>
+        ${fileName ? `<span class="analysis-context-file">${escapeHtml(fileName)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
+function analysisPreviewMarkup(data, compact = false) {
+  if (data?.documentBucket && data?.documentKey && data?.analysisId) {
+    return `<div class="pdf-thumbnail${compact ? " compact" : ""}" data-pdf-analysis-id="${escapeHtml(data.analysisId)}"><div class="pdf-thumbnail-loading">Loading PDF preview…</div></div>`;
+  }
+
+  const preview = data?.resumeText
+    ? escapeHtml(data.resumeText.slice(0, compact ? 800 : 2000))
+    : "No resume text stored.";
+  return `<div class="resume-preview${compact ? " small-preview" : ""}">${preview}</div>`;
+}
+
+function atsScoreToneClass(score) {
+  const numericScore = Number(score) || 0;
+  if (numericScore >= 80) {
+    return "score-good";
+  }
+  if (numericScore >= 70) {
+    return "score-warning";
+  }
+  return "score-poor";
+}
+
 function renderAnalysis(data) {
   const status = normalizeWorkflowStatus(data.status);
 
@@ -425,33 +491,24 @@ function renderAnalysis(data) {
     .join("");
 
   const score = data.score || data.overallScore || 0;
-  const resumePreview = data.resumeText
-    ? escapeHtml(data.resumeText.slice(0, 2000))
-    : "No resume text stored.";
 
   result.innerHTML = `
-    <div class="score-card">
-      <div class="score-circle">${score}</div>
-      <div>
-        <h3>Resume Analysis Complete</h3>
-        <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
-        <p><strong>File:</strong> ${escapeHtml(data.fileName || "N/A")}</p>
+    <div class="analysis-result-header-grid">
+      <div class="analysis-score-panel">
+        <span class="analysis-context-label">ATS Score</span>
+        <div class="score-circle ${atsScoreToneClass(score)}" aria-label="ATS score ${escapeHtml(score)}">${score}</div>
+      </div>
+      ${analysisContextPanelMarkup(data, "vertical")}
+      <div class="metrics analysis-result-metrics">
+        <span class="metric">Created: ${escapeHtml(formatEastern(data.createdAt))}</span>
+        <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
+        <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
+        <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
+        <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
+        <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
+        <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
       </div>
     </div>
-
-    <div class="metrics">
-      <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
-      <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
-      <span class="metric">Status: ${escapeHtml(analysisStatusPresentation(status).historyLabel)}</span>
-      <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
-      <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
-      <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
-      <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
-    </div>
-
-    <h3>Target Career</h3>
-    <p><strong>Role:</strong> ${escapeHtml(data.targetRoleTitle || "Not specified")}</p>
-    <p><strong>Industry:</strong> ${escapeHtml(data.targetIndustry || "Not specified")}</p>
 
     <h3>Role-Specific Scores</h3>
     ${renderDynamicScores(data.dynamicScores)}
@@ -477,15 +534,148 @@ function renderAnalysis(data) {
       </div>
     </div>
 
-    <h3>Resume Text Preview</h3>
-    <div class="resume-preview">${resumePreview}</div>
+    <h3>${data.documentBucket && data.documentKey ? "Resume PDF Preview" : "Resume Text Preview"}</h3>
+    ${analysisPreviewMarkup(data)}
   `;
+
+  hydrateResumePdfPreviews();
 
   const heading = result.querySelector("h3");
   if (heading) {
     heading.tabIndex = -1;
     heading.focus({ preventScroll: true });
   }
+}
+
+function selectedResumeTargetCareer() {
+  return resumeTargetCareers.find(
+    (career) => career.targetCareerId === selectedResumeTargetCareerId,
+  );
+}
+
+function resumeAnalysisRequirementMessage(mode) {
+  const missing = [];
+
+  if (!selectedResumeTargetCareer()) missing.push("choose a Target Career");
+  if (!resumeName?.value.trim()) missing.push("specify a Resume name");
+  if (mode === "text" && !textarea?.value.trim()) missing.push("paste resume text");
+  if (mode === "pdf" && !fileInput?.files?.length) missing.push("upload a PDF");
+
+  if (missing.length === 0) return "Ready to analyze your resume.";
+  return `To enable this button: ${missing.join(", ")}.`;
+}
+
+function updateResumeAnalysisAvailability() {
+  const hasCareers = resumeTargetCareers.length > 0;
+  const textMessage = resumeAnalysisRequirementMessage("text");
+  const pdfMessage = resumeAnalysisRequirementMessage("pdf");
+  const textReady = textMessage === "Ready to analyze your resume.";
+  const pdfReady = pdfMessage === "Ready to analyze your resume.";
+
+  resumeAnalysisInputs?.classList.toggle("hidden", !hasCareers);
+  if (analyzeButton) analyzeButton.disabled = !textReady;
+  if (uploadButton) uploadButton.disabled = !pdfReady;
+
+  if (analyzeButtonTooltip) {
+    analyzeButtonTooltip.dataset.tooltip = textReady ? "" : textMessage;
+    analyzeButtonTooltip.setAttribute("aria-label", textMessage);
+  }
+  if (uploadButtonTooltip) {
+    uploadButtonTooltip.dataset.tooltip = pdfReady ? "" : pdfMessage;
+    uploadButtonTooltip.setAttribute("aria-label", pdfMessage);
+  }
+}
+
+function renderResumeTargetCareers() {
+  if (!resumeTargetCareerList) return;
+
+  resumeTargetCareerList.innerHTML = "";
+  resumeTargetCareerEmpty?.classList.toggle("hidden", resumeTargetCareers.length !== 0);
+
+  resumeTargetCareers.forEach((career) => {
+    const label = document.createElement("label");
+    label.className = "resume-target-career-option";
+    if (career.targetCareerId === selectedResumeTargetCareerId) {
+      label.classList.add("selected");
+    }
+
+    label.innerHTML = `
+      <input
+        type="radio"
+        name="resumeTargetCareer"
+        value="${escapeHtml(career.targetCareerId)}"
+        ${career.targetCareerId === selectedResumeTargetCareerId ? "checked" : ""}
+      />
+      <span class="resume-target-career-copy">
+        <span class="resume-target-career-title-row">
+          <strong>${escapeHtml(career.roleTitle || "Untitled Target Career")}</strong>
+          <span class="version-badge">${escapeHtml(targetCareerVersionLabel(career))}</span>
+        </span>
+        <span>${escapeHtml([career.industry, career.seniorityLevel].filter(Boolean).join(" · ") || "Career details not specified")}</span>
+        <span class="resume-target-career-updated"><em>Last Updated</em> ${escapeHtml(targetCareerLastUpdated(career))}</span>
+      </span>
+    `;
+
+    label.querySelector("input").addEventListener("change", (event) => {
+      selectedResumeTargetCareerId = event.target.value;
+      renderResumeTargetCareers();
+      resumeTargetCareerError?.classList.add("hidden");
+    });
+
+    resumeTargetCareerList.appendChild(label);
+  });
+
+  updateResumeAnalysisAvailability();
+}
+
+async function loadResumeTargetCareers() {
+  if (!resumeTargetCareerList) return;
+
+  resumeTargetCareerLoading?.classList.remove("hidden");
+  resumeTargetCareerError?.classList.add("hidden");
+
+  try {
+    const response = await fetch(`${API_BASE_URL}/target-careers`, {
+      headers: await authHeaders(),
+    });
+    const data = await response.json();
+
+    if (!response.ok) {
+      throw new Error(data?.error?.message || data?.error || "Could not load Target Careers");
+    }
+
+    resumeTargetCareers = Array.isArray(data.targetCareers) ? data.targetCareers : [];
+
+    if (resumeTargetCareers.length === 1) {
+      selectedResumeTargetCareerId = resumeTargetCareers[0].targetCareerId;
+    } else if (!resumeTargetCareers.some((career) => career.targetCareerId === selectedResumeTargetCareerId)) {
+      selectedResumeTargetCareerId = "";
+    }
+
+    renderResumeTargetCareers();
+  } catch (error) {
+    resumeTargetCareers = [];
+    selectedResumeTargetCareerId = "";
+    renderResumeTargetCareers();
+    if (resumeTargetCareerError) {
+      resumeTargetCareerError.textContent = `Could not load Target Careers: ${error.message}`;
+      resumeTargetCareerError.classList.remove("hidden");
+    }
+  } finally {
+    resumeTargetCareerLoading?.classList.add("hidden");
+  }
+}
+
+function requireSelectedResumeTargetCareer() {
+  const career = selectedResumeTargetCareer();
+  if (career) return career;
+
+  if (resumeTargetCareerError) {
+    resumeTargetCareerError.textContent = "Choose a Target Career before analyzing your resume.";
+    resumeTargetCareerError.classList.remove("hidden");
+    resumeTargetCareerError.scrollIntoView({ behavior: "smooth", block: "center" });
+  }
+  return null;
 }
 
 async function analyzeTextResume() {
@@ -495,6 +685,9 @@ async function analyzeTextResume() {
     result.textContent = "Please enter resume text.";
     return;
   }
+
+  const targetCareer = requireSelectedResumeTargetCareer();
+  if (!targetCareer) return;
 
   /*
    * Generate once for this user action.
@@ -527,6 +720,7 @@ async function analyzeTextResume() {
             || "Untitled Resume",
           resumeText: resumeTextValue,
           analysisProvider: selectedProvider(),
+          targetCareerId: targetCareer.targetCareerId,
         }),
       },
     );
@@ -576,6 +770,9 @@ async function uploadPdfResume() {
       "Only PDF files are supported.";
     return;
   }
+
+  const targetCareer = requireSelectedResumeTargetCareer();
+  if (!targetCareer) return;
 
   /*
    * These are two separate logical operations and must use
@@ -671,6 +868,8 @@ async function uploadPdfResume() {
             uploadData.fileName,
           analysisProvider:
             selectedProvider(),
+          targetCareerId:
+            targetCareer.targetCareerId,
         }),
       },
     );
@@ -1583,6 +1782,39 @@ function toggleCardDetails(id) {
   element.classList.toggle("hidden");
 }
 
+async function hydrateResumePdfPreviews() {
+  const previewElements = document.querySelectorAll("[data-pdf-analysis-id]");
+
+  await Promise.all(Array.from(previewElements).map(async (element) => {
+    const analysisId = element.dataset.pdfAnalysisId;
+    if (!analysisId || element.dataset.loaded === "true") return;
+
+    element.dataset.loaded = "true";
+
+    try {
+      const response = await fetch(`${API_BASE_URL}/analysis/${encodeURIComponent(analysisId)}/download-url`, {
+        headers: await authHeaders(),
+      });
+      const data = await response.json();
+
+      if (!response.ok) {
+        throw new Error(data?.error?.message || data?.error || "Could not load PDF preview");
+      }
+
+      const previewUrl = `${data.downloadUrl}#page=1&view=FitH&toolbar=0&navpanes=0&scrollbar=0`;
+      element.innerHTML = `
+        <iframe
+          class="pdf-thumbnail-frame"
+          src="${escapeHtml(previewUrl)}"
+          title="First-page preview of ${escapeHtml(data.resumeName || data.fileName || "uploaded resume")}">
+        </iframe>
+      `;
+    } catch (error) {
+      element.innerHTML = `<div class="pdf-thumbnail-fallback">PDF preview unavailable. Use Download PDF to open the file.</div>`;
+    }
+  }));
+}
+
 function renderResumeHistory() {
   if (!history) {
     return;
@@ -1608,51 +1840,63 @@ function renderResumeHistory() {
   }
 
   history.innerHTML = filtered.map(item => {
-    const detailsId = `resume-details-${escapeHtml(item.analysisId)}`;
-    const resumePreview = item.resumeText
-      ? escapeHtml(item.resumeText.slice(0, 800))
-      : "No resume text available.";
+    const score = item.score || item.overallScore || 0;
+    const career = analysisTargetCareer(item);
+    const roleTitle = career.roleTitle || item.targetRoleTitle || "Target Career unavailable";
+    const careerVersion = targetCareerVersionLabel(career);
+    const resumeName = item.resumeName || "Untitled Resume";
+    const fileName = item.fileName || "";
 
     return `
       <div class="history-item resume-history-card">
-        <div class="resume-history-left">
-          <div>
-            <span class="badge">${escapeHtml(item.sourceType || "unknown")}</span>
-            <span class="badge status-${escapeHtml(analysisStatusPresentation(item.status).category)}">${escapeHtml(analysisStatusPresentation(item.status).historyLabel)}</span>
-            <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+        <div class="resume-history-main-grid">
+          <div class="history-score-cell">
+            <div class="score-circle ${atsScoreToneClass(score)}" aria-label="ATS score ${escapeHtml(score)}">${escapeHtml(score)}</div>
           </div>
 
-          <!-- <p><strong>ID:</strong> ${escapeHtml(item.analysisId)}</p> -->
-          <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
-          <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
-          <p><strong>Score:</strong> ${escapeHtml(item.score || 0)}</p>
+          <div class="resume-history-left-stack">
+            <div class="analysis-context-panel">
+              <span class="analysis-context-label">Target Career</span>
+              <strong>${escapeHtml(roleTitle)} <span class="analysis-context-version">${escapeHtml(careerVersion)}</span></strong>
+            </div>
 
-          <div class="button-row">
-            <button class="secondary" onclick="toggleCardDetails('${detailsId}')">Expand</button>
-            <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
-            ${
-              item.documentBucket && item.documentKey
-                ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
-                : ""
-            }
-	    <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}', ${Number(item.version ?? 0)})">Delete</button>
+            <div class="analysis-context-panel">
+              <span class="analysis-context-label">Resume</span>
+              <strong>${escapeHtml(resumeName)}</strong>
+              ${fileName ? `<span class="analysis-context-file">${escapeHtml(fileName)}</span>` : ""}
+            </div>
+
+            <div class="resume-history-controls-panel">
+              <div class="history-metrics">
+                <span class="badge status-${escapeHtml(analysisStatusPresentation(item.status).category)}">${escapeHtml(analysisStatusPresentation(item.status).historyLabel)}</span>
+                <span class="badge">Created: ${escapeHtml(formatEastern(item.createdAt))}</span>
+                <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+                <span class="badge">Words: ${escapeHtml(item.wordCount || 0)}</span>
+                <span class="badge">Duration: ${escapeHtml(item.analysisDurationMs || 0)} ms</span>
+                <span class="badge">Model: ${escapeHtml(item.model || "N/A")}</span>
+                <span class="badge">Version: ${escapeHtml(item.analysisVersion || "N/A")}</span>
+              </div>
+
+              <div class="button-row">
+                <button class="secondary" onclick="loadAnalysisDetail('${escapeHtml(item.analysisId)}')">View Details</button>
+                ${
+                  item.documentBucket && item.documentKey
+                    ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.analysisId)}')">Download PDF</button>`
+                    : ""
+                }
+                <button class="danger" onclick="deleteAnalysis('${escapeHtml(item.analysisId)}', ${Number(item.version ?? 0)})">Delete</button>
+              </div>
+            </div>
           </div>
 
-          <div id="${detailsId}" class="card-details hidden">
-            <p><strong>Words:</strong> ${escapeHtml(item.wordCount || 0)}</p>
-            <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
-            <p><strong>Model:</strong> ${escapeHtml(item.model || "N/A")}</p>
-            <p><strong>Version:</strong> ${escapeHtml(item.analysisVersion || "N/A")}</p>
+          <div class="resume-history-right">
+            ${analysisPreviewMarkup(item, true)}
           </div>
-        </div>
-
-        <div class="resume-history-right">
-          <!-- <h4>Resume Text Preview</h4> -->
-          <div class="resume-preview small-preview">${resumePreview}</div>
         </div>
       </div>
     `;
   }).join("");
+  hydrateResumePdfPreviews();
 }
 
 function renderJobMatchHistory() {
@@ -1717,7 +1961,6 @@ function renderJobMatchHistory() {
         <div class="job-match-right">
           <!-- <h4>Resume Text Preview</h4> -->
 
-          <p><strong>Resume:</strong> ${escapeHtml(item.resumeName || "Untitled Resume")}</p>
           <p>Created: ${escapeHtml(formatEastern(item.resumeCreatedAt))} , Source: ${escapeHtml(item.resumeSourceType || "resume")} , Score: ${escapeHtml(item.resumeScore || 0)}</p>
 
           <div class="resume-preview small-preview">${resumePreview}</div>
@@ -2106,6 +2349,11 @@ if (uploadButton) {
   uploadButton.addEventListener("click", uploadPdfResume);
 }
 
+[resumeName, textarea, fileInput].forEach((input) => {
+  input?.addEventListener("input", updateResumeAnalysisAvailability);
+  input?.addEventListener("change", updateResumeAnalysisAvailability);
+});
+
 if (refreshHistoryButton) {
   refreshHistoryButton.addEventListener("click", async (event) => {
     event.preventDefault();
@@ -2173,7 +2421,10 @@ if (pdfTab) {
 }
 
 if (page === "resume-analysis") {
-  applyPreferredProviderFromProfile().then(loadHistory);
+  Promise.all([
+    applyPreferredProviderFromProfile(),
+    loadResumeTargetCareers(),
+  ]).then(loadHistory);
 }
 
 if (page === "job-matching") {

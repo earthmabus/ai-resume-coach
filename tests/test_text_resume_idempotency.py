@@ -48,6 +48,7 @@ def make_event(
                 "resumeName": "Engineering Resume",
                 "resumeText": "Engineering leader",
                 "analysisProvider": "rule-based",
+                "targetCareerId": "career-123",
             }
         ),
         "requestContext": {

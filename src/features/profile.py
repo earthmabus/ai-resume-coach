@@ -4,7 +4,6 @@ from datetime import datetime, timezone
 
 from botocore.exceptions import ClientError
 
-from core.config import get_config
 from core.errors import ResourceConflictError
 from core.keys import profile_sk, user_pk
 from core.request_context import build_request_context
@@ -19,6 +18,29 @@ def is_conditional_failure(error: ClientError) -> bool:
     )
 
 
+def public_profile(item: dict, *, user_id: str) -> dict:
+    return {
+        "pk": item.get("pk", user_pk(user_id)),
+        "sk": item.get("sk", profile_sk()),
+        "recordType": item.get("recordType", "userProfile"),
+        "userId": user_id,
+        "version": int(item.get("version", 0)),
+        "preferredProvider": str(
+            item.get("preferredProvider") or "openai"
+        ),
+        **(
+            {"createdAt": item["createdAt"]}
+            if item.get("createdAt")
+            else {}
+        ),
+        **(
+            {"updatedAt": item["updatedAt"]}
+            if item.get("updatedAt")
+            else {}
+        ),
+    }
+
+
 def get_profile(event):
     context = build_request_context(event)
     user_id = context.user_id
@@ -31,30 +53,12 @@ def get_profile(event):
         ConsistentRead=True,
     )
 
-    item = response.get("Item")
+    item = response.get("Item") or {}
 
-    if not item:
-        return build_response(
-            200,
-            {
-                "pk": user_pk(user_id),
-                "sk": profile_sk(),
-                "recordType": "userProfile",
-                "userId": user_id,
-                "version": 0,
-                "name": "",
-                "currentTitle": "",
-                "targetTitle": "",
-                "yearsExperience": "",
-                "certifications": "",
-                "preferredProvider": "openai",
-                "resumeStyle": "executive",
-            },
-        )
-
-    item.setdefault("version", 0)
-
-    return build_response(200, item)
+    return build_response(
+        200,
+        public_profile(item, user_id=user_id),
+    )
 
 
 def update_profile(event):
@@ -70,17 +74,23 @@ def update_profile(event):
     except (TypeError, ValueError):
         return build_response(
             400,
-            {
-                "error": (
-                    "version is required and must be an integer"
-                )
-            },
+            {"error": "version is required and must be an integer"},
         )
 
     if expected_version < 0:
         return build_response(
             400,
             {"error": "version must be zero or greater"},
+        )
+
+    preferred_provider = str(
+        body.get("preferredProvider") or "openai"
+    ).strip()
+
+    if preferred_provider not in {"openai", "rule-based"}:
+        return build_response(
+            400,
+            {"error": "preferredProvider is not supported"},
         )
 
     updated_at = datetime.now(timezone.utc).isoformat()
@@ -98,14 +108,8 @@ def update_profile(event):
                 "updatedAt = :updatedAt, "
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
-"lastUpdatedByDeploymentId = :deploymentId, "
-                "#name = :name, "
-                "currentTitle = :currentTitle, "
-                "targetTitle = :targetTitle, "
-                "yearsExperience = :yearsExperience, "
-                "certifications = :certifications, "
+                "lastUpdatedByDeploymentId = :deploymentId, "
                 "preferredProvider = :preferredProvider, "
-                "resumeStyle = :resumeStyle, "
                 "#version = if_not_exists(#version, :zero) + :one"
             ),
             ConditionExpression=(
@@ -127,7 +131,6 @@ def update_profile(event):
                 ")"
             ),
             ExpressionAttributeNames={
-                "#name": "name",
                 "#version": "version",
             },
             ExpressionAttributeValues={
@@ -137,25 +140,7 @@ def update_profile(event):
                 ":requestId": context.request_id,
                 ":region": context.region,
                 ":deploymentId": context.deployment_id,
-                ":name": str(body.get("name") or "").strip(),
-                ":currentTitle": str(
-                    body.get("currentTitle") or ""
-                ).strip(),
-                ":targetTitle": str(
-                    body.get("targetTitle") or ""
-                ).strip(),
-                ":yearsExperience": str(
-                    body.get("yearsExperience") or ""
-                ).strip(),
-                ":certifications": str(
-                    body.get("certifications") or ""
-                ).strip(),
-                ":preferredProvider": str(
-                    body.get("preferredProvider") or "openai"
-                ).strip(),
-                ":resumeStyle": str(
-                    body.get("resumeStyle") or "executive"
-                ).strip(),
+                ":preferredProvider": preferred_provider,
                 ":expectedVersion": expected_version,
                 ":zero": 0,
                 ":one": 1,
@@ -170,4 +155,7 @@ def update_profile(event):
 
         raise
 
-    return build_response(200, response["Attributes"])
+    return build_response(
+        200,
+        public_profile(response["Attributes"], user_id=user_id),
+    )

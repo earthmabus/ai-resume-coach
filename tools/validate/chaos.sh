@@ -179,8 +179,8 @@ PYMERGE
  post-recovery)
    "$ROOT_DIR/tools/validate/operational_readiness.sh" | tee "$EVIDENCE_DIR/readiness.txt"
    require_env AUTH_TOKEN; regional_endpoints
-   curl --fail-with-body -sS -H "Authorization: Bearer $AUTH_TOKEN" "$EAST_API/target-career" > "$EVIDENCE_DIR/east-target-career.json"
-   curl --fail-with-body -sS -H "Authorization: Bearer $AUTH_TOKEN" "$WEST_API/target-career" > "$EVIDENCE_DIR/west-target-career.json"
+   curl --fail-with-body -sS -H "Authorization: Bearer $AUTH_TOKEN" "$EAST_API/target-careers" > "$EVIDENCE_DIR/east-target-career.json"
+   curl --fail-with-body -sS -H "Authorization: Bearer $AUTH_TOKEN" "$WEST_API/target-careers" > "$EVIDENCE_DIR/west-target-career.json"
    write_result post-recovery PASS false "$EVIDENCE_DIR" '{"both_regions_ready":true,"mrsc_healthy":true,"authenticated_reads":true,"restoration_clear":true}' ;;
  evaluate)
    require_env MR014_RESULTS_FILE; python "$ROOT_DIR/tools/validate/chaos.py" evaluate --results "$MR014_RESULTS_FILE" --output "$EVIDENCE_DIR/report.json" ;;

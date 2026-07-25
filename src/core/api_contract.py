@@ -25,14 +25,17 @@ PROTECTED_API_ROUTES: tuple[str, ...] = (
     "GET /job-matches",
     "GET /profile",
     "GET /resume-tailoring/{id}",
-    "GET /target-career",
+    "DELETE /target-careers/{id}",
+    "GET /target-careers",
+    "GET /target-careers/{id}",
     "POST /analyze-resume",
     "POST /analyze-uploaded-resume",
     "POST /match-job-description",
     "POST /resume-upload-url",
     "POST /tailor-resume",
     "PUT /profile",
-    "PUT /target-career",
+    "POST /target-careers",
+    "PUT /target-careers/{id}",
 )
 
 LEGACY_OBSOLETE_ROUTES: tuple[str, ...] = (

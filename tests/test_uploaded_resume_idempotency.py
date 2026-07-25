@@ -53,6 +53,7 @@ def make_event(
         "fileName": "resume.pdf",
         "resumeName": "Engineering Resume",
         "analysisProvider": "rule-based",
+        "targetCareerId": "career-123",
     }
 
     return {

@@ -121,29 +121,25 @@ http_request() {
 }
 
 ensure_target_career() {
-  local current_file="$EVIDENCE_DIR/target-career-east-before.json"
+  local current_file="$EVIDENCE_DIR/target-careers-east-before.json"
 
-  http_request "read Target Career prerequisite" "$current_file" \
+  http_request "list Target Career prerequisites" "$current_file" \
     --max-time 20 \
     -H "Authorization: Bearer $AUTH_TOKEN" \
-    "$EAST_API/target-career"
+    "$EAST_API/target-careers"
 
-  local version role_title industry
-  version="$(jq -r '.version // 0' "$current_file")"
-  role_title="$(jq -r '.roleTitle // ""' "$current_file")"
-  industry="$(jq -r '.industry // ""' "$current_file")"
-
-  if [[ -n "$role_title" && -n "$industry" ]]; then
-    record "Target Career prerequisite already satisfied (version $version)"
+  local count
+  count="$(jq -r '.targetCareers | length' "$current_file")"
+  if (( count > 0 )); then
+    record "Target Career prerequisite already satisfied ($count career(s))"
     return
   fi
 
   local payload_file="$EVIDENCE_DIR/target-career-seed-request.json"
   jq -n \
-    --argjson version "$version" \
     --arg roleTitle "Software Engineering Director" \
     --arg industry "Healthcare" \
-    '{version: $version, roleTitle: $roleTitle, industry: $industry}' \
+    '{roleTitle: $roleTitle, industry: $industry}' \
     > "$payload_file"
 
   http_request "seed Target Career prerequisite" \
@@ -151,19 +147,18 @@ ensure_target_career() {
     --max-time 20 \
     -H "Authorization: Bearer $AUTH_TOKEN" \
     -H "Content-Type: application/json" \
-    -X PUT "$EAST_API/target-career" \
+    -X POST "$EAST_API/target-careers" \
     --data-binary "@$payload_file"
 
   http_request "verify Target Career replication in West" \
-    "$EVIDENCE_DIR/target-career-west-after.json" \
+    "$EVIDENCE_DIR/target-careers-west-after.json" \
     --max-time 20 \
     -H "Authorization: Bearer $AUTH_TOKEN" \
-    "$WEST_API/target-career"
+    "$WEST_API/target-careers"
 
-  local west_role west_industry
-  west_role="$(jq -r '.roleTitle // ""' "$EVIDENCE_DIR/target-career-west-after.json")"
-  west_industry="$(jq -r '.industry // ""' "$EVIDENCE_DIR/target-career-west-after.json")"
-  [[ -n "$west_role" && -n "$west_industry" ]] || {
+  local west_count
+  west_count="$(jq -r '.targetCareers | length' "$EVIDENCE_DIR/target-careers-west-after.json")"
+  (( west_count > 0 )) || {
     record "FAILED: Target Career did not replicate to West"
     exit 5
   }

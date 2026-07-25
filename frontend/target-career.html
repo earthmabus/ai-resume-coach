@@ -2,15 +2,15 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>Target Career | AI Resume Coach</title>
+  <title>Target Careers | AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css?v=2" />
+  <link rel="stylesheet" href="./styles.css?v=7" />
 </head>
 <body data-page="target-career">
   <nav class="top-nav">
     <a class="brand" href="./index.html">AI Resume Coach</a>
     <div class="nav-links">
-      <a href="./target-career.html">Target Career</a>
+      <a href="./target-career.html">Target Careers</a>
       <a href="./resume-analysis.html">Resume Analysis</a>
       <a href="./job-matching.html">Job Matching</a>
       <a class="disabled" href="#">Notifications</a>
@@ -20,23 +20,64 @@
   </nav>
 
   <main class="container">
-    <section class="hero">
-      <h1>Target Career</h1>
-      <p>Define the role you want to pursue. Resume analysis will adapt its scoring model to this role.</p>
+    <section class="hero target-career-hero">
+      <div>
+        <h1>Target Careers</h1>
+        <p>Create the different roles you may want to pursue. Each career can describe a different role, industry, seniority level, and set of expectations.</p>
+      </div>
+      <button id="createTargetCareerButton" type="button">+ Create Target Career</button>
     </section>
 
-    <section class="card">
-      <label for="roleTitle">Target Role Title</label>
-      <input id="roleTitle" type="text" placeholder="Director of Software Engineering, Waste Disposal Driver, Nurse Manager..." />
+    <div id="targetCareerError" class="error-banner hidden" role="alert"></div>
+    <div id="targetCareerNotice" class="success-banner hidden" role="status"></div>
 
-      <label for="industry">Industry / Field</label>
-      <input id="industry" type="text" placeholder="Technology, Waste Management, Healthcare..." />
+    <section id="targetCareerListSection" class="card">
+      <div class="section-heading-row">
+        <div>
+          <h2>Your Target Careers</h2>
+          <p class="muted">Create as many career directions as you need. Resume Analysis selection will be added in the next slice.</p>
+        </div>
+        <button id="refreshTargetCareersButton" type="button">Refresh</button>
+      </div>
 
-      <label for="seniorityLevel">Seniority Level</label>
-      <input id="seniorityLevel" type="text" placeholder="Entry-level, Senior, Manager, Director..." />
+      <div id="targetCareerLoading" class="muted">Loading target careers…</div>
+      <div id="targetCareerEmpty" class="empty-state hidden">
+        <h3>No target careers yet</h3>
+        <p>Create your first target career to describe a role you may want to pursue.</p>
+        <button id="emptyCreateTargetCareerButton" type="button">Create Target Career</button>
+      </div>
+      <div id="targetCareerList" class="target-career-grid"></div>
+    </section>
 
-      <label for="workEnvironment">Work Environment</label>
-      <input id="workEnvironment" type="text" placeholder="Remote, field-based, warehouse, hospital, corporate..." />
+    <section id="targetCareerEditor" class="card hidden" aria-labelledby="targetCareerEditorTitle">
+      <div class="section-heading-row">
+        <div>
+          <h2 id="targetCareerEditorTitle">Create Target Career</h2>
+          <p id="targetCareerEditorDescription" class="muted">Define this career direction. You can update these details later.</p>
+        </div>
+      </div>
+
+      <div class="form-grid two-column-form-grid">
+        <div>
+          <label for="roleTitle">Target Role Title</label>
+          <input id="roleTitle" type="text" placeholder="Director of Software Engineering" />
+        </div>
+        <div>
+          <label for="industry">Industry / Field</label>
+          <input id="industry" type="text" placeholder="Technology" />
+        </div>
+        <div>
+          <label for="seniorityLevel">Seniority Level</label>
+          <input id="seniorityLevel" type="text" placeholder="Director" />
+        </div>
+        <div>
+          <label for="workEnvironment">Work Environment</label>
+          <input id="workEnvironment" type="text" placeholder="Remote, field-based, hospital, corporate…" />
+        </div>
+      </div>
+
+      <label for="careerGoalSummary">Career Goal Summary</label>
+      <textarea id="careerGoalSummary" rows="5"></textarea>
 
       <label for="keyResponsibilities">Key Responsibilities</label>
       <textarea id="keyResponsibilities" rows="5"></textarea>
@@ -56,18 +97,16 @@
       <label for="leadershipRequirements">Leadership Requirements</label>
       <textarea id="leadershipRequirements" rows="3"></textarea>
 
-      <label for="careerGoalSummary">Career Goal Summary</label>
-      <textarea id="careerGoalSummary" rows="5"></textarea>
-
-      <button id="saveTargetCareerButton">Save Target Career</button>
-
-      <div id="targetCareerError" class="error-banner hidden"></div>
+      <div class="form-actions target-career-form-actions">
+        <button id="saveTargetCareerButton" type="button">Create Target Career</button>
+        <button id="cancelTargetCareerButtonBottom" type="button" class="secondary-button">Cancel</button>
+      </div>
     </section>
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js?v=2"></script>
   <script src="./auth.js?v=2"></script>
-  <script src="./target-career.js?v=2"></script>
+  <script src="./target-career.js?v=6"></script>
 </body>
 </html>

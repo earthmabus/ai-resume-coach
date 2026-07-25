@@ -190,6 +190,18 @@ resource "aws_cognito_user_pool_client" "web" {
   ]
 
   prevent_user_existence_errors = "ENABLED"
+
+  read_attributes = [
+    "email",
+    "email_verified",
+    "family_name",
+    "given_name",
+  ]
+
+  write_attributes = [
+    "family_name",
+    "given_name",
+  ]
 }
 
 resource "aws_cognito_user_group" "synthetic_runtime_validation" {

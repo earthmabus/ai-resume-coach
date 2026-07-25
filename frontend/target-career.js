@@ -1,7 +1,6 @@
 requireAuth();
 
 const API_BASE_URL = window.APP_CONFIG.apiEndpoint;
-
 const fields = [
   "roleTitle",
   "industry",
@@ -16,189 +15,215 @@ const fields = [
   "careerGoalSummary",
 ];
 
-const targetCareerError =
-  document.getElementById("targetCareerError");
+const errorBanner = document.getElementById("targetCareerError");
+const noticeBanner = document.getElementById("targetCareerNotice");
+const listElement = document.getElementById("targetCareerList");
+const loadingElement = document.getElementById("targetCareerLoading");
+const emptyElement = document.getElementById("targetCareerEmpty");
+const editor = document.getElementById("targetCareerEditor");
+const editorTitle = document.getElementById("targetCareerEditorTitle");
+const editorDescription = document.getElementById("targetCareerEditorDescription");
+const saveButton = document.getElementById("saveTargetCareerButton");
 
-const saveButton =
-  document.getElementById(
-    "saveTargetCareerButton",
-  );
-
-let targetCareerVersion = 0;
-
+let targetCareers = [];
+let editingTargetCareerId = null;
+let editingVersion = null;
 
 function getErrorMessage(data, fallback) {
-  if (typeof data?.error === "string") {
-    return data.error;
-  }
-
-  if (typeof data?.error?.message === "string") {
-    return data.error.message;
-  }
-
+  if (typeof data?.error === "string") return data.error;
+  if (typeof data?.error?.message === "string") return data.error.message;
   return fallback;
 }
 
+function showError(message) {
+  errorBanner.textContent = message;
+  errorBanner.classList.remove("hidden");
+}
+
+function clearError() {
+  errorBanner.textContent = "";
+  errorBanner.classList.add("hidden");
+}
+
+function showNotice(message) {
+  noticeBanner.textContent = message;
+  noticeBanner.classList.remove("hidden");
+  window.setTimeout(() => noticeBanner.classList.add("hidden"), 3000);
+}
 
 function readForm() {
-  const payload = {};
-
-  fields.forEach((id) => {
-    payload[id] =
-      document.getElementById(id).value.trim();
-  });
-
-  return payload;
+  return Object.fromEntries(
+    fields.map((id) => [id, document.getElementById(id).value.trim()]),
+  );
 }
 
-
-function writeForm(data) {
+function writeForm(data = {}) {
   fields.forEach((id) => {
-    document.getElementById(id).value =
-      data[id] || "";
+    document.getElementById(id).value = data[id] || "";
   });
 }
 
-
-function showTargetCareerError(message) {
-  targetCareerError.textContent = message;
-  targetCareerError.classList.remove("hidden");
+function escapeHtml(value) {
+  const element = document.createElement("div");
+  element.textContent = value || "";
+  return element.innerHTML;
 }
 
-
-function clearTargetCareerError() {
-  targetCareerError.textContent = "";
-  targetCareerError.classList.add("hidden");
+function openCreateEditor() {
+  clearError();
+  editingTargetCareerId = null;
+  editingVersion = null;
+  writeForm();
+  editorTitle.textContent = "Create Target Career";
+  editorDescription.textContent = "Define this career direction. You can update these details later.";
+  saveButton.textContent = "Create Target Career";
+  editor.classList.remove("hidden");
+  editor.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("roleTitle").focus({ preventScroll: true });
 }
 
+function openEditEditor(targetCareerId) {
+  const career = targetCareers.find((item) => item.targetCareerId === targetCareerId);
+  if (!career) return;
 
-function setSaveButtonIdle() {
-  saveButton.disabled = false;
-  saveButton.textContent = "Save Target Career";
+  clearError();
+  editingTargetCareerId = career.targetCareerId;
+  editingVersion = Number(career.version);
+  writeForm(career);
+  editorTitle.textContent = "Edit Target Career";
+  editorDescription.textContent = `Update ${career.roleTitle}. Changes apply to future uses of this career.`;
+  saveButton.textContent = "Save Changes";
+  editor.classList.remove("hidden");
+  editor.scrollIntoView({ behavior: "smooth", block: "start" });
+  document.getElementById("roleTitle").focus({ preventScroll: true });
 }
 
-
-function showSavedState() {
-  saveButton.disabled = true;
-  saveButton.textContent = "Saved ✓";
-
-  setTimeout(() => {
-    setSaveButtonIdle();
-  }, 2000);
+function closeEditor() {
+  editor.classList.add("hidden");
+  editingTargetCareerId = null;
+  editingVersion = null;
+  writeForm();
 }
 
+function renderTargetCareers() {
+  loadingElement.classList.add("hidden");
+  listElement.innerHTML = "";
+  emptyElement.classList.toggle("hidden", targetCareers.length !== 0);
 
-async function loadTargetCareer() {
-  clearTargetCareerError();
+  targetCareers.forEach((career) => {
+    const article = document.createElement("article");
+    article.className = "target-career-card";
+    article.innerHTML = `
+      <div class="target-career-card-header">
+        <div>
+          <h3>${escapeHtml(career.roleTitle)}</h3>
+          <p>${escapeHtml(career.industry)}${career.seniorityLevel ? ` · ${escapeHtml(career.seniorityLevel)}` : ""}</p>
+        </div>
+        <span class="version-badge">v${Number(career.version || 1)}</span>
+      </div>
+      ${career.careerGoalSummary ? `<p class="target-career-summary">${escapeHtml(career.careerGoalSummary)}</p>` : ""}
+      <dl class="target-career-meta">
+        <div><dt class="last-updated-label">Last Updated</dt><dd>${escapeHtml(formatTimestamp(career.updatedAt || career.createdAt))}</dd></div>
+      </dl>
+      <div class="card-actions">
+        <button type="button" class="edit-target-career">Edit</button>
+        <button type="button" class="secondary-button delete-target-career">Delete</button>
+      </div>
+    `;
+    article.querySelector(".edit-target-career").addEventListener("click", () => openEditEditor(career.targetCareerId));
+    article.querySelector(".delete-target-career").addEventListener("click", () => deleteTargetCareer(career));
+    listElement.appendChild(article);
+  });
+}
 
+function formatTimestamp(value) {
+  if (!value) return "Unknown";
+  const date = new Date(value);
+  return Number.isNaN(date.getTime()) ? value : date.toLocaleString();
+}
+
+async function loadTargetCareers() {
+  clearError();
+  loadingElement.classList.remove("hidden");
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/target-career`,
-      {
-        headers: await authHeaders(),
-      },
-    );
-
+    const response = await fetch(`${API_BASE_URL}/target-careers`, { headers: await authHeaders() });
     const data = await response.json();
-
-    if (!response.ok) {
-      throw new Error(
-        getErrorMessage(
-          data,
-          "Could not load target career",
-        ),
-      );
-    }
-
-    targetCareerVersion =
-      Number(data.version ?? 0);
-
-    writeForm(data);
+    if (!response.ok) throw new Error(getErrorMessage(data, "Could not load target careers"));
+    targetCareers = Array.isArray(data.targetCareers) ? data.targetCareers : [];
+    renderTargetCareers();
   } catch (error) {
-    showTargetCareerError(
-      error.message
-      || (
-        "Unable to load existing "
-        + "target career information."
-      ),
-    );
+    loadingElement.classList.add("hidden");
+    showError(error.message || "Unable to load target careers.");
   }
 }
 
-
 async function saveTargetCareer() {
-  clearTargetCareerError();
-
+  clearError();
   const payload = readForm();
-
   if (!payload.roleTitle || !payload.industry) {
-    showTargetCareerError(
-      "Target Role Title and Industry are required.",
-    );
+    showError("Target Role Title and Industry are required.");
     return;
   }
 
+  const isEditing = Boolean(editingTargetCareerId);
   saveButton.disabled = true;
-  saveButton.textContent = "Saving...";
+  saveButton.textContent = isEditing ? "Saving…" : "Creating…";
 
   try {
-    const response = await fetch(
-      `${API_BASE_URL}/target-career`,
-      {
-        method: "PUT",
-        headers: await jsonHeaders(),
-        body: JSON.stringify({
-          ...payload,
-          version: targetCareerVersion,
-        }),
-      },
-    );
-
+    const url = isEditing
+      ? `${API_BASE_URL}/target-careers/${encodeURIComponent(editingTargetCareerId)}`
+      : `${API_BASE_URL}/target-careers`;
+    const response = await fetch(url, {
+      method: isEditing ? "PUT" : "POST",
+      headers: await jsonHeaders(),
+      body: JSON.stringify(isEditing ? { ...payload, version: editingVersion } : payload),
+    });
     const data = await response.json();
-
     if (response.status === 409) {
-      await loadTargetCareer();
-
-      throw new Error(
-        getErrorMessage(
-          data,
-          (
-            "Your target career was changed elsewhere. "
-            + "The latest version has been loaded. "
-            + "Review it and try again."
-          ),
-        ),
-      );
+      await loadTargetCareers();
+      throw new Error(getErrorMessage(data, "This target career changed elsewhere. Review the latest version and try again."));
     }
+    if (!response.ok) throw new Error(getErrorMessage(data, "Could not save target career"));
 
-    if (!response.ok) {
-      throw new Error(
-        getErrorMessage(
-          data,
-          "Could not save target career",
-        ),
-      );
-    }
-
-    targetCareerVersion =
-      Number(data.version);
-
-    writeForm(data);
-    showSavedState();
+    closeEditor();
+    await loadTargetCareers();
+    showNotice(isEditing ? "Target career updated." : "Target career created.");
   } catch (error) {
-    setSaveButtonIdle();
-
-    showTargetCareerError(
-      error.message
-      || "Unable to save target career.",
-    );
+    showError(error.message || "Unable to save target career.");
+  } finally {
+    saveButton.disabled = false;
+    saveButton.textContent = editingTargetCareerId ? "Save Changes" : "Create Target Career";
   }
 }
 
+async function deleteTargetCareer(career) {
+  clearError();
+  const confirmed = window.confirm(`Delete “${career.roleTitle}”? This cannot be undone.`);
+  if (!confirmed) return;
 
-saveButton.addEventListener(
-  "click",
-  saveTargetCareer,
-);
+  try {
+    const response = await fetch(
+      `${API_BASE_URL}/target-careers/${encodeURIComponent(career.targetCareerId)}`,
+      {
+        method: "DELETE",
+        headers: await jsonHeaders(),
+        body: JSON.stringify({ version: Number(career.version) }),
+      },
+    );
+    const data = await response.json();
+    if (!response.ok) throw new Error(getErrorMessage(data, "Could not delete target career"));
+    if (editingTargetCareerId === career.targetCareerId) closeEditor();
+    await loadTargetCareers();
+    showNotice("Target career deleted.");
+  } catch (error) {
+    showError(error.message || "Unable to delete target career.");
+  }
+}
 
-loadTargetCareer();
+document.getElementById("createTargetCareerButton").addEventListener("click", openCreateEditor);
+document.getElementById("emptyCreateTargetCareerButton").addEventListener("click", openCreateEditor);
+document.getElementById("refreshTargetCareersButton").addEventListener("click", loadTargetCareers);
+document.getElementById("cancelTargetCareerButtonBottom").addEventListener("click", closeEditor);
+saveButton.addEventListener("click", saveTargetCareer);
+
+loadTargetCareers();

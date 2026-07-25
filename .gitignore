@@ -22,6 +22,7 @@ lambda_layer/build
 
 # Terraform saved plan files
 infra/tfplan*
+infra/tfdestroy*
 *.tfplan
 
 # source files
@@ -46,6 +47,9 @@ htmlcov/
 # Python virtual environments
 .venv/
 venv/
+
+# Generated frontend runtime configuration
+frontend/config.js
 
 # Node dependencies and generated synthetic assets
 **/node_modules/

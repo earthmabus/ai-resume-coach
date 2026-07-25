@@ -63,6 +63,8 @@ Dispatchers provide discoverability. Focused entrypoints remain authoritative fo
 
 ### Operations
 
+- `tools/operations/deploy_frontend.sh`
+- `tools/operations/deploy_platform.sh`
 - `tools/operations/failover_recovery.sh`
 - `python tools/operations/replay_outbox.py`
 - `tools/operations/replay_failed_permanent.sh`

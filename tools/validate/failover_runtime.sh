@@ -258,13 +258,12 @@ restore_routing() {
 }
 
 ensure_target_career() {
-  http_request "read Target Career prerequisite through global API" \
-    "$EVIDENCE_DIR/target-career-global.json" --max-time 20 \
-    -H "Authorization: Bearer $AUTH_TOKEN" "$GLOBAL_API/target-career"
-  local role industry
-  role="$(jq -r '.roleTitle // empty' "$EVIDENCE_DIR/target-career-global.json")"
-  industry="$(jq -r '.industry // empty' "$EVIDENCE_DIR/target-career-global.json")"
-  [[ -n "$role" && -n "$industry" ]] || {
+  http_request "read Target Career prerequisites through global API" \
+    "$EVIDENCE_DIR/target-careers-global.json" --max-time 20 \
+    -H "Authorization: Bearer $AUTH_TOKEN" "$GLOBAL_API/target-careerss"
+  local count
+  count="$(jq -r '.targetCareers | length' "$EVIDENCE_DIR/target-careers-global.json")"
+  (( count > 0 )) || {
     record "FAILED: Target Career prerequisite is not satisfied"
     return 5
   }
@@ -346,7 +345,7 @@ restore_routing restore-west
 health_capture east-after "$EAST_API"
 health_capture west-after "$WEST_API"
 http_request "post-restoration authenticated global read" "$EVIDENCE_DIR/post-restoration-target-career.json" \
-  --max-time 20 -H "Authorization: Bearer $AUTH_TOKEN" "$GLOBAL_API/target-career"
+  --max-time 20 -H "Authorization: Bearer $AUTH_TOKEN" "$GLOBAL_API/target-careers"
 
 cat >> "$EVIDENCE_DIR/REPORT.md" <<REPORT
 

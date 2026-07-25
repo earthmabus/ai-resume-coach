@@ -14,30 +14,15 @@ USER_ID = "user-123"
 REQUEST_ID = "request-123"
 
 
-def make_event(
-    *,
-    body: dict | None = None,
-) -> dict:
+def make_event(*, body: dict | None = None) -> dict:
     return {
         "routeKey": "PUT /profile",
-        "headers": {
-            "Content-Type": "application/json",
-        },
+        "headers": {"Content-Type": "application/json"},
         "body": json.dumps(
             body
             or {
                 "version": 0,
-                "name": "Michael",
-                "currentTitle": (
-                    "Software Engineering Manager"
-                ),
-                "targetTitle": (
-                    "Director of Software Engineering"
-                ),
-                "yearsExperience": "15",
-                "certifications": "CISSP, CCSP",
                 "preferredProvider": "openai",
-                "resumeStyle": "executive",
             }
         ),
         "requestContext": {
@@ -74,13 +59,10 @@ def conditional_failure() -> ClientError:
     )
 
 
-def test_get_missing_profile_returns_version_zero(
-    monkeypatch,
-):
-    table = MagicMock()
-    table.get_item.return_value = {}
-
-    monkeypatch.setattr(profile, "table", table)
+def test_get_missing_profile_returns_provider_default(monkeypatch):
+    mocked_table = MagicMock()
+    mocked_table.get_item.return_value = {}
+    monkeypatch.setattr(profile, "table", mocked_table)
 
     response = profile.get_profile(make_event())
     body = response_body(response)
@@ -88,8 +70,15 @@ def test_get_missing_profile_returns_version_zero(
     assert response["statusCode"] == 200
     assert body["version"] == 0
     assert body["userId"] == USER_ID
+    assert body["preferredProvider"] == "openai"
+    assert "name" not in body
+    assert "currentTitle" not in body
+    assert "targetTitle" not in body
+    assert "yearsExperience" not in body
+    assert "certifications" not in body
+    assert "resumeStyle" not in body
 
-    table.get_item.assert_called_once_with(
+    mocked_table.get_item.assert_called_once_with(
         Key={
             "pk": f"USER#{USER_ID}",
             "sk": "PROFILE",
@@ -98,113 +87,131 @@ def test_get_missing_profile_returns_version_zero(
     )
 
 
-def test_create_profile_from_version_zero(
-    monkeypatch,
-):
-    table = MagicMock()
-    table.update_item.return_value = {
+def test_existing_legacy_profile_returns_only_active_contract(monkeypatch):
+    mocked_table = MagicMock()
+    mocked_table.get_item.return_value = {
+        "Item": {
+            "pk": f"USER#{USER_ID}",
+            "sk": "PROFILE",
+            "userId": USER_ID,
+            "version": 3,
+            "name": "Legacy Name",
+            "currentTitle": "Legacy Title",
+            "preferredProvider": "rule-based",
+        }
+    }
+    monkeypatch.setattr(profile, "table", mocked_table)
+
+    body = response_body(profile.get_profile(make_event()))
+
+    assert body == {
+        "pk": f"USER#{USER_ID}",
+        "sk": "PROFILE",
+        "recordType": "userProfile",
+        "userId": USER_ID,
+        "version": 3,
+        "preferredProvider": "rule-based",
+    }
+
+
+def test_create_profile_from_version_zero(monkeypatch):
+    mocked_table = MagicMock()
+    mocked_table.update_item.return_value = {
         "Attributes": {
             "pk": f"USER#{USER_ID}",
             "sk": "PROFILE",
             "recordType": "userProfile",
             "userId": USER_ID,
             "version": 1,
-            "name": "Michael",
+            "preferredProvider": "openai",
         }
     }
-
-    monkeypatch.setattr(profile, "table", table)
+    monkeypatch.setattr(profile, "table", mocked_table)
 
     response = profile.update_profile(make_event())
     body = response_body(response)
 
     assert response["statusCode"] == 200
     assert body["version"] == 1
+    assert body["preferredProvider"] == "openai"
 
-    call = table.update_item.call_args.kwargs
-
-    assert (
-        call["ExpressionAttributeValues"][
-            ":expectedVersion"
-        ]
-        == 0
-    )
+    call = mocked_table.update_item.call_args.kwargs
+    assert call["ExpressionAttributeValues"][":expectedVersion"] == 0
+    assert "currentTitle" not in call["UpdateExpression"]
+    assert "targetTitle" not in call["UpdateExpression"]
+    assert "resumeStyle" not in call["UpdateExpression"]
 
 
-def test_update_profile_with_matching_version(
-    monkeypatch,
-):
-    table = MagicMock()
-    table.update_item.return_value = {
+def test_update_profile_with_matching_version(monkeypatch):
+    mocked_table = MagicMock()
+    mocked_table.update_item.return_value = {
         "Attributes": {
             "userId": USER_ID,
             "version": 4,
-            "name": "Michael",
+            "preferredProvider": "rule-based",
         }
     }
-
-    monkeypatch.setattr(profile, "table", table)
+    monkeypatch.setattr(profile, "table", mocked_table)
 
     response = profile.update_profile(
         make_event(
             body={
                 "version": 3,
-                "name": "Michael",
-                "currentTitle": "Senior Manager",
-                "targetTitle": "Director",
-                "yearsExperience": "15",
-                "certifications": "CISSP",
-                "preferredProvider": "openai",
-                "resumeStyle": "executive",
+                "preferredProvider": "rule-based",
             }
         )
     )
 
     assert response["statusCode"] == 200
     assert response_body(response)["version"] == 4
+    assert response_body(response)["preferredProvider"] == "rule-based"
 
-    call = table.update_item.call_args.kwargs
-
-    assert (
-        call["ExpressionAttributeValues"][
-            ":expectedVersion"
-        ]
-        == 3
-    )
+    call = mocked_table.update_item.call_args.kwargs
+    assert call["ExpressionAttributeValues"][":expectedVersion"] == 3
 
 
-def test_missing_profile_version_returns_400(
-    monkeypatch,
-):
-    table = MagicMock()
-    monkeypatch.setattr(profile, "table", table)
+def test_missing_profile_version_returns_400(monkeypatch):
+    mocked_table = MagicMock()
+    monkeypatch.setattr(profile, "table", mocked_table)
 
     response = profile.update_profile(
-        make_event(body={"name": "Michael"})
+        make_event(body={"preferredProvider": "openai"})
     )
 
     assert response["statusCode"] == 400
-    assert "version is required" in response_body(
-        response
-    )["error"]
-
-    table.update_item.assert_not_called()
+    assert "version is required" in response_body(response)["error"]
+    mocked_table.update_item.assert_not_called()
 
 
-def test_stale_profile_version_raises_conflict(
-    monkeypatch,
-):
-    table = MagicMock()
-    table.update_item.side_effect = conditional_failure()
+def test_unsupported_provider_returns_400(monkeypatch):
+    mocked_table = MagicMock()
+    monkeypatch.setattr(profile, "table", mocked_table)
 
-    monkeypatch.setattr(profile, "table", table)
+    response = profile.update_profile(
+        make_event(
+            body={
+                "version": 0,
+                "preferredProvider": "unsupported",
+            }
+        )
+    )
+
+    assert response["statusCode"] == 400
+    assert "not supported" in response_body(response)["error"]
+    mocked_table.update_item.assert_not_called()
+
+
+def test_stale_profile_version_raises_conflict(monkeypatch):
+    mocked_table = MagicMock()
+    mocked_table.update_item.side_effect = conditional_failure()
+    monkeypatch.setattr(profile, "table", mocked_table)
 
     with pytest.raises(ResourceConflictError):
         profile.update_profile(
             make_event(
                 body={
                     "version": 2,
-                    "name": "Michael",
+                    "preferredProvider": "openai",
                 }
             )
         )

@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <title>Resume Analysis | AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=22" />
 </head>
 <body data-page="resume-analysis">
   <nav class="top-nav">
     <a class="brand" href="./index.html">AI Resume Coach</a>
     <div class="nav-links">
-      <a href="./target-career.html">Target Career</a>
+      <a href="./target-career.html">Target Careers</a>
       <a href="./resume-analysis.html">Resume Analysis</a>
       <a href="./job-matching.html">Job Matching</a>
       <a class="disabled" href="#">Notifications</a>
@@ -29,7 +29,21 @@
     <details id="analyzeResumeCard" class="card accordion-card">
       <summary>Analyze Resume</summary>
       <div class="accordion-body">
+        <section class="resume-career-context" aria-labelledby="targetCareerSelectionHeading">
+          <h2 id="targetCareerSelectionHeading">Choose a Target Career</h2>
+          <p>Choose the career goal you want to assess. Your resume analysis, role-fit feedback, and recommendations will be tailored to the selected career.</p>
 
+          <div id="resumeTargetCareerError" class="error-banner hidden" role="alert"></div>
+          <div id="resumeTargetCareerLoading" class="muted">Loading your Target Careers…</div>
+          <div id="resumeTargetCareerEmpty" class="empty-state hidden">
+            <h3>Create a Target Career first</h3>
+            <p>Resume Analysis needs a career goal so it can evaluate your resume against the role you want to pursue.</p>
+            <a class="button-link" href="./target-career.html">Create Target Career</a>
+          </div>
+          <div id="resumeTargetCareerList" class="resume-target-career-grid" role="radiogroup" aria-label="Target Career"></div>
+        </section>
+
+        <div id="resumeAnalysisInputs" class="hidden">
         <label for="resumeName">Resume name</label>
         <input id="resumeName" type="text" placeholder="Example: Michael - Director Cloud Resume" />
 
@@ -47,15 +61,16 @@
         <section id="textPanel" class="input-panel">
           <label for="resumeText">Resume text</label>
           <textarea id="resumeText" rows="12" placeholder="Paste resume text here..."></textarea>
-          <button id="analyzeButton">Analyze Text</button>
+          <span id="analyzeButtonTooltip" class="disabled-action-tooltip" tabindex="0"><button id="analyzeButton" disabled>Analyze Text</button></span>
         </section>
 
         <section id="pdfPanel" class="input-panel hidden">
           <label for="resumeFile">PDF file</label>
           <input id="resumeFile" type="file" accept="application/pdf" />
-          <button id="uploadButton">Upload PDF</button>
+          <span id="uploadButtonTooltip" class="disabled-action-tooltip" tabindex="0"><button id="uploadButton" disabled>Upload PDF</button></span>
           <p class="hint">PDFs are uploaded to S3, converted to text, saved to history, and queued for async AI analysis.</p>
         </section>
+        </div>
       </div>
     </details>
 
@@ -97,6 +112,6 @@
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js"></script>
   <script src="./auth.js"></script>
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=20"></script>
 </body>
 </html>

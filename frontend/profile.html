@@ -4,13 +4,13 @@
   <meta charset="utf-8" />
   <title>Profile | AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=19" />
 </head>
 <body data-page="profile">
   <nav class="top-nav">
     <a class="brand" href="./index.html">AI Resume Coach</a>
     <div class="nav-links">
-      <a href="./target-career.html">Target Career</a>
+      <a href="./target-career.html">Target Careers</a>
       <a href="./resume-analysis.html">Resume Analysis</a>
       <a href="./job-matching.html">Job Matching</a>
       <a class="disabled" href="#">Notifications</a>
@@ -22,24 +22,25 @@
   <main class="container">
     <section class="hero">
       <h1>Profile</h1>
-      <p>Set your career context and default preferences for resume analysis and job matching.</p>
+      <p>Manage your identity details and default AI provider preference.</p>
     </section>
 
     <section class="card">
-      <label for="profileName">Name</label>
-      <input id="profileName" type="text" placeholder="Example: Michael Popovich" />
+      <div class="two-column-form-grid">
+        <div>
+          <label for="firstName">First Name</label>
+          <input id="firstName" type="text" autocomplete="given-name" />
+        </div>
 
-      <label for="currentTitle">Current Title</label>
-      <input id="currentTitle" type="text" placeholder="Example: Senior Software Engineering Manager" />
+        <div>
+          <label for="lastName">Last Name</label>
+          <input id="lastName" type="text" autocomplete="family-name" />
+        </div>
+      </div>
 
-      <label for="targetTitle">Target Title</label>
-      <input id="targetTitle" type="text" placeholder="Example: Director, Software Engineering" />
-
-      <label for="yearsExperience">Years Experience</label>
-      <input id="yearsExperience" type="text" placeholder="Example: 20+" />
-
-      <label for="certifications">Certifications</label>
-      <textarea id="certifications" rows="5" placeholder="Example: CISSP, CCSP, AWS Solutions Architect Professional"></textarea>
+      <label for="emailAddress">Email Address</label>
+      <input id="emailAddress" type="email" autocomplete="email" readonly aria-readonly="true" />
+      <p class="field-help">Your email address is managed by Amazon Cognito and cannot be changed here.</p>
 
       <label for="preferredProvider">Preferred Provider</label>
       <select id="preferredProvider">
@@ -47,23 +48,15 @@
         <option value="rule-based">Rule-based</option>
       </select>
 
-      <label for="resumeStyle">Resume Style</label>
-      <select id="resumeStyle">
-        <option value="executive">Executive</option>
-        <option value="technical">Technical</option>
-        <option value="balanced">Balanced</option>
-      </select>
-
       <button id="saveProfileButton">Save Profile</button>
 
       <div id="profileError" class="error-banner hidden"></div>
     </section>
-
   </main>
 
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js"></script>
   <script src="./auth.js"></script>
-  <script src="./profile.js?v=2"></script>
+  <script src="./profile.js?v=4"></script>
 </body>
 </html>

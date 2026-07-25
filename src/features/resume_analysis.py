@@ -306,17 +306,22 @@ def analyze_resume(event):
             {"error": "resumeText is required"},
         )
 
-    target_career = get_target_career_for_user(user_id)
+    target_career_id = str(body.get("targetCareerId") or "").strip()
+    if not target_career_id:
+        return build_response(
+            400,
+            {"error": "targetCareerId is required"},
+        )
+
+    target_career = get_target_career_for_user(
+        user_id,
+        target_career_id,
+    )
 
     if not target_career:
         return build_response(
-            400,
-            {
-                "error": (
-                    "Target Career is required before "
-                    "analyzing resumes"
-                )
-            },
+            404,
+            {"error": "Target Career not found"},
         )
 
     request_hash = request_fingerprint(
@@ -326,6 +331,7 @@ def analyze_resume(event):
             "resumeName": resume_name,
             "resumeText": resume_text,
             "analysisProvider": requested_provider,
+            "targetCareerId": target_career_id,
         },
     )
 
@@ -652,18 +658,6 @@ def analyze_uploaded_resume(event):
     )
     user_id = context.user_id
 
-    target_career = get_target_career_for_user(user_id)
-
-    if not target_career:
-        return build_response(
-            400,
-            {
-                "error": (
-                    "Target Career is required before analyzing resumes"
-                )
-            },
-        )
-
     file_name = str(body.get("fileName") or "").strip()
     resume_name = (
         str(body.get("resumeName") or "").strip()
@@ -694,6 +688,24 @@ def analyze_uploaded_resume(event):
         body.get("analysisProvider")
         or os.getenv("ANALYSIS_PROVIDER", "rule-based")
     )
+    target_career_id = str(body.get("targetCareerId") or "").strip()
+    if not target_career_id:
+        return build_response(
+            400,
+            {"error": "targetCareerId is required"},
+        )
+
+    target_career = get_target_career_for_user(
+        user_id,
+        target_career_id,
+    )
+
+    if not target_career:
+        return build_response(
+            404,
+            {"error": "Target Career not found"},
+        )
+
     synthetic_placement = resolve_synthetic_owner_region(event)
     owner_region = (
         synthetic_placement.owner_region
@@ -711,6 +723,7 @@ def analyze_uploaded_resume(event):
         "fileName": file_name,
         "resumeName": resume_name,
         "analysisProvider": requested_provider,
+        "targetCareerId": target_career_id,
         "ownerRegion": owner_region,
         "syntheticPlacementOverrideUsed": (
             synthetic_placement_override_used

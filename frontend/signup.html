@@ -4,12 +4,23 @@
   <meta charset="utf-8" />
   <title>Create Account | AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=19" />
 </head>
 <body>
   <main class="container auth-container">
     <section class="card auth-card">
       <h1>Create Account</h1>
+
+      <div class="two-column-form-grid">
+        <div>
+          <label for="signupFirstName">First Name</label>
+          <input id="signupFirstName" type="text" autocomplete="given-name" />
+        </div>
+        <div>
+          <label for="signupLastName">Last Name</label>
+          <input id="signupLastName" type="text" autocomplete="family-name" />
+        </div>
+      </div>
 
       <label for="signupEmail">Email</label>
       <input id="signupEmail" type="email" autocomplete="email" />
@@ -23,7 +34,7 @@
       <button id="signupButton" class="primary-button" type="button">Submit</button>
 
       <div class="auth-actions">
-	<button type="button" class="secondary-button" onclick="window.location.href='./login.html'">Back to Sign In</button>
+        <button type="button" class="secondary-button" onclick="window.location.href='./login.html'">Back to Sign In</button>
       </div>
 
       <div id="signupResult" class="result-panel">Create your account.</div>
@@ -33,6 +44,6 @@
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js?v=2"></script>
   <script src="./auth.js?v=2"></script>
-  <script src="./signup.js?v=2"></script>
+  <script src="./signup.js?v=3"></script>
 </body>
 </html>

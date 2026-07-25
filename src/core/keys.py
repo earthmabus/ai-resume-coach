@@ -32,8 +32,8 @@ def profile_sk():
     return "PROFILE"
 
 
-def target_career_sk():
-    return "TARGET_CAREER"
+def target_career_sk(target_career_id):
+    return f"TARGET_CAREER#{target_career_id}"
 
 
 def entity_gsi_pk(entity_id):
