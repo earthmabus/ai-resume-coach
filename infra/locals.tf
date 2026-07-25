@@ -43,5 +43,6 @@ locals {
     log_level         = upper(var.log_level)
     analysis_provider = var.analysis_provider
     openai_model      = var.openai_model
+    openai_api_key    = var.openai_api_key
   }
 }

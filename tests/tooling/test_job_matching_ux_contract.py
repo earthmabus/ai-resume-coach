@@ -12,6 +12,8 @@ def test_job_matching_uses_friendly_status_presentations():
     assert "JOB_MATCH_STATUS_PRESENTATION" in source
     assert "Preparing your job match" in source
     assert "Comparing your resume with the job" in source
+    assert "failed_retry_exhausted" in source
+    assert "after several attempts" in source
     assert "QUEUED_PENDING_DISPATCH" not in JOB_MATCHING_HTML.read_text(encoding="utf-8")
 
 
@@ -32,9 +34,10 @@ def test_job_match_history_refreshes_and_resumes_active_work():
     assert "resumeActiveMatch" in source
     assert "isJobMatchInProgress(item.status)" in source
     assert "loadJobMatches({ resumeActiveMatch: false })" in source
-    assert "jobMatchStatusPresentation(item.status).historyLabel" in source
+    assert "const presentation = jobMatchStatusPresentation(item.status)" in source
+    assert "presentation.historyLabel" in source
 
 
 def test_job_matching_cache_buster_is_updated():
     html = JOB_MATCHING_HTML.read_text(encoding="utf-8")
-    assert '<script src="./app.js?v=10"></script>' in html
+    assert '<script src="./app.js?v=14"></script>' in html

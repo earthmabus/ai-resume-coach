@@ -19,6 +19,7 @@ run "regional_compute_is_symmetric" {
   # terraform.tfvars files cannot change this contract test's behavior.
   variables {
     enable_outbox_publisher_schedule = true
+    openai_api_key                   = "terraform-contract-test-key"
   }
 
   assert {
@@ -41,6 +42,28 @@ run "regional_compute_is_symmetric" {
       == "ai-resume-coach-dev-usw2-worker"
     )
     error_message = "Regional worker Lambda names are incorrect."
+  }
+
+  assert {
+    condition = (
+      output.regional_foundations.east.compute.worker.openai_api_key_configured
+      &&
+      output.regional_foundations.west.compute.worker.openai_api_key_configured
+    )
+    error_message = "Both regional worker Lambdas must receive the configured OpenAI API key."
+  }
+
+  assert {
+    condition = (
+      !output.regional_foundations.east.compute.api.openai_api_key_configured
+      &&
+      !output.regional_foundations.west.compute.api.openai_api_key_configured
+      &&
+      !output.regional_foundations.east.compute.outbox_publisher.openai_api_key_configured
+      &&
+      !output.regional_foundations.west.compute.outbox_publisher.openai_api_key_configured
+    )
+    error_message = "The OpenAI API key must be scoped to worker Lambdas only."
   }
 
   assert {

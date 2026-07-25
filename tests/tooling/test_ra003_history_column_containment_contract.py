@@ -16,4 +16,4 @@ def test_history_context_panels_are_contained_inside_left_column():
 
 def test_resume_analysis_uses_latest_stylesheet_version():
     html = (ROOT / "frontend" / "resume-analysis.html").read_text()
-    assert './styles.css?v=22' in html
+    assert './styles.css?v=23' in html

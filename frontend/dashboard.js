@@ -69,63 +69,96 @@ function renderStats(targetCareers, analyses, matches) {
   `;
 }
 
-function renderActivityList(container, activities, emptyMessage, showJobUrl = false) {
-  if (activities.length === 0) {
-    container.textContent = emptyMessage;
-    return;
-  }
+function scoreToneClass(score) {
+  const numericScore = Number(score) || 0;
+  if (numericScore >= 80) return "score-good";
+  if (numericScore >= 70) return "score-warning";
+  return "score-poor";
+}
 
-  container.innerHTML = activities.map(item => `
-    <a class="activity-item" href="${escapeHtml(item.href)}">
-      <div>
-        <div>
-          ${statusBadge(item.status)}
+function targetCareerFromAnalysis(item) {
+  return item.targetCareer || item.targetCareerSnapshot || {};
+}
+
+function targetCareerVersion(item) {
+  const career = targetCareerFromAnalysis(item);
+  return `v${Number(career.version ?? item.targetCareerVersion ?? 1) || 1}`;
+}
+
+function renderResumeActivity(item) {
+  const career = targetCareerFromAnalysis(item);
+  const roleTitle = career.roleTitle || item.targetRoleTitle || "Target Career unavailable";
+  const score = Number(item.score) || 0;
+  const fileName = item.fileName || "";
+  return `
+    <a class="dashboard-history-item" href="./resume-analysis.html?analysisId=${encodeURIComponent(item.analysisId)}">
+      <div class="dashboard-score-circle ${scoreToneClass(score)}" aria-label="ATS score ${escapeHtml(score)}">${escapeHtml(score)}</div>
+      <div class="dashboard-context-grid">
+        <div class="analysis-context-panel">
+          <span class="analysis-context-label">Target Career</span>
+          <strong>${escapeHtml(roleTitle)} <span class="analysis-context-version">${escapeHtml(targetCareerVersion(item))}</span></strong>
         </div>
-        <p><strong>${escapeHtml(item.title)}</strong></p>
-        <p>${escapeHtml(item.subtitle)}</p>
-        ${showJobUrl ? `<p><strong>URL:</strong> ${escapeHtml(item.jobUrl || "N/A")}</p>` : ""}
+        <div class="analysis-context-panel">
+          <span class="analysis-context-label">Resume</span>
+          <strong>${escapeHtml(item.resumeName || "Untitled Resume")}</strong>
+          ${fileName ? `<span class="analysis-context-file">${escapeHtml(fileName)}</span>` : ""}
+        </div>
       </div>
-      <div class="activity-date">${escapeHtml(formatEastern(item.createdAt))}</div>
+      <div class="dashboard-history-metrics">
+        ${statusBadge(item.status)}
+        <span class="metric">Created: ${escapeHtml(formatEastern(item.createdAt))}</span>
+        <span class="metric">Provider: ${escapeHtml(item.provider || "unknown")}</span>
+        <span class="metric">Model: ${escapeHtml(item.model || "N/A")}</span>
+        <span class="metric">Words: ${escapeHtml(item.wordCount || 0)}</span>
+      </div>
     </a>
-  `).join("");
+  `;
+}
+
+function renderJobActivity(item) {
+  const score = Number(item.matchScore) || 0;
+  return `
+    <a class="dashboard-history-item" href="./job-matching.html?matchId=${encodeURIComponent(item.matchId)}">
+      <div class="dashboard-score-circle ${scoreToneClass(score)}" aria-label="Match score ${escapeHtml(score)}">${escapeHtml(score)}</div>
+      <div class="dashboard-context-grid">
+        <div class="analysis-context-panel">
+          <span class="analysis-context-label">Job</span>
+          <strong>${escapeHtml(item.jobName || "Untitled Job")}</strong>
+          ${item.jobUrl ? `<span class="analysis-context-file">${escapeHtml(item.jobUrl)}</span>` : ""}
+        </div>
+        <div class="analysis-context-panel">
+          <span class="analysis-context-label">Resume</span>
+          <strong>${escapeHtml(item.resumeName || "Untitled Resume")}</strong>
+          ${item.resumeFileName ? `<span class="analysis-context-file">${escapeHtml(item.resumeFileName)}</span>` : ""}
+        </div>
+      </div>
+      <div class="dashboard-history-metrics">
+        ${statusBadge(item.status)}
+        <span class="metric">Provider: ${escapeHtml(item.provider || "unknown")}</span>
+        <span class="metric">Leadership: ${escapeHtml(item.leadershipMatchScore || 0)}</span>
+        <span class="metric">Technical: ${escapeHtml(item.technicalMatchScore || 0)}</span>
+        <span class="metric">Architecture: ${escapeHtml(item.architectureMatchScore || 0)}</span>
+        <span class="metric">ATS: ${escapeHtml(item.atsKeywordScore || 0)}</span>
+      </div>
+    </a>
+  `;
 }
 
 function renderRecentActivity(analyses, matches) {
-  const resumeActivities = analyses
-    .map(item => ({
-      title: item.resumeName || "Untitled Resume",
-      subtitle: `${item.sourceType || "resume"} | score ${item.score || 0}`,
-      status: item.status || "unknown",
-      createdAt: item.createdAt || "",
-      href: `./resume-analysis.html?analysisId=${encodeURIComponent(item.analysisId)}`
-    }))
+  const recentAnalyses = [...analyses]
+    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
+    .slice(0, 5);
+  const recentMatches = [...matches]
     .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
     .slice(0, 5);
 
-  const matchActivities = matches
-    .map(item => ({
-      title: item.jobName || "Untitled Job",
-      subtitle: `${item.resumeName || "Untitled Resume"} | match score ${item.matchScore || 0}`,
-      jobUrl: item.jobUrl || "",
-      status: item.status || "unknown",
-      createdAt: item.createdAt || "",
-      href: `./job-matching.html?matchId=${encodeURIComponent(item.matchId)}`
-    }))
-    .sort((a, b) => new Date(b.createdAt || 0) - new Date(a.createdAt || 0))
-    .slice(0, 5);
+  recentResumeActivity.innerHTML = recentAnalyses.length
+    ? recentAnalyses.map(renderResumeActivity).join("")
+    : "No recent resume analysis activity yet.";
 
-  renderActivityList(
-    recentResumeActivity,
-    resumeActivities,
-    "No recent resume analysis activity yet."
-  );
-
-  renderActivityList(
-    recentJobActivity,
-    matchActivities,
-    "No recent job matching activity yet.",
-    true
-  );
+  recentJobActivity.innerHTML = recentMatches.length
+    ? recentMatches.map(renderJobActivity).join("")
+    : "No recent job matching activity yet.";
 }
 
 async function loadDashboard() {

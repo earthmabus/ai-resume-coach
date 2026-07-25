@@ -22,6 +22,8 @@ def make_event(*, body: dict | None = None) -> dict:
             body
             or {
                 "version": 0,
+                "firstName": "",
+                "lastName": "",
                 "preferredProvider": "openai",
             }
         ),
@@ -71,6 +73,8 @@ def test_get_missing_profile_returns_provider_default(monkeypatch):
     assert body["version"] == 0
     assert body["userId"] == USER_ID
     assert body["preferredProvider"] == "openai"
+    assert body["firstName"] == ""
+    assert body["lastName"] == ""
     assert "name" not in body
     assert "currentTitle" not in body
     assert "targetTitle" not in body
@@ -110,6 +114,8 @@ def test_existing_legacy_profile_returns_only_active_contract(monkeypatch):
         "recordType": "userProfile",
         "userId": USER_ID,
         "version": 3,
+        "firstName": "",
+        "lastName": "",
         "preferredProvider": "rule-based",
     }
 
@@ -123,6 +129,8 @@ def test_create_profile_from_version_zero(monkeypatch):
             "recordType": "userProfile",
             "userId": USER_ID,
             "version": 1,
+            "firstName": "",
+            "lastName": "",
             "preferredProvider": "openai",
         }
     }
@@ -134,8 +142,12 @@ def test_create_profile_from_version_zero(monkeypatch):
     assert response["statusCode"] == 200
     assert body["version"] == 1
     assert body["preferredProvider"] == "openai"
+    assert body["firstName"] == ""
+    assert body["lastName"] == ""
 
     call = mocked_table.update_item.call_args.kwargs
+    assert call["ExpressionAttributeValues"][":firstName"] == ""
+    assert call["ExpressionAttributeValues"][":lastName"] == ""
     assert call["ExpressionAttributeValues"][":expectedVersion"] == 0
     assert "currentTitle" not in call["UpdateExpression"]
     assert "targetTitle" not in call["UpdateExpression"]
@@ -148,6 +160,8 @@ def test_update_profile_with_matching_version(monkeypatch):
         "Attributes": {
             "userId": USER_ID,
             "version": 4,
+            "firstName": "Michael",
+            "lastName": "Popovich",
             "preferredProvider": "rule-based",
         }
     }
@@ -157,6 +171,8 @@ def test_update_profile_with_matching_version(monkeypatch):
         make_event(
             body={
                 "version": 3,
+                "firstName": "Michael",
+                "lastName": "Popovich",
                 "preferredProvider": "rule-based",
             }
         )
@@ -165,6 +181,8 @@ def test_update_profile_with_matching_version(monkeypatch):
     assert response["statusCode"] == 200
     assert response_body(response)["version"] == 4
     assert response_body(response)["preferredProvider"] == "rule-based"
+    assert response_body(response)["firstName"] == "Michael"
+    assert response_body(response)["lastName"] == "Popovich"
 
     call = mocked_table.update_item.call_args.kwargs
     assert call["ExpressionAttributeValues"][":expectedVersion"] == 3
@@ -215,3 +233,23 @@ def test_stale_profile_version_raises_conflict(monkeypatch):
                 }
             )
         )
+
+
+def test_profile_name_length_is_bounded(monkeypatch):
+    mocked_table = MagicMock()
+    monkeypatch.setattr(profile, "table", mocked_table)
+
+    response = profile.update_profile(
+        make_event(
+            body={
+                "version": 0,
+                "firstName": "x" * 101,
+                "lastName": "Popovich",
+                "preferredProvider": "openai",
+            }
+        )
+    )
+
+    assert response["statusCode"] == 400
+    assert "100 characters or fewer" in response_body(response)["error"]
+    mocked_table.update_item.assert_not_called()

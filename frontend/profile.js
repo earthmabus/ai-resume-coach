@@ -43,24 +43,28 @@ function showProfileSavedState() {
   }, 2000);
 }
 
-async function getAuthenticatedCognitoUser() {
-  // CognitoIdentityServiceProvider operations such as getUserAttributes and
-  // updateAttributes require the current CognitoUser to have a valid session
-  // attached. Loading a page reconstructs the user from local storage, but the
-  // session is not attached until getSession completes.
-  await getCurrentSession();
-
+async function getAuthenticatedCognitoContext() {
+  const session = await getCurrentSession();
   const user = getCurrentUser();
 
   if (!user) {
     throw new Error("No current user");
   }
 
-  return user;
+  // Explicitly attach the restored session to the reconstructed CognitoUser.
+  // This is required by getUserAttributes/updateAttributes in some browser
+  // restore paths even though getSession has already validated the tokens.
+  user.setSignInUserSession(session);
+
+  return { user, session };
 }
 
-async function getCognitoAttributes() {
-  const user = await getAuthenticatedCognitoUser();
+function claimsFromSession(session) {
+  return session?.getIdToken?.().payload || {};
+}
+
+async function getCognitoAttributes(context) {
+  const { user } = context;
 
   return new Promise((resolve, reject) => {
     user.getUserAttributes((error, attributes) => {
@@ -69,21 +73,18 @@ async function getCognitoAttributes() {
         return;
       }
 
-      const values = Object.fromEntries(
+      resolve(Object.fromEntries(
         (attributes || []).map((attribute) => [
           attribute.getName(),
           attribute.getValue(),
         ]),
-      );
-
-      resolve(values);
+      ));
     });
   });
 }
 
-async function updateCognitoNameAttributes() {
-  const user = await getAuthenticatedCognitoUser();
-
+async function updateCognitoNameAttributes(context) {
+  const { user } = context;
   const attributes = [
     new AmazonCognitoIdentity.CognitoUserAttribute({
       Name: "given_name",
@@ -111,26 +112,46 @@ async function loadProfile() {
   clearProfileError();
 
   try {
-    const [attributes, response] = await Promise.all([
-      getCognitoAttributes(),
-      fetch(`${API_BASE_URL}/profile`, {
-        headers: await authHeaders(),
-      }),
-    ]);
+    const context = await getAuthenticatedCognitoContext();
+    const claims = claimsFromSession(context.session);
 
+    // ID-token claims are available immediately after login and provide a
+    // reliable identity source even when an older user has no name attributes.
+    emailAddressInput.value = claims.email || "";
+    firstNameInput.value = claims.given_name || "";
+    lastNameInput.value = claims.family_name || "";
+
+    const response = await fetch(`${API_BASE_URL}/profile`, {
+      headers: await authHeaders(),
+    });
     const data = await response.json();
 
     if (!response.ok) {
-      throw new Error(
-        getErrorMessage(data, "Could not load profile"),
-      );
+      throw new Error(getErrorMessage(data, "Could not load profile"));
     }
 
     profileVersion = Number(data.version ?? 0);
-    firstNameInput.value = attributes.given_name || "";
-    lastNameInput.value = attributes.family_name || "";
-    emailAddressInput.value = attributes.email || "";
     preferredProviderSelect.value = data.preferredProvider || "openai";
+
+    // DynamoDB is the compatibility fallback for existing accounts whose
+    // Cognito user record predates given_name/family_name support.
+    if (!firstNameInput.value) {
+      firstNameInput.value = data.firstName || "";
+    }
+    if (!lastNameInput.value) {
+      lastNameInput.value = data.lastName || "";
+    }
+
+    // Refresh from Cognito when possible, but do not make the whole Profile
+    // page unusable if Cognito's attribute endpoint rejects an older session.
+    try {
+      const attributes = await getCognitoAttributes(context);
+      emailAddressInput.value = attributes.email || emailAddressInput.value;
+      firstNameInput.value = attributes.given_name || firstNameInput.value;
+      lastNameInput.value = attributes.family_name || lastNameInput.value;
+    } catch (attributeError) {
+      console.warn("Could not refresh Cognito user attributes", attributeError);
+    }
   } catch (error) {
     showProfileError(error.message || "Unable to load profile.");
   }
@@ -138,46 +159,47 @@ async function loadProfile() {
 
 async function saveProfile() {
   clearProfileError();
-
   saveProfileButton.disabled = true;
   saveProfileButton.textContent = "Saving...";
 
   try {
-    await updateCognitoNameAttributes();
+    const context = await getAuthenticatedCognitoContext();
 
     const response = await fetch(`${API_BASE_URL}/profile`, {
       method: "PUT",
       headers: await jsonHeaders(),
       body: JSON.stringify({
         version: profileVersion,
+        firstName: firstNameInput.value.trim(),
+        lastName: lastNameInput.value.trim(),
         preferredProvider: preferredProviderSelect.value,
       }),
     });
-
     const data = await response.json();
 
     if (response.status === 409) {
       await loadProfile();
-
-      throw new Error(
-        getErrorMessage(
-          data,
-          (
-            "Your profile was changed elsewhere. "
-            + "The latest version has been loaded. "
-            + "Review it and try again."
-          ),
-        ),
-      );
+      throw new Error(getErrorMessage(
+        data,
+        "Your profile was changed elsewhere. The latest version has been loaded. Review it and try again.",
+      ));
     }
 
     if (!response.ok) {
-      throw new Error(
-        getErrorMessage(data, "Could not save profile"),
-      );
+      throw new Error(getErrorMessage(data, "Could not save profile"));
     }
 
     profileVersion = Number(data.version);
+
+    // Keep Cognito synchronized when the app client/session permits it. The
+    // durable application profile remains saved even if this optional sync
+    // fails for a legacy account.
+    try {
+      await updateCognitoNameAttributes(context);
+    } catch (attributeError) {
+      console.warn("Profile saved, but Cognito name sync failed", attributeError);
+    }
+
     showProfileSavedState();
   } catch (error) {
     saveProfileButton.disabled = false;

@@ -4,7 +4,7 @@
   <meta charset="utf-8" />
   <title>Job Matching | AI Resume Coach</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css" />
+  <link rel="stylesheet" href="./styles.css?v=23" />
 </head>
 <body data-page="job-matching">
   <nav class="top-nav">
@@ -34,11 +34,6 @@
           <option value="rule-based">Rule-based</option>
         </select>
 
-        <label for="resumeAnalysisSelect">Resume Analysis</label>
-        <select id="resumeAnalysisSelect">
-          <option value="">Load history to select a resume analysis</option>
-        </select>
-
         <label for="jobName">Job name</label>
         <input id="jobName" type="text" placeholder="Example: Director of Software Engineering - AWS Platform" />
 
@@ -48,7 +43,20 @@
         <label for="jobDescriptionText">Job description</label>
         <textarea id="jobDescriptionText" rows="12" placeholder="Paste job description here..."></textarea>
 
-        <button id="matchJobButton">Match Resume to Job</button>
+        <section class="job-resume-context" aria-labelledby="jobResumeHeading">
+          <h3 id="jobResumeHeading">Resumes</h3>
+          <p>Choose the completed resume analysis you want to compare with this job description.</p>
+          <div id="jobResumeLoading" class="status-banner">Loading resumes…</div>
+          <div id="jobResumeEmpty" class="status-banner status-warning hidden">
+            <h3>No completed resume analyses are available</h3>
+            <p>Analyze a resume first, then return here to match it against a job.</p>
+            <a class="button-link" href="./resume-analysis.html">Open Resume Analysis</a>
+          </div>
+          <div id="jobResumeError" class="status-banner status-error hidden"></div>
+          <div id="jobResumeList" class="job-resume-grid" role="radiogroup" aria-label="Choose a resume"></div>
+        </section>
+
+        <span id="matchJobButtonTooltip" class="disabled-action-tooltip" tabindex="0"><button id="matchJobButton" disabled>Match Resume to Job</button></span>
       </div>
     </details>
 
@@ -92,6 +100,6 @@
   <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
   <script src="./config.js"></script>
   <script src="./auth.js"></script>
-  <script src="./app.js?v=10"></script>
+  <script src="./app.js?v=14"></script>
 </body>
 </html>

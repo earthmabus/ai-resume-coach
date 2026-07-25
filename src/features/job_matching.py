@@ -680,6 +680,58 @@ def get_job_match(event):
     return build_response(200, item)
 
 
+
+def delete_job_match_children(
+    *,
+    user_id: str,
+    match_id: str,
+) -> int:
+    """
+    Delete all derived records owned by a job match.
+
+    Child records are removed before the parent so a failed child cleanup
+    never leaves invisible orphaned records behind. Conditional failures are
+    surfaced as conflicts and preserve the parent for a safe retry.
+    """
+    child_response = table.query(
+        KeyConditionExpression=Key("pk").eq(
+            tailoring_pk(match_id)
+        ),
+        ConsistentRead=True,
+    )
+
+    deleted_children = 0
+
+    for child in child_response.get("Items", []):
+        try:
+            table.delete_item(
+                Key={
+                    "pk": child["pk"],
+                    "sk": child["sk"],
+                },
+                ConditionExpression=(
+                    "userId = :userId "
+                    "AND matchId = :matchId"
+                ),
+                ExpressionAttributeValues={
+                    ":userId": user_id,
+                    ":matchId": match_id,
+                },
+            )
+            deleted_children += 1
+        except ClientError as error:
+            if is_conditional_failure(error):
+                raise ResourceConflictError(
+                    (
+                        "A job-match child changed before "
+                        "it could be deleted"
+                    )
+                ) from error
+
+            raise
+
+    return deleted_children
+
 def delete_job_match(event):
     context = build_request_context(event)
     user_id = context.user_id
@@ -736,6 +788,11 @@ def delete_job_match(event):
             {"error": "job match not found"},
         )
 
+    deleted_children = delete_job_match_children(
+        user_id=user_id,
+        match_id=match_id,
+    )
+
     try:
         table.delete_item(
             Key=match_key,
@@ -771,36 +828,6 @@ def delete_job_match(event):
 
         raise
 
-    child_response = table.query(
-        KeyConditionExpression=Key("pk").eq(
-            tailoring_pk(match_id)
-        ),
-        ConsistentRead=True,
-    )
-
-    deleted_children = 0
-    failed_children = 0
-
-    for child in child_response.get("Items", []):
-        try:
-            table.delete_item(
-                Key={
-                    "pk": child["pk"],
-                    "sk": child["sk"],
-                },
-                ConditionExpression="userId = :userId",
-                ExpressionAttributeValues={
-                    ":userId": user_id,
-                },
-            )
-            deleted_children += 1
-        except ClientError as error:
-            if is_conditional_failure(error):
-                failed_children += 1
-                continue
-
-            raise
-
     return build_response(
         200,
         {
@@ -809,7 +836,7 @@ def delete_job_match(event):
             "deletedVersion": expected_version,
             "deletedCount": deleted_children + 1,
             "deletedChildren": deleted_children,
-            "failedChildren": failed_children,
+            "failedChildren": 0,
         },
     )
 
@@ -843,77 +870,27 @@ def delete_all_job_matches(event):
             failed += 1
             continue
 
-        #
-        # Delete derived child records before deleting the parent.
-        #
-        # If the parent changes concurrently, the conditional parent
-        # deletion will fail and the visible match remains available.
-        # The waiting/generated child records can be recreated from the
-        # parent workflow if necessary.
-        #
+        # Delete derived records first so a cleanup failure preserves the
+        # visible parent and can be retried safely.
         try:
-            child_response = table.query(
-                KeyConditionExpression=Key("pk").eq(
-                    tailoring_pk(match_id)
-                ),
-                ConsistentRead=True,
+            deleted_children += delete_job_match_children(
+                user_id=user_id,
+                match_id=match_id,
             )
+        except ResourceConflictError:
+            failed_children += 1
+            failed += 1
+            continue
         except ClientError:
             logger.exception(
-                "Could not query job-match children during bulk deletion",
+                "Could not delete job-match children during bulk deletion",
                 extra={
                     "matchId": match_id,
                     "requestId": context.request_id,
                     "region": context.region,
                 },
             )
-
-            failed += 1
-            continue
-
-        child_cleanup_failed = False
-
-        for child in child_response.get("Items", []):
-            try:
-                table.delete_item(
-                    Key={
-                        "pk": child["pk"],
-                        "sk": child["sk"],
-                    },
-                    ConditionExpression=(
-                        "userId = :userId "
-                        "AND matchId = :matchId"
-                    ),
-                    ExpressionAttributeValues={
-                        ":userId": user_id,
-                        ":matchId": match_id,
-                    },
-                )
-
-                deleted_children += 1
-
-            except ClientError as error:
-                if is_conditional_failure(error):
-                    failed_children += 1
-                    child_cleanup_failed = True
-                    continue
-
-                logger.exception(
-                    "Job-match child deletion failed",
-                    extra={
-                        "matchId": match_id,
-                        "childRecordType": child.get(
-                            "recordType"
-                        ),
-                        "requestId": context.request_id,
-                        "region": context.region,
-                    },
-                )
-
-                failed_children += 1
-                child_cleanup_failed = True
-
-        if child_cleanup_failed:
+            failed_children += 1
             failed += 1
             continue
 

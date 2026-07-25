@@ -25,19 +25,11 @@ def public_profile(item: dict, *, user_id: str) -> dict:
         "recordType": item.get("recordType", "userProfile"),
         "userId": user_id,
         "version": int(item.get("version", 0)),
-        "preferredProvider": str(
-            item.get("preferredProvider") or "openai"
-        ),
-        **(
-            {"createdAt": item["createdAt"]}
-            if item.get("createdAt")
-            else {}
-        ),
-        **(
-            {"updatedAt": item["updatedAt"]}
-            if item.get("updatedAt")
-            else {}
-        ),
+        "firstName": str(item.get("firstName") or ""),
+        "lastName": str(item.get("lastName") or ""),
+        "preferredProvider": str(item.get("preferredProvider") or "openai"),
+        **({"createdAt": item["createdAt"]} if item.get("createdAt") else {}),
+        **({"updatedAt": item["updatedAt"]} if item.get("updatedAt") else {}),
     }
 
 
@@ -46,18 +38,13 @@ def get_profile(event):
     user_id = context.user_id
 
     response = table.get_item(
-        Key={
-            "pk": user_pk(user_id),
-            "sk": profile_sk(),
-        },
+        Key={"pk": user_pk(user_id), "sk": profile_sk()},
         ConsistentRead=True,
     )
 
-    item = response.get("Item") or {}
-
     return build_response(
         200,
-        public_profile(item, user_id=user_id),
+        public_profile(response.get("Item") or {}, user_id=user_id),
     )
 
 
@@ -78,14 +65,17 @@ def update_profile(event):
         )
 
     if expected_version < 0:
+        return build_response(400, {"error": "version must be zero or greater"})
+
+    first_name = str(body.get("firstName") or "").strip()
+    last_name = str(body.get("lastName") or "").strip()
+    preferred_provider = str(body.get("preferredProvider") or "openai").strip()
+
+    if len(first_name) > 100 or len(last_name) > 100:
         return build_response(
             400,
-            {"error": "version must be zero or greater"},
+            {"error": "First name and last name must be 100 characters or fewer"},
         )
-
-    preferred_provider = str(
-        body.get("preferredProvider") or "openai"
-    ).strip()
 
     if preferred_provider not in {"openai", "rule-based"}:
         return build_response(
@@ -97,10 +87,7 @@ def update_profile(event):
 
     try:
         response = table.update_item(
-            Key={
-                "pk": user_pk(user_id),
-                "sk": profile_sk(),
-            },
+            Key={"pk": user_pk(user_id), "sk": profile_sk()},
             UpdateExpression=(
                 "SET recordType = :recordType, "
                 "userId = :userId, "
@@ -109,30 +96,19 @@ def update_profile(event):
                 "updatedByRequestId = :requestId, "
                 "lastUpdatedRegion = :region, "
                 "lastUpdatedByDeploymentId = :deploymentId, "
+                "firstName = :firstName, "
+                "lastName = :lastName, "
                 "preferredProvider = :preferredProvider, "
                 "#version = if_not_exists(#version, :zero) + :one"
             ),
             ConditionExpression=(
-                "("
-                "attribute_not_exists(pk) "
-                "AND attribute_not_exists(sk) "
-                "AND :expectedVersion = :zero"
-                ") "
-                "OR "
-                "("
-                "userId = :userId "
-                "AND ("
-                "#version = :expectedVersion "
-                "OR ("
-                "attribute_not_exists(#version) "
-                "AND :expectedVersion = :zero"
-                ")"
-                ")"
-                ")"
+                "(attribute_not_exists(pk) AND attribute_not_exists(sk) "
+                "AND :expectedVersion = :zero) OR "
+                "(userId = :userId AND ("
+                "#version = :expectedVersion OR "
+                "(attribute_not_exists(#version) AND :expectedVersion = :zero)))"
             ),
-            ExpressionAttributeNames={
-                "#version": "version",
-            },
+            ExpressionAttributeNames={"#version": "version"},
             ExpressionAttributeValues={
                 ":recordType": "userProfile",
                 ":userId": user_id,
@@ -140,6 +116,8 @@ def update_profile(event):
                 ":requestId": context.request_id,
                 ":region": context.region,
                 ":deploymentId": context.deployment_id,
+                ":firstName": first_name,
+                ":lastName": last_name,
                 ":preferredProvider": preferred_provider,
                 ":expectedVersion": expected_version,
                 ":zero": 0,
@@ -152,7 +130,6 @@ def update_profile(event):
             raise ResourceConflictError(
                 "The profile changed before your update was saved"
             )
-
         raise
 
     return build_response(

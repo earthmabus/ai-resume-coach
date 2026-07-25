@@ -105,16 +105,17 @@ output "api_endpoint" {
 output "compute" {
   value = {
     api = {
-      name                   = aws_lambda_function.api.function_name
-      runtime                = aws_lambda_function.api.runtime
-      architecture           = aws_lambda_function.api.architectures[0]
-      handler                = aws_lambda_function.api.handler
-      memory_mb              = aws_lambda_function.api.memory_size
-      timeout                = aws_lambda_function.api.timeout
-      log_group              = aws_cloudwatch_log_group.api.name
-      dependency_layer_count = length(coalesce(aws_lambda_function.api.layers, []))
-      dependency_layers      = coalesce(aws_lambda_function.api.layers, [])
-      runtime_policy_actions = local.api_runtime_policy_actions
+      name                      = aws_lambda_function.api.function_name
+      runtime                   = aws_lambda_function.api.runtime
+      architecture              = aws_lambda_function.api.architectures[0]
+      handler                   = aws_lambda_function.api.handler
+      memory_mb                 = aws_lambda_function.api.memory_size
+      timeout                   = aws_lambda_function.api.timeout
+      log_group                 = aws_cloudwatch_log_group.api.name
+      dependency_layer_count    = length(coalesce(aws_lambda_function.api.layers, []))
+      dependency_layers         = coalesce(aws_lambda_function.api.layers, [])
+      runtime_policy_actions    = local.api_runtime_policy_actions
+      openai_api_key_configured = false
     }
 
     worker = {
@@ -128,21 +129,23 @@ output "compute" {
       batch_size                       = aws_lambda_event_source_mapping.worker_processing_queue.batch_size
       enabled                          = aws_lambda_event_source_mapping.worker_processing_queue.enabled
       dependency_layer_count           = length(coalesce(aws_lambda_function.worker.layers, []))
+      openai_api_key_configured        = nonsensitive(length(trimspace(var.runtime.openai_api_key)) > 0)
       processing_queue_policy_actions  = local.worker_runtime_processing_queue_actions
       processing_queue_policy_resource = aws_sqs_queue.processing.arn
     }
 
     outbox_publisher = {
-      name                   = aws_lambda_function.outbox_publisher.function_name
-      runtime                = aws_lambda_function.outbox_publisher.runtime
-      architecture           = aws_lambda_function.outbox_publisher.architectures[0]
-      handler                = aws_lambda_function.outbox_publisher.handler
-      memory_mb              = aws_lambda_function.outbox_publisher.memory_size
-      timeout                = aws_lambda_function.outbox_publisher.timeout
-      log_group              = aws_cloudwatch_log_group.outbox_publisher.name
-      schedule               = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
-      dependency_layer_count = length(coalesce(aws_lambda_function.outbox_publisher.layers, []))
-      runtime_policy_actions = local.outbox_publisher_runtime_data_actions
+      name                      = aws_lambda_function.outbox_publisher.function_name
+      runtime                   = aws_lambda_function.outbox_publisher.runtime
+      architecture              = aws_lambda_function.outbox_publisher.architectures[0]
+      handler                   = aws_lambda_function.outbox_publisher.handler
+      memory_mb                 = aws_lambda_function.outbox_publisher.memory_size
+      timeout                   = aws_lambda_function.outbox_publisher.timeout
+      log_group                 = aws_cloudwatch_log_group.outbox_publisher.name
+      schedule                  = aws_cloudwatch_event_rule.outbox_publisher_schedule.name
+      dependency_layer_count    = length(coalesce(aws_lambda_function.outbox_publisher.layers, []))
+      runtime_policy_actions    = local.outbox_publisher_runtime_data_actions
+      openai_api_key_configured = false
       runtime_policy_resources = [
         "table",
         "table/index/*",

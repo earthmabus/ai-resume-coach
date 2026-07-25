@@ -14,6 +14,7 @@ const refreshHistoryButton = document.getElementById("refreshHistoryButton");
 const deleteAllAnalysesButton = document.getElementById("deleteAllAnalysesButton");
 
 const matchJobButton = document.getElementById("matchJobButton");
+const matchJobButtonTooltip = document.getElementById("matchJobButtonTooltip");
 const refreshJobMatchesButton = document.getElementById("refreshJobMatchesButton");
 const deleteAllJobMatchesButton = document.getElementById("deleteAllJobMatchesButton");
 
@@ -29,6 +30,10 @@ const result = document.getElementById("result");
 const history = document.getElementById("history");
 
 const resumeAnalysisSelect = document.getElementById("resumeAnalysisSelect");
+const jobResumeList = document.getElementById("jobResumeList");
+const jobResumeLoading = document.getElementById("jobResumeLoading");
+const jobResumeEmpty = document.getElementById("jobResumeEmpty");
+const jobResumeError = document.getElementById("jobResumeError");
 const jobName = document.getElementById("jobName");
 const jobUrl = document.getElementById("jobUrl");
 const jobDescriptionText = document.getElementById("jobDescriptionText");
@@ -70,6 +75,7 @@ let cachedResumeAnalyses = [];
 let cachedJobMatches = [];
 let resumeTargetCareers = [];
 let selectedResumeTargetCareerId = "";
+let selectedJobResumeAnalysisId = "";
 
 const ANALYSIS_POLL_TIMEOUT_MS = 5 * 60 * 1000;
 const ANALYSIS_POLL_DELAYS_MS = [0, 2000, 4000, 6000, 10000];
@@ -126,6 +132,11 @@ const ANALYSIS_STATUS_PRESENTATION = {
     historyLabel: "Needs attention",
     category: "failed"
   },
+  failed_retry_exhausted: {
+    label: "We couldn’t analyze this resume after several attempts. Please try again.",
+    historyLabel: "Needs attention",
+    category: "failed"
+  },
   failed: {
     label: "We couldn’t analyze this resume. Please try again.",
     historyLabel: "Needs attention",
@@ -171,6 +182,11 @@ const JOB_MATCH_STATUS_PRESENTATION = {
   },
   failed_permanent: {
     label: "We couldn’t complete this job match. Please try again.",
+    historyLabel: "Needs attention",
+    category: "failed"
+  },
+  failed_retry_exhausted: {
+    label: "We couldn’t complete this job match after several attempts. Please try again.",
     historyLabel: "Needs attention",
     category: "failed"
   },
@@ -510,8 +526,10 @@ function renderAnalysis(data) {
       </div>
     </div>
 
-    <h3>Role-Specific Scores</h3>
-    ${renderDynamicScores(data.dynamicScores)}
+    <section class="result-section-panel" aria-labelledby="roleSpecificScoresHeading">
+      <h3 id="roleSpecificScoresHeading">Role-Specific Scores</h3>
+      ${renderDynamicScores(data.dynamicScores)}
+    </section>
 
     <h3>Role Fit Summary</h3>
     <p>${escapeHtml(data.roleFitSummary || "")}</p>
@@ -534,8 +552,10 @@ function renderAnalysis(data) {
       </div>
     </div>
 
-    <h3>${data.documentBucket && data.documentKey ? "Resume PDF Preview" : "Resume Text Preview"}</h3>
-    ${analysisPreviewMarkup(data)}
+    <section class="result-section-panel result-preview-panel" aria-labelledby="resumePreviewHeading">
+      <h3 id="resumePreviewHeading">${data.documentBucket && data.documentKey ? "Resume PDF Preview" : "Resume Text Preview"}</h3>
+      ${analysisPreviewMarkup(data)}
+    </section>
   `;
 
   hydrateResumePdfPreviews();
@@ -906,7 +926,7 @@ async function uploadPdfResume() {
 }
 
 async function loadHistory({ resumeActiveAnalysis = true } = {}) {
-  if (!history && !resumeAnalysisSelect) {
+  if (!history && !resumeAnalysisSelect && !jobResumeList) {
     return;
   }
 
@@ -934,6 +954,7 @@ async function loadHistory({ resumeActiveAnalysis = true } = {}) {
     );
 
     populateResumeAnalysisSelect(cachedResumeAnalyses);
+    renderJobResumeCards(cachedResumeAnalyses);
 
     if (history) {
       renderResumeHistory();
@@ -963,6 +984,12 @@ async function loadHistory({ resumeActiveAnalysis = true } = {}) {
   } catch (error) {
     if (history) {
       history.textContent = `Error: ${error.message}`;
+    }
+    if (jobResumeList) {
+      jobResumeLoading?.classList.add("hidden");
+      jobResumeEmpty?.classList.add("hidden");
+      jobResumeError?.classList.remove("hidden");
+      jobResumeError.textContent = `Could not load resumes: ${error.message}`;
     }
   }
 }
@@ -1161,6 +1188,31 @@ function showPanel(panelName) {
   }
 }
 
+function jobMatchScoreToneClass(score) {
+  return atsScoreToneClass(score);
+}
+
+function jobMatchContextMarkup(data, orientation = "vertical") {
+  const jobNameValue = data?.jobName || "Untitled Job";
+  const resumeNameValue = data?.resumeName || data?.resumeAnalysisName || "Untitled Resume";
+  const resumeFileName = data?.resumeFileName || data?.fileName || "";
+
+  return `
+    <div class="job-match-context-panels ${escapeHtml(orientation)}">
+      <div class="analysis-context-panel">
+        <span class="analysis-context-label">Job</span>
+        <strong>${escapeHtml(jobNameValue)}</strong>
+        ${data?.jobUrl ? `<span class="analysis-context-file">${renderJobUrl(data.jobUrl)}</span>` : ""}
+      </div>
+      <div class="analysis-context-panel">
+        <span class="analysis-context-label">Resume</span>
+        <strong>${escapeHtml(resumeNameValue)}</strong>
+        ${resumeFileName ? `<span class="analysis-context-file">${escapeHtml(resumeFileName)}</span>` : ""}
+      </div>
+    </div>
+  `;
+}
+
 function renderJobMatch(data, tailoring = null, interviewPrep = null) {
   const status = normalizeWorkflowStatus(data.status);
 
@@ -1180,146 +1232,173 @@ function renderJobMatch(data, tailoring = null, interviewPrep = null) {
     return;
   }
 
-  const matchedKeywords = (data.matchedKeywords || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
-  const missingKeywords = (data.missingKeywords || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
-  const leadershipGaps = (data.leadershipGaps || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
-  const technicalGaps = (data.technicalGaps || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
-  const recommendedChanges = (data.recommendedResumeChanges || [])
-    .map(item => `<li>${escapeHtml(item)}</li>`)
-    .join("");
-
+  const matchedKeywords = (data.matchedKeywords || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
+  const missingKeywords = (data.missingKeywords || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
+  const leadershipGaps = (data.leadershipGaps || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
+  const technicalGaps = (data.technicalGaps || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
+  const recommendedChanges = (data.recommendedResumeChanges || []).map(item => `<li>${escapeHtml(item)}</li>`).join("");
   const isCompleted = isJobMatchCompleted(status);
-  const statusClass = isCompleted ? "status-completed" : "status-processing";
-  const resumePreview = data.resumeText
-    ? escapeHtml(data.resumeText.slice(0, 2000))
-    : "No resume text available.";
+  const resumePreview = data.resumeText ? escapeHtml(data.resumeText.slice(0, 2000)) : "No resume text available.";
+  const score = Number(data.matchScore) || 0;
 
   result.innerHTML = `
-    <div class="score-card">
-      <div class="score-circle">${escapeHtml(data.matchScore || 0)}</div>
-      <div>
-        <h3>Job Match Complete</h3>
-	<p><strong>Job Name:</strong> ${escapeHtml(data.jobName || "Untitled Job")}</p>
-	<p><strong>URL:</strong> ${renderJobUrl(data.jobUrl)}</p>
-        <!-- <p><strong>Match ID:</strong> ${escapeHtml(data.matchId)}</p> -->
-        <!-- <p><strong>Resume Analysis ID:</strong> ${escapeHtml(data.resumeAnalysisId)}</p> -->
-        <p><strong>Resume Analysis:</strong> ${escapeHtml(renderResumeLabelFromJobMatch(data))}</p>
-        <p><strong>Created:</strong> ${escapeHtml(formatEastern(data.createdAt))}</p>
+    <div class="job-match-result-header-grid">
+      <div class="analysis-score-panel job-match-score-panel">
+        <span class="analysis-context-label">Match Score</span>
+        <div class="score-circle ${escapeHtml(jobMatchScoreToneClass(score))}">${escapeHtml(score)}</div>
       </div>
-    </div>
-
-    <div class="metrics">
-      <span class="metric ${statusClass}">Status: ${escapeHtml(jobMatchStatusPresentation(status).historyLabel)}</span>
-      <span class="metric">Provider: ${escapeHtml(data.provider || "unknown")}</span>
-      <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
-      <span class="metric">Leadership: ${escapeHtml(data.leadershipMatchScore || 0)}</span>
-      <span class="metric">Technical: ${escapeHtml(data.technicalMatchScore || 0)}</span>
-      <span class="metric">Architecture: ${escapeHtml(data.architectureMatchScore || 0)}</span>
-      <span class="metric">ATS: ${escapeHtml(data.atsKeywordScore || 0)}</span>
-      <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+      <div class="job-match-result-context">
+        ${jobMatchContextMarkup(data, "vertical")}
+        <div class="metrics job-match-result-metrics">
+          <span class="metric status-${escapeHtml(jobMatchStatusPresentation(status).category)}">Status: ${escapeHtml(jobMatchStatusPresentation(status).historyLabel)}</span>
+          <span class="metric">Provider: ${escapeHtml(data.provider || "unknown")}</span>
+          <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
+          <span class="metric">Leadership: ${escapeHtml(data.leadershipMatchScore || 0)}</span>
+          <span class="metric">Technical: ${escapeHtml(data.technicalMatchScore || 0)}</span>
+          <span class="metric">Architecture: ${escapeHtml(data.architectureMatchScore || 0)}</span>
+          <span class="metric">ATS: ${escapeHtml(data.atsKeywordScore || 0)}</span>
+          <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+        </div>
+      </div>
     </div>
 
     ${isCompleted ? `
-    <h3>Executive Summary</h3>
-    <p>${escapeHtml(data.executiveSummary || "No summary available.")}</p>
-
-    <div class="result-grid">
-      <div class="result-box">
-        <h3>Matched Keywords</h3>
-        <ul>${matchedKeywords}</ul>
-      </div>
-
-      <div class="result-box">
-        <h3>Missing Keywords</h3>
-        <ul>${missingKeywords}</ul>
-      </div>
-
-      <div class="result-box">
-        <h3>Leadership Gaps</h3>
-        <ul>${leadershipGaps}</ul>
-      </div>
-
-      <div class="result-box">
-        <h3>Technical Gaps</h3>
-        <ul>${technicalGaps}</ul>
-      </div>
-
-      <div class="result-box">
-        <h3>Recommended Resume Changes</h3>
-        <ul>${recommendedChanges}</ul>
-      </div>
-    </div>
-
-    <h3>Resume Text Preview</h3>
-    <div class="resume-preview">${resumePreview}</div>
-
-    ${
-      data.resumeDocumentBucket && data.resumeDocumentKey
-        ? `
-          <div class="resume-download-section">
-            <button
-              class="secondary"
-              onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">
-              Download Resume PDF
-            </button>
-          </div>
-        `
-        : ""
-    }
-
-    ${renderTailoringSection(tailoring)}
-    ${renderInterviewPrepSection(interviewPrep)}
-  ` : `
-    <p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>
-  `}
+      <section class="result-section-panel" aria-labelledby="jobExecutiveSummaryHeading">
+        <h3 id="jobExecutiveSummaryHeading">Executive Summary</h3>
+        <p>${escapeHtml(data.executiveSummary || "No summary available.")}</p>
+        <div class="result-grid">
+          <div class="result-box"><h3>Matched Keywords</h3><ul>${matchedKeywords}</ul></div>
+          <div class="result-box"><h3>Missing Keywords</h3><ul>${missingKeywords}</ul></div>
+          <div class="result-box"><h3>Leadership Gaps</h3><ul>${leadershipGaps}</ul></div>
+          <div class="result-box"><h3>Technical Gaps</h3><ul>${technicalGaps}</ul></div>
+          <div class="result-box"><h3>Recommended Resume Changes</h3><ul>${recommendedChanges}</ul></div>
+        </div>
+      </section>
+      <section class="result-section-panel result-preview-panel" aria-labelledby="jobResumePreviewHeading">
+        <h3 id="jobResumePreviewHeading">Resume Text Preview</h3>
+        <div class="resume-preview">${resumePreview}</div>
+        ${data.resumeDocumentBucket && data.resumeDocumentKey ? `<div class="resume-download-section"><button class="secondary" onclick="downloadResumeDocument('${escapeHtml(data.resumeAnalysisId)}')">Download Resume PDF</button></div>` : ""}
+      </section>
+      ${renderTailoringSection(tailoring)}
+      ${renderInterviewPrepSection(interviewPrep)}
+    ` : `<p><strong>Status:</strong> Job match is still processing. Refresh matches shortly.</p>`}
   `;
 }
 
-function populateResumeAnalysisSelect(analyses) {
-  if (!resumeAnalysisSelect) {
-    return;
-  }
+function jobMatchMissingRequirements() {
+  const missing = [];
+  if (!jobName?.value.trim()) missing.push("a job name");
+  if (!jobUrl?.value.trim()) missing.push("a URL");
+  if (!jobDescriptionText?.value.trim()) missing.push("a job description");
+  if (!selectedJobResumeAnalysisId) missing.push("a resume");
+  return missing;
+}
 
-  const resumeAnalyses = analyses.filter(item =>
+function updateJobMatchAvailability() {
+  if (!matchJobButton) return;
+  const missing = jobMatchMissingRequirements();
+  const ready = missing.length === 0;
+  matchJobButton.disabled = !ready;
+  if (matchJobButtonTooltip) {
+    matchJobButtonTooltip.dataset.tooltip = ready
+      ? ""
+      : `To enable this button, provide ${missing.join(", ").replace(/, ([^,]*)$/, " and $1")}.`;
+  }
+}
+
+function completedResumeAnalyses(analyses) {
+  return analyses.filter(item =>
     item.status === "completed" &&
     item.analysisId &&
     !item.matchId &&
     item.sourceType
   );
+}
 
-  if (resumeAnalyses.length === 0) {
-    resumeAnalysisSelect.innerHTML =
-      `<option value="">No completed resume analyses available</option>`;
+function jobResumeCardMarkup(item) {
+  const career = analysisTargetCareer(item);
+  const roleTitle = career.roleTitle || item.targetRoleTitle || "Target Career unavailable";
+  const careerVersion = targetCareerVersionLabel(career);
+  const score = Number(item.score) || 0;
+  const selected = selectedJobResumeAnalysisId === item.analysisId;
+
+  return `
+    <label class="job-resume-option${selected ? " selected" : ""}" data-analysis-id="${escapeHtml(item.analysisId)}">
+      <input
+        type="radio"
+        name="jobResumeAnalysis"
+        value="${escapeHtml(item.analysisId)}"
+        ${selected ? "checked" : ""}
+      />
+      <span class="job-resume-copy">
+        <span class="job-resume-title-row">
+          <strong>${escapeHtml(item.resumeName || "Untitled Resume")}</strong>
+          <span class="job-resume-score ${escapeHtml(atsScoreToneClass(score))}">${escapeHtml(score)}</span>
+        </span>
+        ${item.fileName ? `<span>${escapeHtml(item.fileName)}</span>` : `<span>Text resume</span>`}
+        <span>${escapeHtml(roleTitle)} <span class="analysis-context-version">${escapeHtml(careerVersion)}</span></span>
+        <span class="job-resume-updated"><em>Analyzed</em> ${escapeHtml(formatEastern(item.createdAt))}</span>
+      </span>
+    </label>
+  `;
+}
+
+function selectJobResumeAnalysis(analysisId) {
+  selectedJobResumeAnalysisId = analysisId;
+  document.querySelectorAll(".job-resume-option").forEach((option) => {
+    const selected = option.dataset.analysisId === analysisId;
+    option.classList.toggle("selected", selected);
+    const input = option.querySelector('input[type="radio"]');
+    if (input) input.checked = selected;
+  });
+  updateJobMatchAvailability();
+}
+
+function renderJobResumeCards(analyses) {
+  if (!jobResumeList) return;
+
+  const resumes = completedResumeAnalyses(analyses);
+  jobResumeLoading?.classList.add("hidden");
+  jobResumeError?.classList.add("hidden");
+
+  if (resumes.length === 0) {
+    selectedJobResumeAnalysisId = "";
+    jobResumeList.innerHTML = "";
+    jobResumeEmpty?.classList.remove("hidden");
+    updateJobMatchAvailability();
     return;
   }
 
-  resumeAnalysisSelect.innerHTML = resumeAnalyses.map(item => {
-    const label =
-      `${item.resumeName || "Untitled Resume"} | ` +
-      `${formatEastern(item.createdAt)} | ` +
-      `${item.sourceType || "resume"} | ` +
-      `score ${item.score || 0} | ` +
-      `${item.fileName || "text resume"}`;
+  jobResumeEmpty?.classList.add("hidden");
+  if (!resumes.some(item => item.analysisId === selectedJobResumeAnalysisId)) {
+    selectedJobResumeAnalysisId = resumes.length === 1 ? resumes[0].analysisId : "";
+  }
+  jobResumeList.innerHTML = resumes.map(jobResumeCardMarkup).join("");
+  jobResumeList.querySelectorAll(".job-resume-option").forEach((option) => {
+    option.addEventListener("click", () => selectJobResumeAnalysis(option.dataset.analysisId));
+  });
+  if (selectedJobResumeAnalysisId) selectJobResumeAnalysis(selectedJobResumeAnalysisId);
+  updateJobMatchAvailability();
+}
 
+function populateResumeAnalysisSelect(analyses) {
+  if (!resumeAnalysisSelect) return;
+  const resumes = completedResumeAnalyses(analyses);
+  if (resumes.length === 0) {
+    resumeAnalysisSelect.innerHTML = `<option value="">No completed resume analyses available</option>`;
+    return;
+  }
+  resumeAnalysisSelect.innerHTML = resumes.map(item => {
+    const label = `${item.resumeName || "Untitled Resume"} | ${formatEastern(item.createdAt)} | ${item.sourceType || "resume"} | score ${item.score || 0} | ${item.fileName || "text resume"}`;
     return `<option value="${escapeHtml(item.analysisId)}">${escapeHtml(label)}</option>`;
   }).join("");
 }
 
 async function matchJobDescription() {
-  const analysisId = resumeAnalysisSelect.value;
-  const jdText = jobDescriptionText.value.trim();
+  const analysisId = selectedJobResumeAnalysisId || resumeAnalysisSelect?.value || "";
+  const jobNameValue = jobName?.value.trim() || "";
+  const jobUrlValue = jobUrl?.value.trim() || "";
+  const jdText = jobDescriptionText?.value.trim() || "";
 
   if (!analysisId) {
     result.textContent = "Select a resume analysis first.";
@@ -1327,8 +1406,8 @@ async function matchJobDescription() {
     return;
   }
 
-  if (!jdText) {
-    result.textContent = "Paste a job description first.";
+  if (!jobNameValue || !jobUrlValue || !jdText) {
+    result.textContent = "Provide a job name, URL, and job description first.";
     focusAccordionCard("jobResultCard");
     return;
   }
@@ -1351,8 +1430,8 @@ async function matchJobDescription() {
         headers,
         body: JSON.stringify({
           analysisId,
-          jobName: jobName.value.trim() || "Untitled Job",
-          jobUrl: jobUrl?.value.trim() || "",
+          jobName: jobNameValue,
+          jobUrl: jobUrlValue,
           jobDescriptionText: jdText,
           analysisProvider: selectedProvider(),
         }),
@@ -1900,21 +1979,16 @@ function renderResumeHistory() {
 }
 
 function renderJobMatchHistory() {
-  if (!jobMatches) {
-    return;
-  }
+  if (!jobMatches) return;
 
   const searchValue = jobSearchInput?.value.trim().toLowerCase() || "";
   const sortValue = jobSortSelect?.value || "newest";
-
   let filtered = cachedJobMatches.filter(item => {
     const name = (item.jobName || "Untitled Job").toLowerCase();
     const description = (item.jobDescriptionText || "").toLowerCase();
     return name.includes(searchValue) || description.includes(searchValue);
   });
-
   filtered = sortItems(filtered, sortValue, "matchScore");
-
   renderStatusSummary(jobMatchSummary, "Total Matches", cachedJobMatches, jobMatchStatusPresentation);
 
   if (filtered.length === 0) {
@@ -1923,53 +1997,53 @@ function renderJobMatchHistory() {
   }
 
   jobMatches.innerHTML = filtered.map(item => {
-    const detailsId = `job-details-${escapeHtml(item.matchId)}`;
-    const resumePreview = item.resumeText
-      ? escapeHtml(item.resumeText.slice(0, 800))
-      : "No resume text available.";
+    const score = Number(item.matchScore) || 0;
+    const resumeNameValue = item.resumeName || item.resumeAnalysisName || "Untitled Resume";
+    const resumeFileName = item.resumeFileName || item.fileName || "";
+    const jobPreview = item.jobDescriptionText
+      ? escapeHtml(item.jobDescriptionText.slice(0, 1200))
+      : "No job description stored.";
+    const presentation = jobMatchStatusPresentation(item.status);
 
     return `
-      <div class="history-item job-match-card">
-        <div class="job-match-left">
-          <div>
-            <span class="badge">job match</span>
-            <span class="badge status-${escapeHtml(jobMatchStatusPresentation(item.status).category)}">${escapeHtml(jobMatchStatusPresentation(item.status).historyLabel)}</span>
-            <span class="badge">${escapeHtml(item.provider || "unknown")}</span>
+      <div class="history-item job-match-history-card">
+        <div class="job-match-history-grid">
+          <div class="history-score-cell job-match-history-score">
+            <div class="score-circle ${escapeHtml(jobMatchScoreToneClass(score))}">${escapeHtml(score)}</div>
           </div>
 
-          <p><strong>Job:</strong> ${escapeHtml(item.jobName || "Untitled Job")}</p>
-          <p><strong>URL:</strong> ${renderJobUrl(item.jobUrl)}</p>
-          <p><strong>Created:</strong> ${escapeHtml(formatEastern(item.createdAt))}</p>
-          <p><strong>Match Score:</strong> ${escapeHtml(item.matchScore || 0)}</p>
-
-          <div class="button-row">
-            <button class="secondary" onclick="toggleCardDetails('${detailsId}')">Expand</button>
-            <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
-	    <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}', ${Number(item.version ?? 0)})">Delete</button>
+          <div class="job-match-history-left">
+            <div class="analysis-context-panel">
+              <span class="analysis-context-label">Job</span>
+              <strong>${escapeHtml(item.jobName || "Untitled Job")}</strong>
+              ${item.jobUrl ? `<span class="analysis-context-file">${renderJobUrl(item.jobUrl)}</span>` : ""}
+            </div>
+            <div class="analysis-context-panel">
+              <span class="analysis-context-label">Resume</span>
+              <strong>${escapeHtml(resumeNameValue)}</strong>
+              ${resumeFileName ? `<span class="analysis-context-file">${escapeHtml(resumeFileName)}</span>` : ""}
+            </div>
+            <div class="job-match-history-controls">
+              <div class="history-metrics">
+                <span class="badge status-${escapeHtml(presentation.category)}">${escapeHtml(presentation.historyLabel)}</span>
+                <span class="badge">Provider: ${escapeHtml(item.provider || "unknown")}</span>
+                <span class="badge">Leadership: ${escapeHtml(item.leadershipMatchScore || 0)}</span>
+                <span class="badge">Technical: ${escapeHtml(item.technicalMatchScore || 0)}</span>
+                <span class="badge">Architecture: ${escapeHtml(item.architectureMatchScore || 0)}</span>
+                <span class="badge">ATS: ${escapeHtml(item.atsKeywordScore || 0)}</span>
+                <span class="badge">Duration: ${escapeHtml(item.analysisDurationMs || 0)} ms</span>
+                <span class="badge">Model: ${escapeHtml(item.model || "N/A")}</span>
+              </div>
+              <div class="button-row">
+                <button class="secondary" onclick="loadJobMatchDetail('${escapeHtml(item.matchId)}')">View Details</button>
+                <button class="danger" onclick="deleteJobMatch('${escapeHtml(item.matchId)}', ${Number(item.version ?? 0)})">Delete</button>
+              </div>
+            </div>
           </div>
 
-          <div id="${detailsId}" class="card-details hidden">
-            <p><strong>Leadership Match:</strong> ${escapeHtml(item.leadershipMatchScore || 0)}</p>
-            <p><strong>Technical Match:</strong> ${escapeHtml(item.technicalMatchScore || 0)}</p>
-            <p><strong>Architecture Match:</strong> ${escapeHtml(item.architectureMatchScore || 0)}</p>
-            <p><strong>ATS Keyword Score:</strong> ${escapeHtml(item.atsKeywordScore || 0)}</p>
-            <p><strong>Duration:</strong> ${escapeHtml(item.analysisDurationMs || 0)} ms</p>
-            <p><strong>Model:</strong> ${escapeHtml(item.model || "N/A")}</p>
+          <div class="job-match-history-preview">
+            <div class="resume-preview small-preview">${jobPreview}</div>
           </div>
-        </div>
-
-        <div class="job-match-right">
-          <!-- <h4>Resume Text Preview</h4> -->
-
-          <p>Created: ${escapeHtml(formatEastern(item.resumeCreatedAt))} , Source: ${escapeHtml(item.resumeSourceType || "resume")} , Score: ${escapeHtml(item.resumeScore || 0)}</p>
-
-          <div class="resume-preview small-preview">${resumePreview}</div>
-
-          ${
-            item.resumeDocumentBucket && item.resumeDocumentKey
-              ? `<button class="secondary" onclick="downloadResumeDocument('${escapeHtml(item.resumeAnalysisId)}')">Download Resume PDF</button>`
-              : ""
-          }
         </div>
       </div>
     `;
@@ -2373,8 +2447,14 @@ if (deleteAllAnalysesButton) {
   deleteAllAnalysesButton.addEventListener("click", deleteAllAnalyses);
 }
 
+[jobName, jobUrl, jobDescriptionText].forEach((input) => {
+  input?.addEventListener("input", updateJobMatchAvailability);
+  input?.addEventListener("change", updateJobMatchAvailability);
+});
+
 if (matchJobButton) {
   matchJobButton.addEventListener("click", matchJobDescription);
+  updateJobMatchAvailability();
 }
 
 if (refreshJobMatchesButton) {

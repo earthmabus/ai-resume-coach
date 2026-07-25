@@ -64,6 +64,7 @@ variable "runtime" {
     log_level         = string
     analysis_provider = string
     openai_model      = string
+    openai_api_key    = string
   })
 }
 

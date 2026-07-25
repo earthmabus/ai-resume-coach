@@ -126,7 +126,8 @@ resource "aws_lambda_function" "worker" {
     variables = merge(
       local.function_environment,
       {
-        FUNCTION_ROLE = "worker"
+        FUNCTION_ROLE  = "worker"
+        OPENAI_API_KEY = var.runtime.openai_api_key
       },
     )
   }

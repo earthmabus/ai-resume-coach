@@ -117,11 +117,9 @@ def test_delete_job_match_uses_direct_base_key(
         ConsistentRead=True,
     )
 
-    first_delete = table.delete_item.call_args_list[
-        0
-    ].kwargs
+    parent_delete = table.delete_item.call_args_list[-1].kwargs
 
-    assert first_delete["Key"] == {
+    assert parent_delete["Key"] == {
         "pk": f"USER#{USER_ID}",
         "sk": f"MATCH#{MATCH_ID}",
     }
@@ -193,6 +191,7 @@ def test_stale_job_match_delete_raises_conflict(
             "version": 3,
         }
     }
+    table.query.return_value = {"Items": []}
     table.delete_item.side_effect = conditional_failure()
 
     monkeypatch.setattr(job_matching, "table", table)
@@ -202,4 +201,80 @@ def test_stale_job_match_delete_raises_conflict(
             make_event(version="2")
         )
 
-    table.query.assert_not_called()
+    table.query.assert_called_once()
+
+
+def test_delete_job_match_preserves_parent_when_child_changes(
+    monkeypatch,
+):
+    table = MagicMock()
+    table.get_item.return_value = {
+        "Item": {
+            "userId": USER_ID,
+            "recordType": "jobMatch",
+            "version": 2,
+        }
+    }
+    table.query.return_value = {
+        "Items": [
+            {
+                "pk": f"MATCH#{MATCH_ID}",
+                "sk": "TAILORING#tailoring-123",
+                "userId": USER_ID,
+                "matchId": MATCH_ID,
+            }
+        ]
+    }
+    table.delete_item.side_effect = conditional_failure()
+
+    monkeypatch.setattr(job_matching, "table", table)
+
+    with pytest.raises(ResourceConflictError):
+        job_matching.delete_job_match(
+            make_event(version="2")
+        )
+
+    assert table.delete_item.call_count == 1
+    assert table.delete_item.call_args.kwargs["Key"] == {
+        "pk": f"MATCH#{MATCH_ID}",
+        "sk": "TAILORING#tailoring-123",
+    }
+
+
+def test_delete_job_match_child_conditions_include_match_identity(
+    monkeypatch,
+):
+    table = MagicMock()
+    table.get_item.return_value = {
+        "Item": {
+            "userId": USER_ID,
+            "recordType": "jobMatch",
+            "version": 2,
+        }
+    }
+    table.query.return_value = {
+        "Items": [
+            {
+                "pk": f"MATCH#{MATCH_ID}",
+                "sk": "INTERVIEW#interview-123",
+                "userId": USER_ID,
+                "matchId": MATCH_ID,
+            }
+        ]
+    }
+
+    monkeypatch.setattr(job_matching, "table", table)
+
+    response = job_matching.delete_job_match(
+        make_event(version="2")
+    )
+
+    assert response["statusCode"] == 200
+    child_delete = table.delete_item.call_args_list[0].kwargs
+    assert child_delete["ConditionExpression"] == (
+        "userId = :userId AND matchId = :matchId"
+    )
+    assert child_delete["ExpressionAttributeValues"] == {
+        ":userId": USER_ID,
+        ":matchId": MATCH_ID,
+    }
