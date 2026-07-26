@@ -14,6 +14,7 @@ import boto3
 from boto3.dynamodb.conditions import Key
 from botocore.exceptions import ClientError
 
+from core.processing_ownership import require_processing_ownership
 from core.retry_policy import decide_retry, receive_attempt
 from core.workflow_state import (
     STATUS_PROCESSING,
@@ -22,7 +23,6 @@ from core.workflow_state import (
     STATUS_WAITING,
     can_transition,
     assert_transition,
-    known_status,
 )
 from core.terminal_failure import TerminalFailureEnvelope
 from providers.factory import get_analysis_provider
@@ -100,7 +100,6 @@ def work_id_from_body(body: dict[str, Any]) -> str:
         or body.get("matchId")
         or body.get("tailoringId")
         or body.get("interviewPrepId")
-        or body.get("generationId")
         or ""
     )
 
@@ -192,8 +191,25 @@ def interview_sk(interview_prep_id):
     return f"INTERVIEW#{interview_prep_id}"
 
 
-def target_career_generation_sk(generation_id):
-    return f"TARGET_CAREER_GENERATION#{generation_id}"
+def client_error_log_fields(error: Exception) -> dict[str, str]:
+    """Return bounded, non-sensitive AWS client-error fields for logs."""
+    if not isinstance(error, ClientError):
+        return {}
+
+    response = error.response or {}
+    error_details = response.get("Error") or {}
+    metadata = response.get("ResponseMetadata") or {}
+
+    def bounded(value: object, limit: int = 512) -> str:
+        return str(value or "")[:limit]
+
+    return {
+        "awsErrorCode": bounded(error_details.get("Code"), 128),
+        "awsErrorMessage": bounded(error_details.get("Message")),
+        "awsOperation": bounded(getattr(error, "operation_name", ""), 128),
+        "awsRequestId": bounded(metadata.get("RequestId"), 128),
+        "awsHttpStatusCode": bounded(metadata.get("HTTPStatusCode"), 16),
+    }
 
 
 def is_conditional_failure(error: ClientError) -> bool:
@@ -201,20 +217,6 @@ def is_conditional_failure(error: ClientError) -> bool:
         error.response.get("Error", {}).get("Code")
         == "ConditionalCheckFailedException"
     )
-
-
-def client_error_log_fields(error: ClientError) -> dict[str, str]:
-    """Return bounded, non-sensitive AWS error diagnostics for logs."""
-    response = error.response or {}
-    error_details = response.get("Error", {}) or {}
-    metadata = response.get("ResponseMetadata", {}) or {}
-    return {
-        "awsErrorCode": str(error_details.get("Code") or ""),
-        "awsErrorMessage": str(error_details.get("Message") or "")[:2000],
-        "awsOperation": str(getattr(error, "operation_name", "") or ""),
-        "awsRequestId": str(metadata.get("RequestId") or ""),
-        "awsHttpStatusCode": str(metadata.get("HTTPStatusCode") or ""),
-    }
 
 
 def get_entity_by_id(
@@ -317,19 +319,6 @@ def derive_job_identity(body: dict) -> dict:
                 },
             }
 
-    elif job_type == "targetCareerGeneration":
-        record_id = str(body.get("generationId") or "").strip()
-        if user_id and record_id:
-            return {
-                "jobType": job_type,
-                "recordType": "targetCareerGeneration",
-                "recordId": record_id,
-                "key": {
-                    "pk": user_pk(user_id),
-                    "sk": target_career_generation_sk(record_id),
-                },
-            }
-
     else:
         raise ValueError(
             f"Unsupported jobType: {job_type}"
@@ -340,7 +329,6 @@ def derive_job_identity(body: dict) -> dict:
         or body.get("matchId")
         or body.get("tailoringId")
         or body.get("interviewPrepId")
-        or body.get("generationId")
     )
 
     if not record_id:
@@ -355,7 +343,6 @@ def derive_job_identity(body: dict) -> dict:
         "interviewPreparation": (
             "interviewPreparation"
         ),
-        "targetCareerGeneration": "targetCareerGeneration",
     }[job_type]
 
     item = get_entity_by_id(
@@ -419,7 +406,12 @@ def claimable_statuses(job_type: str) -> set[str]:
     return candidates
 
 
-def claim_job(identity: dict) -> dict:
+def claim_job(
+    identity: dict,
+    *,
+    message_owner_region: str | None = None,
+    current_region: str | None = None,
+) -> dict:
     """
     Conditionally claim a job before invoking an AI provider.
 
@@ -441,6 +433,12 @@ def claim_job(identity: dict) -> dict:
             f"{identity['recordType']} not found: "
             f"{identity['recordId']}"
         )
+
+    ownership = require_processing_ownership(
+        current_region=current_region or AWS_REGION,
+        message_owner_region=message_owner_region,
+        persisted_owner_region=item.get("ownerRegion"),
+    )
 
     current_status = item.get("status")
     current_version = int(item.get("version", 0))
@@ -502,6 +500,13 @@ def claim_job(identity: dict) -> dict:
         epoch_seconds() + DEFAULT_LEASE_SECONDS
     )
 
+    owner_region = str(item.get("ownerRegion") or "").strip()
+    owner_condition = (
+        "AND #ownerRegion = :expectedOwnerRegion "
+        if owner_region
+        else "AND attribute_not_exists(#ownerRegion) "
+    )
+
     try:
         response = table.update_item(
             Key=key,
@@ -522,11 +527,13 @@ def claim_job(identity: dict) -> dict:
                 "attribute_not_exists(#version) "
                 "AND :expectedVersion = :zero"
                 ")"
-                ")"
+                ") "
+                + owner_condition
             ),
             ExpressionAttributeNames={
                 "#status": "status",
                 "#version": "version",
+                "#ownerRegion": "ownerRegion",
             },
             ExpressionAttributeValues={
                 ":workerProcessing": (
@@ -543,6 +550,11 @@ def claim_job(identity: dict) -> dict:
                 ":expectedVersion": current_version,
                 ":zero": 0,
                 ":one": 1,
+                **(
+                    {":expectedOwnerRegion": owner_region}
+                    if owner_region
+                    else {}
+                ),
             },
             ReturnValues="ALL_NEW",
         )
@@ -762,46 +774,6 @@ def mark_terminal_failure_published(*, key: dict, failure_id: str) -> None:
             ":exhausted": STATUS_FAILED_RETRY_EXHAUSTED,
         },
     )
-
-def process_target_career_generation(
-    *,
-    identity: dict,
-    item: dict,
-    attempt_id: str,
-):
-    requested_provider = item.get("provider") or "openai"
-    provider = get_analysis_provider(requested_provider)
-    started = time.perf_counter()
-    result = provider.generate_target_career_details({
-        "roleTitle": item.get("roleTitle", ""),
-        "industry": item.get("industry", ""),
-        "seniorityLevel": item.get("seniorityLevel", ""),
-        "workEnvironment": item.get("workEnvironment", ""),
-        "careerGoalSummary": item.get("careerGoalSummary", ""),
-    })
-    duration_ms = int((time.perf_counter() - started) * 1000)
-    update_claimed_record(
-        key=identity["key"],
-        attempt_id=attempt_id,
-        status=STATUS_COMPLETED,
-        fields={
-            "provider": result.get("provider", requested_provider),
-            "model": result.get("model", ""),
-            "analysisVersion": result.get("analysisVersion", ""),
-            "analysisDurationMs": duration_ms,
-            "keyResponsibilities": result.get("keyResponsibilities", ""),
-            "requiredSkills": result.get("requiredSkills", ""),
-            "certifications": result.get("certifications", ""),
-            "physicalRequirements": result.get("physicalRequirements", ""),
-            "technicalRequirements": result.get("technicalRequirements", ""),
-            "leadershipRequirements": result.get("leadershipRequirements", ""),
-            "completedAt": utc_now(),
-            "processedAt": utc_now(),
-            "processedRegion": AWS_REGION,
-            "processedByDeploymentId": DEPLOYMENT_ID,
-        },
-    )
-
 
 def process_resume_analysis(
     *,
@@ -1284,7 +1256,11 @@ def process_job_match(
             },
         )
 
-        claim = claim_job(identity)
+        claim = claim_job(
+        identity,
+        message_owner_region=message_context.owner_region,
+        current_region=message_context.current_region,
+    )
 
         if claim["disposition"] != "CLAIMED":
             return attempt_id
@@ -1552,6 +1528,7 @@ def process_record(
 
     item = claim["item"]
     attempt_id = claim["attemptId"]
+    attempt_state = {"attemptId": attempt_id}
     prior_status = claim["priorStatus"]
 
     logger.info(
@@ -1564,12 +1541,11 @@ def process_record(
                 "recordId": identity["recordId"],
                 "processingAttemptId": attempt_id,
                 "priorStatus": prior_status,
+                "processingOwnershipStatus": "AUTHORIZED",
             },
             separators=(",", ":"),
         )
     )
-
-    attempt_state = {"attemptId": attempt_id}
 
     try:
         if identity["jobType"] == "jobMatch":
@@ -1598,13 +1574,6 @@ def process_record(
                 attempt_id=attempt_id,
             )
 
-        elif identity["jobType"] == "targetCareerGeneration":
-            process_target_career_generation(
-                identity=identity,
-                item=item,
-                attempt_id=attempt_id,
-            )
-
         else:
             process_resume_analysis(
                 identity=identity,
@@ -1627,7 +1596,7 @@ def process_record(
         )
 
     except Exception as error:
-        active_attempt_id = attempt_state.get("attemptId") or attempt_id
+        attempt_id = attempt_state.get("attemptId", attempt_id)
         processing_attempt = receive_attempt(record)
         decision = decide_retry(
             error,
@@ -1636,7 +1605,7 @@ def process_record(
         )
         failure_item = mark_claim_failed(
             key=identity["key"],
-            attempt_id=active_attempt_id,
+            attempt_id=attempt_id,
             error_message=str(error),
             failure_category=decision.category.value,
             retryable=decision.retryable,
@@ -1654,12 +1623,7 @@ def process_record(
                 key=identity["key"],
                 failure_id=failure_id,
             )
-        error_fields = (
-            client_error_log_fields(error)
-            if isinstance(error, ClientError)
-            else {"errorMessage": str(error)[:2000]}
-        )
-        logger.exception(
+        logger.error(
             json.dumps(
                 {
                     **message_context.as_log_fields(),
@@ -1667,14 +1631,14 @@ def process_record(
                     "result": "FAILURE",
                     "message": "Worker job failed",
                     "recordId": identity["recordId"],
-                    "processingAttemptId": active_attempt_id,
+                    "processingAttemptId": attempt_id,
                     "processingAttempt": decision.attempt,
                     "maxProcessingAttempts": decision.max_attempts,
                     "failureCategory": decision.category.value,
                     "failureRetryable": decision.retryable,
                     "processingAttemptsExhausted": decision.exhausted,
                     "errorType": type(error).__name__,
-                    **error_fields,
+                    **client_error_log_fields(error),
                 },
                 separators=(",", ":"),
             )
@@ -1708,7 +1672,6 @@ def emit_worker_failure_metric(
             or body.get("matchId")
             or body.get("tailoringId")
             or body.get("interviewPrepId")
-        or body.get("generationId")
             or "unknown"
         )
         request_id = str(

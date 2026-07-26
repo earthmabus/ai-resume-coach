@@ -18,7 +18,7 @@ def test_disabled_action_tooltips_are_not_clipped_or_centered_offscreen():
 
 
 def test_dashboard_has_four_stats_without_completed_matches():
-    index = (ROOT / "frontend" / "index.html").read_text()
+    index = (ROOT / "frontend" / "dashboard.html").read_text()
     dashboard = (ROOT / "frontend" / "dashboard.js").read_text()
     styles = (ROOT / "frontend" / "styles.css").read_text()
     assert "Completed Matches" not in index

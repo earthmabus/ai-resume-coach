@@ -54,5 +54,5 @@ def test_target_career_cards_hide_environment_and_use_last_updated_label():
 def test_target_career_assets_are_cache_busted_for_refinement():
     html = (ROOT / "frontend" / "target-career.html").read_text()
 
-    assert "./styles.css?v=9" in html
+    assert "./styles.css?v=26" in html
     assert "./target-career.js?v=8" in html

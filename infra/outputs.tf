@@ -269,6 +269,7 @@ output "observability" {
         "API_AVAILABILITY",
         "API_LATENCY",
         "LAMBDA_ERRORS",
+        "LAMBDA_THROTTLES",
         "QUEUE_AGE",
         "QUEUE_DEPTH",
         "DLQ",
@@ -298,6 +299,12 @@ output "observability" {
       health_paths            = ["/health", "/health/live", "/health/ready"]
       artifact_retention_days = var.synthetic_artifact_retention_days
 
+      canaries = var.enable_synthetic_monitoring ? {
+        global = aws_synthetics_canary.global[0].name
+        east   = aws_synthetics_canary.east[0].name
+        west   = aws_synthetics_canary.west[0].name
+      } : {}
+
       regional_canaries = var.enable_synthetic_monitoring ? {
         east = aws_synthetics_canary.east[0].name
         west = aws_synthetics_canary.west[0].name
@@ -307,6 +314,43 @@ output "observability" {
     log_groups = {
       east = module.east.observability.log_groups
       west = module.west.observability.log_groups
+    }
+  }
+}
+
+output "production_observability" {
+  description = "MS-023 production-observability activation and validation contract."
+
+  value = {
+    enabled = (
+      var.enable_observability_dashboard
+      && var.enable_operational_alarms
+      && var.enable_synthetic_monitoring
+    )
+    mode                     = "DASHBOARD_ALARMS_AND_SYNTHETICS"
+    dashboard_enabled        = var.enable_observability_dashboard
+    operational_alarms       = var.enable_operational_alarms
+    synthetic_monitoring     = var.enable_synthetic_monitoring
+    active_tracing           = var.enable_active_tracing
+    notification_actions_set = length(var.observability_alarm_actions) > 0
+    monitored_endpoints      = ["global", "east", "west"]
+    health_paths             = ["/health", "/health/live", "/health/ready"]
+    alarm_categories = [
+      "API_AVAILABILITY",
+      "API_LATENCY",
+      "LAMBDA_ERRORS",
+      "LAMBDA_THROTTLES",
+      "QUEUE_AGE",
+      "QUEUE_DEPTH",
+      "DLQ",
+      "DYNAMODB_THROTTLING",
+      "WORKER_RECORD_FAILURES",
+      "OUTBOX_PUBLISH_FAILURES",
+    ]
+    cost_boundary = {
+      dashboard_count = var.enable_observability_dashboard ? 1 : 0
+      canary_count    = var.enable_synthetic_monitoring ? 3 : 0
+      alarm_count     = length(local.regional_alarm_names)
     }
   }
 }
@@ -351,5 +395,108 @@ output "operations" {
       routing        = "disable-affected-site-route53-record"
       data           = "compensating-action-not-infrastructure-rollback"
     }
+  }
+}
+
+
+output "cognito_recovery" {
+  description = "Warm-standby Cognito recovery contract. Passwords and active sessions are not replicated, so this is controlled recovery rather than seamless multi-Region identity."
+
+  value = {
+    enabled = var.enable_cognito_recovery
+    mode    = "WARM_STANDBY_RESET_REQUIRED"
+
+    primary = {
+      region       = local.sites.east.region
+      user_pool_id = module.shared_foundation.identity.user_pool_id
+      client_id    = module.shared_foundation.identity.client_id
+      issuer       = module.shared_foundation.identity.issuer
+    }
+
+    standby = var.enable_cognito_recovery ? {
+      region       = local.sites.west.region
+      user_pool_id = aws_cognito_user_pool.recovery[0].id
+      client_id    = aws_cognito_user_pool_client.recovery_web[0].id
+      domain       = aws_cognito_user_pool_domain.recovery[0].domain
+      issuer       = "https://cognito-idp.${local.sites.west.region}.amazonaws.com/${aws_cognito_user_pool.recovery[0].id}"
+    } : null
+
+    password_continuity = false
+    session_continuity  = false
+    automated_failover  = false
+    recovery_action     = "IMPORT_USER_ATTRIBUTES_AND_REQUIRE_PASSWORD_RESET"
+  }
+}
+
+output "document_replication" {
+  description = "Bidirectional regional document-replication contract."
+
+  value = {
+    enabled           = var.enable_document_replication
+    mode              = "BIDIRECTIONAL_CRR"
+    replication_scope = "NEW_OBJECT_VERSIONS_AND_DELETE_MARKERS"
+    existing_objects  = false
+    replication_time  = "BEST_EFFORT"
+    rtc_enabled       = false
+    ownership_model   = "BUCKET_OWNER_ENFORCED"
+    encryption        = "SSE_S3_AES256"
+    east = {
+      region             = local.sites.east.region
+      bucket_name        = module.east.document_bucket.name
+      destination_region = local.sites.west.region
+      status             = var.enable_document_replication ? "ENABLED" : "DISABLED"
+    }
+    west = {
+      region             = local.sites.west.region
+      bucket_name        = module.west.document_bucket.name
+      destination_region = local.sites.east.region
+      status             = var.enable_document_replication ? "ENABLED" : "DISABLED"
+    }
+  }
+}
+
+output "processing_ownership" {
+  description = "Deterministic regional processing-ownership and failover contract."
+
+  value = {
+    mode                       = "PERSISTED_OWNER_REGION"
+    authoritative_field        = "ownerRegion"
+    worker_enforcement         = "FAIL_CLOSED"
+    message_owner_required_new = true
+    legacy_local_compatibility = true
+    automatic_reassignment     = false
+    cross_region_queue_drain   = false
+    transfer_model             = "CONTROLLED_PERSISTED_OWNER_UPDATE_AND_REDISPATCH"
+    split_brain_protection = [
+      "persisted-owner-validation",
+      "message-owner-validation",
+      "conditional-owner-claim",
+      "idempotent-workflow-state",
+    ]
+    active_regions = [
+      local.sites.east.region,
+      local.sites.west.region,
+    ]
+  }
+}
+
+output "disaster_recovery_validation" {
+  description = "MS-022 repeatable disaster-recovery validation contract and its deliberate boundaries."
+
+  value = {
+    enabled                             = true
+    mode                                = "CONTROL_PLANE_AND_BOUNDED_DATA_PATH"
+    evidence_format                     = "JSON_AND_TEXT"
+    regional_health_validation          = true
+    global_health_validation            = true
+    worker_control_plane_validation     = true
+    queue_control_plane_validation      = true
+    document_sentinel_bidirectional     = true
+    actual_outage_injection             = false
+    route53_mutation                    = false
+    identity_failover_exercised         = false
+    processing_owner_transfer_exercised = false
+    cross_region_queue_drain_exercised  = false
+    destructive_game_day                = false
   }
 }

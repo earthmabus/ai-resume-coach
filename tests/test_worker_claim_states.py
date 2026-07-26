@@ -151,6 +151,7 @@ def test_queued_claim_uses_conditional_status_and_version_guard(monkeypatch):
     assert update["ExpressionAttributeNames"] == {
         "#status": "status",
         "#version": "version",
+        "#ownerRegion": "ownerRegion",
     }
 
 
@@ -358,3 +359,59 @@ def test_claim_error_reports_job_type_and_authorized_statuses(monkeypatch):
     assert "jobType='resumeAnalysis'" in message
     assert "claimableStatuses=" in message
     assert "QUEUED" in message
+
+
+def test_claim_rejects_worker_outside_persisted_owner_region(monkeypatch):
+    owned = item(worker.STATUS_QUEUED, ownerRegion="us-east-1")
+    table = MagicMock()
+    table.get_item.return_value = {"Item": owned}
+    monkeypatch.setattr(worker, "table", table)
+
+    with pytest.raises(RuntimeError, match="not the authoritative owner"):
+        worker.claim_job(
+            IDENTITY,
+            message_owner_region="us-east-1",
+            current_region="us-west-2",
+        )
+
+    table.update_item.assert_not_called()
+
+
+def test_claim_rejects_message_and_persisted_owner_conflict(monkeypatch):
+    owned = item(worker.STATUS_QUEUED, ownerRegion="us-east-1")
+    table = MagicMock()
+    table.get_item.return_value = {"Item": owned}
+    monkeypatch.setattr(worker, "table", table)
+
+    with pytest.raises(RuntimeError, match="conflicts with persisted"):
+        worker.claim_job(
+            IDENTITY,
+            message_owner_region="us-west-2",
+            current_region="us-west-2",
+        )
+
+    table.update_item.assert_not_called()
+
+
+def test_claim_condition_guards_persisted_owner_against_transfer_race(monkeypatch):
+    owned = item(worker.STATUS_QUEUED, ownerRegion="us-east-1")
+    table = MagicMock()
+    table.get_item.return_value = {"Item": owned}
+    table.update_item.return_value = {
+        "Attributes": {
+            **owned,
+            "status": worker.STATUS_WORKER_PROCESSING,
+            "version": 8,
+        }
+    }
+    configure_deterministic_claim(monkeypatch, table)
+
+    worker.claim_job(
+        IDENTITY,
+        message_owner_region="us-east-1",
+        current_region="us-east-1",
+    )
+
+    update = table.update_item.call_args.kwargs
+    assert "#ownerRegion = :expectedOwnerRegion" in update["ConditionExpression"]
+    assert update["ExpressionAttributeValues"][":expectedOwnerRegion"] == "us-east-1"

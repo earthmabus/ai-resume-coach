@@ -32,7 +32,7 @@ def test_history_stacks_resume_below_target_career_and_moves_preview_up():
 
 
 def test_dashboard_quick_stats_include_target_careers():
-    html = (ROOT / "frontend" / "index.html").read_text()
+    html = (ROOT / "frontend" / "dashboard.html").read_text()
     script = (ROOT / "frontend" / "dashboard.js").read_text()
     styles = (ROOT / "frontend" / "styles.css").read_text()
 

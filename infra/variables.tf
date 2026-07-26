@@ -628,7 +628,7 @@ variable "queue_depth_alarm_threshold" {
 }
 
 variable "enable_synthetic_monitoring" {
-  description = "Create one CloudWatch Synthetics health canary in each active Region."
+  description = "Create CloudWatch Synthetics health canaries for the global endpoint and each active Region."
   type        = bool
   default     = false
 }
@@ -665,4 +665,23 @@ variable "synthetic_timeout_seconds" {
     condition     = var.synthetic_timeout_seconds >= 3 && var.synthetic_timeout_seconds <= 900
     error_message = "synthetic_timeout_seconds must be between 3 and 900."
   }
+}
+
+
+variable "enable_cognito_recovery" {
+  description = "Provision a warm-standby Cognito user pool in us-west-2 for controlled identity recovery. This does not provide password replication or automatic failover."
+  type        = bool
+  default     = false
+}
+
+variable "cognito_recovery_domain_prefix" {
+  description = "Optional globally unique domain prefix for the warm-standby Cognito user pool. Empty uses a deterministic project/account recovery prefix."
+  type        = string
+  default     = ""
+}
+
+variable "enable_document_replication" {
+  description = "Enable bidirectional S3 Cross-Region Replication for regional document buckets."
+  type        = bool
+  default     = false
 }

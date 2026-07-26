@@ -1,0 +1,90 @@
+<!doctype html>
+<html lang="en">
+<head>
+  <meta charset="utf-8" />
+  <title>Dashboard | AI Resume Coach</title>
+  <meta name="viewport" content="width=device-width, initial-scale=1" />
+  <link rel="stylesheet" href="./styles.css?v=26" />
+</head>
+<body data-page="dashboard">
+  <nav class="top-nav">
+    <a class="brand" href="./dashboard.html"><span class="brand-mark">ARC</span><span>AI Resume Coach</span></a>
+    <div class="nav-links">
+      <a href="./target-career.html">Target Careers</a>
+      <a href="./resume-analysis.html">Resume Analysis</a>
+      <a href="./job-matching.html">Job Matching</a>
+      <a class="disabled" href="#">Notifications</a>
+      <a href="./profile.html">Profile</a>
+      <button class="nav-button" onclick="signOut()">Logout</button>
+    </div>
+  </nav>
+
+  <main class="container">
+    <section class="hero">
+      <h1>Welcome to AI Resume Coach</h1>
+      <p>Analyze resumes, match them against jobs, generate tailored resume guidance, and prepare for interviews.</p>
+    </section>
+
+    <section class="dashboard-grid">
+      <a class="card nav-card dashboard-action-card" href="./target-career.html">
+        <h2>Target Careers</h2>
+        <p>Define the role, industry, responsibilities, and requirements you want your resume evaluated against.</p>
+        <span class="card-action">Open Target Career →</span>
+      </a>
+
+      <a class="card nav-card dashboard-action-card" href="./resume-analysis.html">
+        <h2>Resume Analysis</h2>
+        <p>Upload a PDF or paste resume text, then get AI-powered scoring, gaps, strengths, and recommendations.</p>
+        <span class="card-action">Open Resume Analysis →</span>
+      </a>
+
+      <a class="card nav-card dashboard-action-card" href="./job-matching.html">
+        <h2>Job Matching</h2>
+        <p>Compare a saved resume against a job description, then receive match analysis, tailoring, and interview prep.</p>
+        <span class="card-action">Open Job Matching →</span>
+      </a>
+    </section>
+
+    <section class="card">
+      <div class="section-header">
+        <h2>Quick Stats</h2>
+        <button id="refreshDashboardButton">Refresh Dashboard</button>
+      </div>
+
+      <div id="dashboardStats" class="stats-grid">
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Target Careers</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Resumes</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Job Matches</span>
+        </div>
+        <div class="stat-card">
+          <span class="stat-value">--</span>
+          <span class="stat-label">Processing</span>
+        </div>
+      </div>
+    </section>
+
+    <section class="card">
+      <h2>Recent Activity - Resume Analysis</h2>
+      <div id="recentResumeActivity" class="recent-activity">Loading recent activity...</div>
+    </section>
+
+    <section class="card">
+      <h2>Recent Activity - Job Matching</h2>
+      <div id="recentJobActivity" class="recent-activity">Loading recent activity...</div>
+    </section>
+  </main>
+
+  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
+  <script src="./config.js?v=3"></script>
+  <script src="./auth.js?v=3"></script>
+  <script src="./dashboard.js?v=6"></script>
+</body>
+</html>

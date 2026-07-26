@@ -2,89 +2,65 @@
 <html lang="en">
 <head>
   <meta charset="utf-8" />
-  <title>AI Resume Coach</title>
+  <title>AI Resume Coach | Build career momentum</title>
   <meta name="viewport" content="width=device-width, initial-scale=1" />
-  <link rel="stylesheet" href="./styles.css?v=23" />
+  <meta name="description" content="AI-powered resume analysis, job matching, tailored guidance, and interview preparation." />
+  <link rel="stylesheet" href="./styles.css?v=26" />
 </head>
-<body data-page="home">
-  <nav class="top-nav">
-    <a class="brand" href="./index.html">AI Resume Coach</a>
-    <div class="nav-links">
-      <a href="./target-career.html">Target Careers</a>
-      <a href="./resume-analysis.html">Resume Analysis</a>
-      <a href="./job-matching.html">Job Matching</a>
-      <a class="disabled" href="#">Notifications</a>
-      <a href="./profile.html">Profile</a>
-      <button class="nav-button" onclick="signOut()">Logout</button>
-    </div>
+<body class="landing-page">
+  <nav class="landing-nav">
+    <a class="landing-brand" href="./index.html"><span class="brand-mark">ARC</span><span>AI Resume Coach</span></a>
+    <div class="landing-links"><a href="#purpose">Purpose</a><a href="#journey">How it works</a><a href="./login.html">Sign in</a><a class="landing-register" href="./signup.html">Get started</a></div>
   </nav>
-
-  <main class="container">
-    <section class="hero">
-      <h1>Welcome to AI Resume Coach</h1>
-      <p>Analyze resumes, match them against jobs, generate tailored resume guidance, and prepare for interviews.</p>
-    </section>
-
-    <section class="dashboard-grid">
-      <a class="card nav-card dashboard-action-card" href="./target-career.html">
-        <h2>Target Careers</h2>
-        <p>Define the role, industry, responsibilities, and requirements you want your resume evaluated against.</p>
-        <span class="card-action">Open Target Career →</span>
-      </a>
-
-      <a class="card nav-card dashboard-action-card" href="./resume-analysis.html">
-        <h2>Resume Analysis</h2>
-        <p>Upload a PDF or paste resume text, then get AI-powered scoring, gaps, strengths, and recommendations.</p>
-        <span class="card-action">Open Resume Analysis →</span>
-      </a>
-
-      <a class="card nav-card dashboard-action-card" href="./job-matching.html">
-        <h2>Job Matching</h2>
-        <p>Compare a saved resume against a job description, then receive match analysis, tailoring, and interview prep.</p>
-        <span class="card-action">Open Job Matching →</span>
-      </a>
-    </section>
-
-    <section class="card">
-      <div class="section-header">
-        <h2>Quick Stats</h2>
-        <button id="refreshDashboardButton">Refresh Dashboard</button>
+  <main>
+    <section class="landing-hero">
+      <div class="landing-copy">
+        <span class="eyebrow">AI-powered career coaching</span>
+        <h1>Build momentum for<br><span>your next move.</span></h1>
+        <p>Turn your experience into a focused career story. Analyze your resume, discover the right opportunities, and prepare to interview with confidence.</p>
+        <div class="landing-actions"><a class="cta-primary" href="./signup.html">Start building momentum</a><a class="cta-secondary" href="./login.html">Sign in</a></div>
+        <div class="trust-row"><span>Resume intelligence</span><span>Targeted job matching</span><span>Personalized interview prep</span></div>
       </div>
-
-      <div id="dashboardStats" class="stats-grid">
-        <div class="stat-card">
-          <span class="stat-value">--</span>
-          <span class="stat-label">Target Careers</span>
+      <div class="career-visual hero-rotator" data-hero-rotator aria-label="Career momentum illustrations">
+        <div class="hero-scene hero-scene-rocket is-active" data-hero-scene aria-hidden="false">
+          <div class="rocket-stars" aria-hidden="true"></div>
+          <div class="rocket-glow" aria-hidden="true"></div>
+          <div class="momentum-rocket" aria-hidden="true">
+            <span class="rocket-nose"></span>
+            <span class="rocket-window"></span>
+            <span class="rocket-body"></span>
+            <span class="rocket-fin rocket-fin-left"></span>
+            <span class="rocket-fin rocket-fin-right"></span>
+            <span class="rocket-flame rocket-flame-outer"></span>
+            <span class="rocket-flame rocket-flame-inner"></span>
+          </div>
+          <div class="rocket-cloud cloud-one" aria-hidden="true"></div>
+          <div class="rocket-cloud cloud-two" aria-hidden="true"></div>
+          <div class="rocket-cloud cloud-three" aria-hidden="true"></div>
         </div>
-        <div class="stat-card">
-          <span class="stat-value">--</span>
-          <span class="stat-label">Resumes</span>
+        <div class="hero-scene hero-scene-results" data-hero-scene aria-hidden="true">
+          <div class="orbit orbit-one"></div><div class="orbit orbit-two"></div>
+          <div class="career-card card-back"><span>84</span><small>Role alignment</small></div>
+          <div class="career-card card-front"><b>Director of Engineering</b><div class="mini-line"></div><div class="mini-line short"></div><span class="match-pill">94% match</span></div>
+          <div class="launch-icon">↗</div>
         </div>
-        <div class="stat-card">
-          <span class="stat-value">--</span>
-          <span class="stat-label">Job Matches</span>
+        <div class="hero-visual-caption" aria-live="polite">
+          <span class="hero-caption-kicker" data-hero-caption-kicker>Launch your strategy</span>
+          <strong data-hero-caption>Turn career direction into forward motion.</strong>
         </div>
-        <div class="stat-card">
-          <span class="stat-value">--</span>
-          <span class="stat-label">Processing</span>
+        <div class="hero-visual-controls" role="group" aria-label="Choose hero illustration">
+          <button class="hero-visual-dot is-active" type="button" data-hero-dot="0" aria-label="Show career launch illustration" aria-pressed="true"></button>
+          <button class="hero-visual-dot" type="button" data-hero-dot="1" aria-label="Show resume match illustration" aria-pressed="false"></button>
         </div>
       </div>
     </section>
-
-    <section class="card">
-      <h2>Recent Activity - Resume Analysis</h2>
-      <div id="recentResumeActivity" class="recent-activity">Loading recent activity...</div>
+    <section id="purpose" class="landing-purpose">
+      <div><span class="section-kicker">Our purpose</span><h2>Make professional growth feel actionable.</h2></div>
+      <div class="purpose-grid"><article><span>01</span><h3>Clarify your direction</h3><p>Define the roles, industries, and leadership scope you want to pursue.</p></article><article><span>02</span><h3>Strengthen your story</h3><p>Receive practical, evidence-aware guidance without inventing experience.</p></article><article><span>03</span><h3>Move with confidence</h3><p>Match opportunities, tailor your positioning, and prepare for interviews.</p></article></div>
     </section>
-
-    <section class="card">
-      <h2>Recent Activity - Job Matching</h2>
-      <div id="recentJobActivity" class="recent-activity">Loading recent activity...</div>
-    </section>
+    <section id="journey" class="landing-journey"><span class="section-kicker">Your journey</span><h2>One intelligent workspace. Every step forward.</h2><div class="journey-strip"><div>Target Careers</div><div>Resume Analysis</div><div>Job Matching</div><div>Interview Preparation</div></div></section>
   </main>
-
-  <script src="https://cdn.jsdelivr.net/npm/amazon-cognito-identity-js@6.3.15/dist/amazon-cognito-identity.min.js"></script>
-  <script src="./config.js?v=3"></script>
-  <script src="./auth.js?v=3"></script>
-  <script src="./dashboard.js?v=6"></script>
+  <footer class="landing-footer"><span>AI Resume Coach</span><span>Career intelligence built around your evidence.</span></footer>
+  <script src="./landing.js?v=1"></script>
 </body>
 </html>

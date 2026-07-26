@@ -156,6 +156,7 @@ resource "aws_cloudwatch_dashboard" "platform_operations" {
           region = local.sites.east.region
           period = 300
           metrics = var.enable_synthetic_monitoring ? [
+            ["CloudWatchSynthetics", "SuccessPercent", "CanaryName", aws_synthetics_canary.global[0].name, { label = "Global health" }],
             ["CloudWatchSynthetics", "SuccessPercent", "CanaryName", aws_synthetics_canary.east[0].name, { label = "East health" }],
             ["CloudWatchSynthetics", "SuccessPercent", "CanaryName", aws_synthetics_canary.west[0].name, { label = "West health", region = local.sites.west.region }],
           ] : []
@@ -671,3 +672,39 @@ resource "aws_synthetics_canary" "west" {
     Capability = "synthetic-monitoring"
   })
 }
+
+resource "aws_synthetics_canary" "global" {
+  count    = var.enable_synthetic_monitoring ? 1 : 0
+  provider = aws.us_east_1
+
+  name                 = substr("${local.global_name_prefix}-global-health", 0, 21)
+  artifact_s3_location = "s3://${aws_s3_bucket.synthetic_artifacts_east[0].bucket}/global/"
+  execution_role_arn   = aws_iam_role.synthetic_east[0].arn
+  handler              = "health.handler"
+  runtime_version      = var.synthetic_runtime_version
+  zip_file             = data.archive_file.synthetic_health_zip.output_path
+
+  schedule {
+    expression = var.synthetic_schedule_expression
+  }
+
+  run_config {
+    timeout_in_seconds = var.synthetic_timeout_seconds
+
+    environment_variables = {
+      API_ENDPOINT = "https://${var.api_domain_name}"
+      SITE         = "global"
+    }
+  }
+
+  tags = merge(local.common_tags, {
+    Scope      = "global"
+    Site       = "global"
+    Capability = "synthetic-monitoring"
+  })
+
+  depends_on = [
+    module.global_edge,
+  ]
+}
+

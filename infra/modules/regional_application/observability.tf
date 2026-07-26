@@ -99,6 +99,35 @@ resource "aws_cloudwatch_metric_alarm" "lambda_errors" {
   tags = local.alarm_tags
 }
 
+
+resource "aws_cloudwatch_metric_alarm" "lambda_throttles" {
+  for_each = var.observability.operational_alarms_enabled ? local.lambda_functions : {}
+
+  alarm_name        = "${local.name_prefix}-${replace(each.key, "_", "-")}-throttles"
+  alarm_description = "The ${replace(each.key, "_", " ")} Lambda reported one or more throttled invocations."
+
+  namespace   = "AWS/Lambda"
+  metric_name = "Throttles"
+  statistic   = "Sum"
+  period      = 300
+
+  evaluation_periods  = 1
+  datapoints_to_alarm = 1
+
+  comparison_operator = "GreaterThanOrEqualToThreshold"
+  threshold           = 1
+  treat_missing_data  = "notBreaching"
+
+  dimensions = {
+    FunctionName = each.value
+  }
+
+  alarm_actions = var.observability.alarm_actions
+  ok_actions    = var.observability.alarm_actions
+
+  tags = local.alarm_tags
+}
+
 resource "aws_cloudwatch_metric_alarm" "processing_queue_age" {
   count = var.observability.operational_alarms_enabled ? 1 : 0
 

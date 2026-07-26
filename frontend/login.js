@@ -58,7 +58,7 @@ async function signIn() {
 
   try {
     await signInUser(email, password);
-    window.location.href = "./index.html";
+    window.location.href = "./dashboard.html";
   } catch (error) {
     showAuthError(error.message || "Unable to sign in. Check your email and password.");
   } finally {
