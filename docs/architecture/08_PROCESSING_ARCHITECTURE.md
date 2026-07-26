@@ -1,5 +1,11 @@
 # Processing Architecture
 
+> **Status:** Canonical
+> **Audience:** Developers, architects, operators
+> **Purpose:** Define asynchronous ownership, transport, retries, and workflow correctness
+> **Owner:** Application and Platform Engineering
+> **Related documents:** [Request lifecycle](06_REQUEST_LIFECYCLE.md), [data architecture](07_DATA_ARCHITECTURE.md), [queue operations](../operations/runbooks/QUEUE_AND_DLQ.md)
+
 Shared processing queue, worker model, retries, DLQ, and rationale.
 
 ## Owner Region Metadata

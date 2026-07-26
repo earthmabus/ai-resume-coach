@@ -1,5 +1,11 @@
 # Observability
 
+> **Status:** Canonical
+> **Audience:** Developers, operators, incident responders
+> **Purpose:** Define health, logs, metrics, alarms, synthetics, and traceability
+> **Owner:** Platform Engineering and Operations
+> **Related documents:** [Monitoring portal](../operations/monitoring/README.md), [production observability](platform-resilience/MS-023_PRODUCTION_OBSERVABILITY.md), [incident evidence](../operations/platform-v2/INCIDENT_EVIDENCE_COLLECTION_RUNBOOK.md)
+
 Metrics, logs, tracing, dashboards, alarms, and health checks.
 
 ## Correlation Fields

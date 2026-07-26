@@ -1,5 +1,24 @@
 # Multi-Site Architecture Diagram Portfolio
 
+> **Status:** Canonical publication home
+> **Audience:** Engineering leaders, architects, operators, incident responders
+> **Purpose:** Organize the active-active and disaster-recovery body of work by enduring concept
+> **Owner:** Platform Engineering and Operations
+> **Related documents:** [Canonical disaster recovery](../architecture/09_DISASTER_RECOVERY.md), [operations portal](../operations/README.md), [certification](../certification/README.md)
+
+This directory is the primary publication home for the multi-site active-active and disaster-recovery program. Concept pages explain the current design; milestone records remain at their established paths for traceability; formal certification remains under `docs/certification/`.
+
+## Read by concept
+
+- [Topology and global routing](architecture/TOPOLOGY_AND_ROUTING.md)
+- [Identity recovery](architecture/IDENTITY_RECOVERY.md)
+- [Data consistency and document continuity](architecture/DATA_CONSISTENCY.md)
+- [Processing ownership](architecture/PROCESSING_OWNERSHIP.md)
+- [Regional isolation and recovery](operations/REGIONAL_RECOVERY.md)
+- [Validation and controlled exercises](validation/README.md)
+- [Readiness and certification](certification/README.md)
+- [Diagram catalog](diagrams/README.md)
+
 This directory contains the final Director-level diagram set for the implemented and runtime-certified AI Resume Coach multi-site active-active architecture.
 
 Each diagram is available as:
@@ -19,6 +38,8 @@ Each diagram is available as:
 7. **Architecture evolution timeline** — the progression from the original single-region MVP to MR-016 final acceptance.
 
 ## Authoritative architecture basis
+
+The posters are explanatory assets, not executable contracts. Architecture claims are governed by the numbered architecture publications, Terraform contracts, application tests, supported operational tooling, and formal certification records.
 
 The diagrams reflect:
 

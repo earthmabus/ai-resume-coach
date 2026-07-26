@@ -1,6 +1,14 @@
 # Operational Runbook
 
+> **Status:** Canonical
+> **Audience:** Operators and incident responders
+> **Purpose:** Provide architecture-level diagnostic and recovery guidance
+> **Owner:** Operations
+> **Related documents:** [Operations portal](../operations/README.md), [incident response](../operations/incident-response/README.md), [multi-site operations runbook](../operations/platform-v2/MULTI_SITE_OPERATIONS_RUNBOOK.md)
+
 Operational procedures, validation, incidents, and recovery.
+
+Use this document to interpret architecture signals. Use the linked procedural runbooks for mutating actions during a deployment or incident.
 
 ## Regional Health Checks
 

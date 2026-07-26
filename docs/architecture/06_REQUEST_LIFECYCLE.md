@@ -1,5 +1,11 @@
 # Request Lifecycle
 
+> **Status:** Canonical
+> **Audience:** Developers, architects, operators
+> **Purpose:** Trace authenticated requests into durable synchronous or asynchronous outcomes
+> **Owner:** Application and Platform Engineering
+> **Related documents:** [Processing architecture](08_PROCESSING_ARCHITECTURE.md), [data architecture](07_DATA_ARCHITECTURE.md), [request correlation decision](decisions/MS-007_CORRELATION_AND_TRACEABILITY.md)
+
 End-to-end request flow from browser to completed analysis.
 
 ## Correlation
