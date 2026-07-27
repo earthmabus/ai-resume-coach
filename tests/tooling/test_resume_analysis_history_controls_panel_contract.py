@@ -22,5 +22,5 @@ def test_history_tags_and_actions_are_grouped_under_target_career():
 
 def test_history_asset_versions_are_bumped():
     html = (ROOT / "frontend" / "resume-analysis.html").read_text()
-    assert './styles.css?v=26' in html
-    assert './app.js?v=24' in html
+    assert './styles.css?v=31' in html
+    assert './app.js?v=26' in html
