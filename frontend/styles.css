@@ -2499,3 +2499,176 @@ input:focus, select:focus, textarea:focus { outline:3px solid rgba(240,90,25,.14
   margin: 0;
   align-self: stretch;
 }
+
+/* Resume analysis result header: contain context and metrics in one right column.
+   Let the score panel derive its width from the row height so it remains square. */
+.analysis-result-header-grid {
+  grid-template-columns: auto minmax(0, 1fr);
+  grid-template-areas: none;
+  gap: 14px;
+  align-items: stretch;
+}
+
+.analysis-result-header-grid > .analysis-score-panel {
+  grid-area: auto;
+  width: auto;
+  height: 100%;
+  min-height: 0;
+  aspect-ratio: 1 / 1;
+  align-self: stretch;
+  grid-template-rows: auto minmax(0, 1fr);
+  overflow: hidden;
+}
+
+.analysis-result-context {
+  display: grid;
+  min-width: 0;
+  align-content: start;
+  gap: 8px;
+}
+
+.analysis-result-header-grid .analysis-context-panels,
+.analysis-result-header-grid .analysis-result-metrics {
+  grid-area: auto;
+  min-width: 0;
+}
+
+.analysis-result-header-grid .analysis-result-metrics {
+  margin: 0;
+}
+
+@media (max-width: 700px) {
+  .analysis-result-header-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .analysis-result-header-grid > .analysis-score-panel {
+    width: 176px;
+    height: 176px;
+    min-height: 0;
+    aspect-ratio: 1 / 1;
+    justify-self: start;
+  }
+}
+
+/* Resume analysis result header containment fix.
+   Keep the ATS panel square without allowing its intrinsic aspect ratio to
+   enlarge the grid column into the context column. */
+.analysis-result-header-grid {
+  grid-template-columns: 176px minmax(0, 1fr);
+  align-items: start;
+}
+
+.analysis-result-header-grid > .analysis-score-panel {
+  width: 176px;
+  height: 176px;
+  min-width: 176px;
+  min-height: 176px;
+  max-width: 176px;
+  max-height: 176px;
+  aspect-ratio: 1 / 1;
+  align-self: start;
+  justify-self: start;
+  overflow: hidden;
+}
+
+.analysis-result-header-grid > .analysis-result-context {
+  min-width: 0;
+  width: 100%;
+  overflow: hidden;
+}
+
+.analysis-result-header-grid .analysis-context-panels,
+.analysis-result-header-grid .analysis-context-panel,
+.analysis-result-header-grid .analysis-result-metrics {
+  min-width: 0;
+  max-width: 100%;
+  width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-result-header-grid .analysis-result-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  overflow: visible;
+}
+
+@media (max-width: 700px) {
+  .analysis-result-header-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+}
+
+
+/* Resume analysis result header: the ATS panel is a square whose side equals
+   the rendered height of the Target Career, Resume, and metadata column.
+   JavaScript sets --analysis-score-panel-size from that column's measured
+   height. Explicit grid tracks keep both columns physically separate. */
+.analysis-result-header-grid {
+  --analysis-score-panel-size: 176px;
+  display: grid;
+  grid-template-columns: var(--analysis-score-panel-size) minmax(0, 1fr);
+  grid-template-areas: none;
+  align-items: start;
+  gap: 14px;
+  margin-bottom: 18px;
+}
+
+.analysis-result-header-grid > .analysis-score-panel {
+  grid-area: auto;
+  width: var(--analysis-score-panel-size);
+  height: var(--analysis-score-panel-size);
+  min-width: var(--analysis-score-panel-size);
+  min-height: var(--analysis-score-panel-size);
+  max-width: var(--analysis-score-panel-size);
+  max-height: var(--analysis-score-panel-size);
+  aspect-ratio: 1 / 1;
+  align-self: start;
+  justify-self: start;
+  box-sizing: border-box;
+  overflow: hidden;
+}
+
+.analysis-result-header-grid > .analysis-result-context {
+  display: grid;
+  grid-template-columns: minmax(0, 1fr);
+  align-content: start;
+  gap: 8px;
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  overflow: hidden;
+  box-sizing: border-box;
+}
+
+.analysis-result-header-grid .analysis-context-panels,
+.analysis-result-header-grid .analysis-context-panel,
+.analysis-result-header-grid .analysis-result-metrics {
+  min-width: 0;
+  width: 100%;
+  max-width: 100%;
+  box-sizing: border-box;
+}
+
+.analysis-result-header-grid .analysis-result-metrics {
+  display: flex;
+  flex-wrap: wrap;
+  align-content: flex-start;
+  margin: 0;
+  overflow: visible;
+}
+
+@media (max-width: 700px) {
+  .analysis-result-header-grid {
+    grid-template-columns: minmax(0, 1fr);
+  }
+
+  .analysis-result-header-grid > .analysis-score-panel {
+    width: 176px;
+    height: 176px;
+    min-width: 176px;
+    min-height: 176px;
+    max-width: 176px;
+    max-height: 176px;
+  }
+}

@@ -13,6 +13,8 @@ const uploadButtonTooltip = document.getElementById("uploadButtonTooltip");
 const refreshHistoryButton = document.getElementById("refreshHistoryButton");
 const deleteAllAnalysesButton = document.getElementById("deleteAllAnalysesButton");
 
+let analysisResultHeaderResizeObserver = null;
+
 const matchJobButton = document.getElementById("matchJobButton");
 const matchJobButtonTooltip = document.getElementById("matchJobButtonTooltip");
 const refreshJobMatchesButton = document.getElementById("refreshJobMatchesButton");
@@ -524,6 +526,45 @@ function atsScoreToneClass(score) {
   return "score-poor";
 }
 
+function synchronizeAnalysisResultHeader() {
+  analysisResultHeaderResizeObserver?.disconnect();
+  analysisResultHeaderResizeObserver = null;
+
+  const header = result?.querySelector(".analysis-result-header-grid");
+  const scorePanel = header?.querySelector(".analysis-score-panel");
+  const context = header?.querySelector(".analysis-result-context");
+
+  if (!header || !scorePanel || !context) {
+    return;
+  }
+
+  let frameId = 0;
+
+  const updateSize = () => {
+    window.cancelAnimationFrame(frameId);
+    frameId = window.requestAnimationFrame(() => {
+      if (window.matchMedia("(max-width: 700px)").matches) {
+        header.style.removeProperty("--analysis-score-panel-size");
+        return;
+      }
+
+      const contextHeight = Math.ceil(context.getBoundingClientRect().height);
+      if (contextHeight > 0) {
+        header.style.setProperty("--analysis-score-panel-size", `${contextHeight}px`);
+      }
+    });
+  };
+
+  updateSize();
+
+  if ("ResizeObserver" in window) {
+    analysisResultHeaderResizeObserver = new ResizeObserver(updateSize);
+    analysisResultHeaderResizeObserver.observe(context);
+  } else {
+    window.addEventListener("resize", updateSize, { once: true });
+  }
+}
+
 function renderAnalysis(data) {
   const status = normalizeWorkflowStatus(data.status);
 
@@ -559,15 +600,17 @@ function renderAnalysis(data) {
         <span class="analysis-context-label">ATS Score</span>
         <div class="score-circle ${atsScoreToneClass(score)}" aria-label="ATS score ${escapeHtml(score)}">${score}</div>
       </div>
-      ${analysisContextPanelMarkup(data, "vertical")}
-      <div class="metrics analysis-result-metrics">
-        <span class="metric">Created: ${escapeHtml(formatEastern(data.createdAt))}</span>
-        <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
-        <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
-        <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
-        <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
-        <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
-        <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+      <div class="analysis-result-context">
+        ${analysisContextPanelMarkup(data, "vertical")}
+        <div class="metrics analysis-result-metrics">
+          <span class="metric">Created: ${escapeHtml(formatEastern(data.createdAt))}</span>
+          <span class="metric">Model: ${escapeHtml(data.model || "N/A")}</span>
+          <span class="metric">Source: ${escapeHtml(data.sourceType || "text")}</span>
+          <span class="metric">Provider: ${escapeHtml(data.provider || "rule-based")}</span>
+          <span class="metric">Version: ${escapeHtml(data.analysisVersion || "unknown")}</span>
+          <span class="metric">Words: ${escapeHtml(data.wordCount || 0)}</span>
+          <span class="metric">Duration: ${escapeHtml(data.analysisDurationMs || 0)} ms</span>
+        </div>
       </div>
     </div>
 
@@ -610,6 +653,7 @@ function renderAnalysis(data) {
   `;
 
   hydrateResumePdfPreviews();
+  synchronizeAnalysisResultHeader();
 
   const heading = result.querySelector("h3");
   if (heading) {

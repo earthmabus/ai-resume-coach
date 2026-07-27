@@ -3,15 +3,23 @@ from pathlib import Path
 ROOT = Path(__file__).resolve().parents[2]
 
 
-def test_result_uses_equal_panel_grid_and_aligned_metrics():
+def test_result_uses_measured_square_panel_and_contained_context_column():
     script = (ROOT / "frontend" / "app.js").read_text()
     styles = (ROOT / "frontend" / "styles.css").read_text()
 
     assert "analysis-result-header-grid" in script
     assert "analysis-score-panel" in script
+    assert "analysis-result-context" in script
     assert "analysis-result-metrics" in script
-    assert "grid-template-columns: auto minmax(0, 1fr)" in styles
-    assert 'grid-template-areas:' in styles
+    assert "function synchronizeAnalysisResultHeader()" in script
+    assert "context.getBoundingClientRect().height" in script
+    assert 'header.style.setProperty("--analysis-score-panel-size"' in script
+    assert "synchronizeAnalysisResultHeader();" in script
+    assert "grid-template-columns: var(--analysis-score-panel-size) minmax(0, 1fr)" in styles
+    assert "width: var(--analysis-score-panel-size)" in styles
+    assert "height: var(--analysis-score-panel-size)" in styles
+    assert "aspect-ratio: 1 / 1" in styles
+    assert ".analysis-result-context" in styles
     assert '<h3>Target Career</h3>' not in script
     assert '<strong>Role:</strong>' not in script
     assert '<strong>Industry:</strong>' not in script
